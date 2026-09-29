@@ -1,0 +1,16 @@
+{
+  "name": "ai-text-adventure-rpg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "艾泽洛姆 · AI 文字冒险 RPG —— LLM 驱动的互动冒险游戏",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix frontend install",
+    "dev:server": "npm --prefix server run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "start": "npm --prefix server start"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
