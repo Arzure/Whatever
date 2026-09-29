@@ -34,6 +34,32 @@ const suggestions = computed(() => {
 });
 
 // ---------- 工具 ----------
+
+// 品质颜色（与后端 server/quality.js 保持一致）
+const QUALITY_COLORS = {
+  '普通': '#9aa7b4',
+  '优秀': '#4dabf7',
+  '稀有': '#b197fc',
+  '史诗': '#fcc419',
+  '传说': '#ff6b6b',
+};
+
+/**
+ * 解析装备/物品名，拆出类型、纯名称、品质。
+ * 格式：武器·短刃[稀有] / 防具·皮甲[普通] / 干粮 x2
+ */
+function parseItemName(raw) {
+  const s = String(raw || '').trim();
+  let type = 'item';
+  let rest = s;
+  if (rest.startsWith('武器·')) { type = 'weapon'; rest = rest.slice(3); }
+  else if (rest.startsWith('防具·')) { type = 'armor'; rest = rest.slice(3); }
+  const m = rest.match(/^(.*?)\[([^\]]+)\]$/);
+  const name = m ? m[1].trim() : rest.trim();
+  const quality = m ? m[2] : null;
+  return { type, name, quality, color: quality ? (QUALITY_COLORS[quality] || '#9aa7b4') : null };
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -125,7 +151,11 @@ async function pushAction(actionText) {
     player.value = result.player;
     inBattle.value = result.battle;
     lastEffects.value = result.effects || [];
-    history.value.push({ role: 'assistant', content: result.narrative, choices: result.choices || [] });
+    // 降级接续：AI 本次未按格式返回 JSON，后端已直接接续剧情，用游戏内语言给玩家一个简短过渡
+    const narrative = result.degraded
+      ? result.narrative + '\n\n—— 你的举动在艾泽洛姆掀起涟漪，命运之线悄然转动。'
+      : result.narrative;
+    history.value.push({ role: 'assistant', content: narrative, choices: result.choices || [] });
     gameOver.value = result.gameOver || player.value.hp <= 0;
   } catch (e) {
     // 后端出错时回滚刚才回显的玩家输入
@@ -216,7 +246,28 @@ watch(history, scrollToBottom, { deep: true });
       </div>
 
       <div class="stat gold">金币 <b>{{ player.gold }}</b></div>
-      <div class="stat equip">装备 <b>{{ player.equipped }}</b></div>
+
+      <!-- 武器 / 防具 槽（带品质颜色） -->
+      <div class="slot">
+        <span class="slot-label">武器</span>
+        <span
+          class="slot-value"
+          :style="player.weapon && parseItemName(player.weapon).color ? { color: parseItemName(player.weapon).color } : {}"
+        >
+          {{ player.weapon ? parseItemName(player.weapon).name : '徒手' }}
+          <em v-if="player.weapon && parseItemName(player.weapon).quality">[{{ parseItemName(player.weapon).quality }}]</em>
+        </span>
+      </div>
+      <div class="slot">
+        <span class="slot-label">防具</span>
+        <span
+          class="slot-value"
+          :style="player.armor && parseItemName(player.armor).color ? { color: parseItemName(player.armor).color } : {}"
+        >
+          {{ player.armor ? parseItemName(player.armor).name : '无' }}
+          <em v-if="player.armor && parseItemName(player.armor).quality">[{{ parseItemName(player.armor).quality }}]</em>
+        </span>
+      </div>
 
       <div class="inventory">
         <h3>背包</h3>
@@ -496,6 +547,31 @@ watch(history, scrollToBottom, { deep: true });
 .inventory {
   border-top: 1px solid var(--border);
   padding-top: 12px;
+}
+
+.slot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.slot-label {
+  color: var(--text-dim);
+}
+
+.slot-value {
+  font-weight: 600;
+}
+
+.slot-value em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .inventory h3 {

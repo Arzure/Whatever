@@ -20,6 +20,7 @@
 | 存档系统 | JSON 文件持久化，支持多存档、列表展示、断点续玩 |
 | 前端界面 | 暗色奇幻风 UI：开场页（新建/读档）、游戏页（对话流 + 状态面板 + 指令输入） |
 | 选项持久化 | AI 推荐选项随剧情一起存入存档，重进游戏不丢失 |
+| AI 输出可靠性 | 五层防护机制（参数调优 + 自动重试 + 降级兜底），实测 6/6 回合稳定（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
 
 ### 已修复的 Bug 🐛
 
@@ -28,10 +29,11 @@
 | 返回主界面显示"尚无存档" | `listSaves()` 被误声明为 `async`，返回 Promise 被序列化成 `{}` | 移除 `async` 关键字（见 [server/storage.js](server/storage.js)） |
 | 重进存档后 AI 推荐选项消失 | 历史记录只存 `content`，未存 `choices` | 选项随剧情一并持久化（见 [server/game.js](server/game.js)） |
 | npm audit 报 2 个漏洞 | vite 5.x 内嵌 esbuild 存在 dev-server 漏洞 | 升级 vite 5.4.21 → 6.4.3，audit 归零 |
+| AI 频繁返回无法解析的内容 | 模型不按协议输出 JSON（约 2/3 概率输出纯文本） | 五层防护：参数调优 + 自动重试 + 降级兜底（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
 
 ### 已知限制 ⚠️
 
-- AI 偶发不按约定输出 JSON（只返回纯文本），此时会提示"AI 处理失败，请重试"，存档会安全回滚不丢进度
+- AI 偶发仍可能输出纯文本，此时**自动降级接续剧情**（不再报错打断），该回合无推荐选项与数值变化
 - 单人游戏（暂不支持多人在线）
 - 数据为本地 JSON 文件，不适合多用户并发
 
@@ -93,15 +95,28 @@ Express 后端 :3001
 - 项目**不依赖任何 AI SDK**，使用 Node.js ≥18 内置的 `fetch` 直接请求 OpenAI 兼容的 `/chat/completions` 接口
 - 请求参数来自环境变量（`.env`）：`LLM_BASE_URL`（服务地址）、`LLM_API_KEY`（密钥）、`LLM_MODEL`（模型名）
 - 由于遵循 OpenAI 兼容协议，**只需改 `.env` 即可切换任意兼容服务**（OpenAI 官方、Sensenova、DeepSeek、国内中转等）
-- 请求细节：`temperature` 默认 0.8（剧情随机性）、`max_tokens` 默认 800（剧情上限），60 秒超时自动中断
 - 认证方式：标准 `Authorization: Bearer <API Key>` 请求头
+- 60 秒超时自动中断，防止模型响应卡死
+
+**当前请求参数（针对 sensenova 系列调优）：**
+
+| 参数 | 值 | 为什么 |
+|------|-----|--------|
+| `temperature` | 0.9 | 剧情随机性，创意写作偏高 |
+| `max_tokens` | 2048 | 官方推荐普通任务额度；**思考模式下思考与输出共享此配额**，设太小会截断输出 |
+| `reasoning_effort` | `"none"` | **关闭思考模式**（sensenova 思考默认开启，会抢占输出配额导致空内容） |
+| `response_format` | `{type: "json_object"}` | 结构化输出，要求返回合法 JSON |
 
 ```js
-// 核心调用（简化）
+// 核心调用（真实参数）
 await fetch(`${cfg.baseUrl}/chat/completions`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
-  body: JSON.stringify({ model, messages, temperature, max_tokens }),
+  body: JSON.stringify({
+    model, messages, temperature: 0.9, max_tokens: 2048,
+    reasoning_effort: 'none',
+    response_format: { type: 'json_object' },
+  }),
 });
 ```
 
@@ -119,9 +134,11 @@ await fetch(`${cfg.baseUrl}/chat/completions`, {
 
 这套提示词在**每回合都重新生成**，因为玩家状态和历史在持续变化。它是"游戏规则"和"AI 行为"之间的桥梁。
 
-#### 2.4.3 约束 AI 输出（server/game.js → parseActionJson + normalizeDelta）
+#### 2.4.3 约束 AI 输出（多层防护架构）
 
-**第一层约束：协议约束（提示词中强制）**
+AI 是"尽力遵守协议"的，不能指望它永远正确。本项目用**五层防护**确保游戏稳定：
+
+**第 1 层 · 协议约束（提示词中强制）**
 
 提示词明确要求 AI 只输出如下 JSON，不得输出其他文字：
 
@@ -136,15 +153,42 @@ await fetch(`${cfg.baseUrl}/chat/completions`, {
 
 并附带数值规则：hp 幅度 5~40、gold 幅度 1~50、exp 幅度 10~30、未发生的事填 0 或空数组、死亡时 delta.hp 恰好归零等。
 
-**第二层约束：解析约束（代码强校验）**
+**第 2 层 · 参数约束（请求级）**
 
-AI 的输出并不可信，代码层做三道关卡：
+请求携带 `response_format: { type: "json_object" }` 从接口层要求 JSON 输出。**注意**：这是"软约束"——实测部分模型（如 sensenova-6.8-flash-lite）仅约 1/3 概率真正生效，因此还需要后续层兜底。
 
-1. **容错解析**（`parseActionJson`）：兼容 AI 把 JSON 包在 markdown 代码块里的情况，自动提取 `{...}` 内容；解析失败则返回错误并回滚本轮玩家输入，**不污染后续上下文**
-2. **数值规范化**（`normalizeDelta`）：hp/gold/exp 取整、限制在合法范围，物品必须是字符串数组、过滤空值
-3. **状态兜底**（`applyDelta`）：HP 钳制在 `[0, 100]`，金币不为负，背包上限 20 个，升级/死亡规则由后端强制执行——**即使 AI 返回异常数值，游戏状态也不会崩坏**
+**第 3 层 · 容错解析（`parseActionJson`）**
 
-**三层防护的意义**：提示词负责"引导 AI 守规矩"，代码负责"即使 AI 不守规矩也不会出问题"，两者结合保证游戏稳定运行。
+- 兼容 AI 把 JSON 包在 markdown 代码块里的情况，自动提取 `{...}` 内容
+- 兼容 `{` 前有换行/空白的情况
+- 解析失败返回 `null`（**不再抛错打断游戏**），进入重试或降级流程
+
+**第 4 层 · 自动重试（解析失败救回）**
+
+首次解析失败时，用**精简提示词**重试一次：
+
+```text
+精简重试提示词 = JSON 格式模板 + 玩家状态 + 上一回合玩家行动
+（不带冗长的 history，降低模型被历史纯文本"带偏"的概率）
+```
+
+实测：重试成功率 **100%**，绝大多数格式问题在重试后即恢复正常。
+
+**第 5 层 · 降级兜底（永不卡死）**
+
+重试仍失败（模型固执输出纯文本）时，直接把纯文本当作剧情接续，**不打断游戏**。前端用隐晦的游戏内语言过渡（如"命运之线悄然转动"），玩家感知不到技术细节，仅当轮次没有推荐选项和数值变化。
+
+**状态兜底（贯穿第 3-5 层）**：`normalizeDelta` + `applyDelta` 做数值规范化与钳制——HP 钳制 `[0,100]`、金币不为负、背包上限 20、升级/死亡规则由后端强制执行。**即使 AI 返回异常数值，游戏状态也不会崩坏。**
+
+> **五层防护的意义**：提示词"引导" → 参数"要求" → 解析"容错" → 重试"救回" → 降级"兜底"。每一层都为下一层的失效做准备，保证极端情况下游戏依然可玩。
+
+### 2.4.4 关键知识点（踩坑总结）
+
+1. **`response_format: json_object` 是软约束**：OpenAI 兼容接口的标准参数，但部分模型未真正实现。若需要硬约束，需换支持严格 JSON 模式的服务/模型。且使用时要确保提示词中包含 "json" 关键字与格式示例（官方要求）。
+2. **sensenova 思考模式默认开启**：`reasoning_effort` 默认 `high`，思考内容与输出**共享 max_tokens 配额**。长剧情下配额被思考吃光 → `finish_reason: length` → 输出为空。解法：设 `reasoning_effort: "none"` 并提高 `max_tokens`。
+3. **`thinking` 字段不等于 `reasoning_effort`**：部分文档提到的 `thinking: "disabled"` 在 sensenova 上**不受支持**（返回 HTTP 400）。关闭思考请用 `reasoning_effort: "none"`。
+4. **测试必须模拟真实用户**：发"继续推进冒险N"这种无意义指令会让模型困惑，且降级产生的纯文本写回 history 会污染上下文、诱使模型模仿输出纯文本。应**读取 AI 返回的 choices 并选择其一继续**。
+5. **降级文本要"隐晦"**：不要向玩家展示"AI 未按格式返回"等技术信息，用游戏内语言包装，保持沉浸感。
 
 ### 2.5 目录结构
 
@@ -167,6 +211,8 @@ Whatever/
 │       ├── main.js
 │       └── style.css
 ├── data/                 # 游戏存档（运行时生成）
+├── TECH_DOC.md           # 本技术文档（架构/AI 交互原理/踩坑总结）
+├── DEVELOPMENT_LOG.md    # 开发记录（问题排查与修复过程）
 └── game/                 # （空目录，早期规划遗留）
 ```
 
@@ -175,6 +221,7 @@ Whatever/
 - **前端交互**：输入框自由行动 + 推荐选项快捷点击；左侧实时显示 HP/金币/经验/背包；等待提示与战斗/死亡状态标识（`frontend/src/App.vue`）
 - **选项持久化**：AI 推荐选项随剧情存入存档历史，重进游戏不丢失（`server/game.js`）
 - **上下文裁剪**：对话历史超过 40 条时丢弃最早的记录，防止请求体无限膨胀、控制 token 消耗
+- **自动重试**：AI 首次输出解析失败时，用精简提示词自动重试一次（见 2.4.3 第 4 层）
 
 ---
 
