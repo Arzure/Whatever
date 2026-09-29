@@ -38,7 +38,12 @@ async function chat(messages, opts = {}) {
         model: cfg.model,
         messages,
         temperature: opts.temperature ?? 0.8,
-        max_tokens: opts.maxTokens ?? 800,
+        max_tokens: opts.maxTokens ?? 2048,
+        // 官方推荐参数（sensenova 系列）：
+        // - reasoning_effort: 'none' 关闭思考模式（思考内容与输出共享 max_tokens 配额，开启会导致输出被截断/空内容）
+        // - response_format 开启结构化输出，强制模型返回合法 JSON（注意：thinking 字段不受支持，会返回 400）
+        reasoning_effort: opts.reasoningEffort ?? 'none',
+        response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
     });
