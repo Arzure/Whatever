@@ -1,0 +1,27 @@
+{
+  "id": "azeroth",
+  "name": "艾泽洛姆",
+  "intro": "中世纪奇幻大陆「艾泽洛姆」。世界里有龙、精灵、兽人、遗迹、瘟疫、财宝与阴谋。玩家是一名初出茅庐的冒险者，故事从这里开始。",
+  "capabilities": {
+    "hasCombat": true,
+    "statSchema": ["hp", "gold", "exp"],
+    "itemCategories": ["weapon", "armor", "item"],
+    "slots": [
+      { "id": "weapon", "label": "武器" },
+      { "id": "armor", "label": "防具" }
+    ]
+  },
+  "startState": {
+    "hp": 100,
+    "maxHp": 100,
+    "gold": 10,
+    "level": 1,
+    "exp": 0,
+    "inventory": ["干粮 x2"],
+    "slots": {
+      "weapon": "武器·旧铁剑[普通]",
+      "armor": "防具·皮甲[普通]"
+    }
+  },
+  "gmGuidelines": ""
+}

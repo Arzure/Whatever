@@ -2,7 +2,7 @@
   "name": "ai-text-adventure-rpg",
   "version": "0.1.0",
   "private": true,
-  "description": "艾泽洛姆 · AI 文字冒险 RPG —— LLM 驱动的互动冒险游戏",
+  "description": "AI 文字冒险 RPG —— LLM 驱动的多模式互动冒险游戏（大世界模式 / 探案模式）",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix frontend install",
     "dev:server": "npm --prefix server run dev",

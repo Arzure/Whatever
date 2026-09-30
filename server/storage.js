@@ -11,7 +11,7 @@ function savePath(id) {
   return path.join(DATA_DIR, `${id}.json`);
 }
 
-/** 存档文件：{ id, createdAt, updatedAt, player, history } */
+/** 存档文件：{ id, mode, theme, createdAt, updatedAt, player, history } */
 function listSaves() {
   ensureDir();
   const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith('.json'));
@@ -23,8 +23,11 @@ function listSaves() {
         id: data.id,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
-        playerName: data.player?.name || '未知冒险者',
+        playerName: data.player?.name || '无名冒险者',
         level: data.player?.level || 1,
+        mode: data.mode || 'world',
+        themeName: data.theme?.name || data.genre?.name || '',
+        caseTitle: data.case?.title || '',
       });
     } catch (e) {
       // 忽略损坏的存档文件

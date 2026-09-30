@@ -208,6 +208,166 @@
 | [server/index.js](../server/index.js) | 新增 `/discard` 路由 |
 | [frontend/src/App.vue](../frontend/src/App.vue) | 背包物品「丢弃」按钮 + 红色样式 |
 
+> ⚠️ 上表中 `server/game.js` 与单文件版 `frontend/src/App.vue` 已在下一阶段的「多模式架构改造」中拆分/删除，迁移去向见下方最新条目。
+
 ---
+
+## 2026-09-30 · 多模式架构改造（大世界模式 + 世界观系统）
+
+### 背景与目标
+
+原项目**写死了单一题材**：世界观固定为「艾泽洛姆」大陆，`server/game.js` 里硬编码了 hp/gold/exp、武器/防具槽位、战斗逻辑；前端 `App.vue` 是一个 900 余行的巨型组件。用户希望：
+
+1. 把现有冒险游戏定位为**「大世界模式」**（自由探索、无胜利条件）；
+2. 增加**可导入的自定义世界观**（不同题材，且未必有战斗/武器/防具）；
+3. 为后续**「探案模式」**（有明确胜利条件）预留可插拔的模式框架。
+
+### 关键决策（用户拍板）
+
+| 决策项 | 结论 |
+|--------|------|
+| 世界观导入方式 | **纯文本粘贴**，由 AI 解析为结构化 Theme（不做文件上传/编辑器） |
+| 通用化手段 | 用 **Theme.capabilities**（能力开关）驱动提示词与 UI，而非为每种题材写死分支 |
+| 物品操作权限 | 延续上一轮**代码级硬约束**：AI 无权移动物品，只能"告知" |
+| 旧存档兼容 | **不考虑，直接删除**旧存档与旧代码 |
+
+### 架构迁移
+
+```text
+改造前                              改造后
+server/game.js  ──删除──►  server/engine.js        （模式无关共享层：runTurn / 解析 / 物品操作）
+                           server/modes/world.js    （大世界模式处理器）
+                           server/modes/index.js    （模式注册表，探案模式只需在此登记）
+                           server/themes/index.js   （世界观：列表 / 归一化 / 文本→Theme）
+                           server/themes/azeroth.json（默认模板，原艾泽洛姆）
+
+frontend/src/App.vue(910行) ──拆分──► App.vue        （薄壳：provide('game')）
+                                      HomeView.vue   （首页：模式选择 / 世界观导入 / 存档）
+                                      WorldView.vue  （游戏内：能力驱动的动态侧栏与背包）
+                                      composables/useGame.js（全局响应式状态与业务动作）
+                                      api.js         （统一请求封装）
+```
+
+- **模式契约**：每个模式导出 `modeId / modeName / needsTheme / newGame / processAction / buildSystemPrompt / renderPlayer / summarize / 物品操作系列`，`server/index.js` 仅做 `findGame → mode.xxx` 分发。
+- **能力驱动 UI**：前端按 `theme.capabilities` 决定是否渲染金币 / 武器槽 / 防具槽 / 战斗条，无战斗世界自动隐藏武器防具，侧栏只剩「等级 / 生命」。
+
+### 涉及代码文件
+
+| 文件 | 改动 |
+|------|------|
+| [server/game.js](../server/game.js) | **删除**，逻辑拆分至 engine.js + modes/world.js |
+| [server/engine.js](../server/engine.js) | 新增：模式无关的 LLM 回合、JSON 容错解析、物品操作原语 |
+| [server/modes/world.js](../server/modes/world.js) | 新增：大世界模式（提示词按 capabilities 拼装、delta 归一化与应用） |
+| [server/modes/index.js](../server/modes/index.js) | 新增：模式注册表 |
+| [server/themes/index.js](../server/themes/index.js) | 新增：世界观列表 / 归一化 / 纯文本解析 |
+| [server/themes/azeroth.json](../server/themes/azeroth.json) | 新增：默认世界观模板 |
+| [server/index.js](../server/index.js) | 路由改为按 `game.mode` 分发；新增 `/api/modes`、`/api/themes`、`/api/themes/parse` |
+| [frontend/src/App.vue](../frontend/src/App.vue) | 瘦身为薄壳组件 |
+| [frontend/src/components/HomeView.vue](../frontend/src/components/HomeView.vue) | 新增：模式/世界观选择、文本导入、存档列表 |
+| [frontend/src/components/WorldView.vue](../frontend/src/components/WorldView.vue) | 新增：能力驱动的游戏界面 |
+| [frontend/src/composables/useGame.js](../frontend/src/composables/useGame.js) | 新增：全局状态与业务动作 |
+| [frontend/src/api.js](../frontend/src/api.js) | 新增：API 封装 |
+
+### 实测验证（浏览器 + API 端到端）
+
+1. 首页正确渲染模式卡片、世界观卡片、文本导入折叠区、存档列表 ✅
+2. 艾泽洛姆开局：等级/生命/金币 + 武器·旧铁剑 + 防具·皮甲 + AI 开场剧情与选项 ✅
+3. 物品使用（干粮 x2 → x1，生成可撤销的待结算动作）✅
+4. 存档列表显示「艾泽洛姆 · Lv.1」✅
+5. 自定义世界观导入（粘贴无战斗现代文本 → AI 解析为「雾港」）：侧栏只剩「等级 / 生命」，无金币 / 武器 / 防具 / 背包物品，AI 生成刑侦题材开场 ✅
+6. 控制台无错误；`npm run build` 通过（17 modules，退出码 0）✅
+
+### 关联知识点（详见 TECH_DOC.md §2.4）
+
+- 用「能力开关 + 数据驱动」替代「题材分支」，一份引擎适配任意世界观
+- 模式注册表模式：新增模式理想情况下**无需改动任何路由代码**
+- 前端 `provide/inject` + `reactive` 单例状态，避免多组件间 props 层层透传
+
+---
+
+## 2026-09-30 · 探案模式实现（案件引擎 + 模式后端 + 侦探前端）
+
+### 背景与目标
+
+在大世界模式之上新增第二个可插拔模式。用户原始需求一句话概括：**物证用于在调查时辨别线索真假，随时可以指认凶手，线索最终用于让凶手认罪，认罪成功则游戏胜利。**
+
+### 关键决策（用户拍板两轮确认）
+
+| 决策项 | 结论 |
+|--------|------|
+| 世界观导入 | 纯文本粘贴、AI 解析（沿用） |
+| 物证槽 | **单槽**：同时持 1 件 |
+| 指认机制 | **两步**：先指认，再举证认罪 |
+| 实施顺序 | 分两阶段：先大世界改造（已完成）→ 再探案模式 |
+| 真相掌控 | **代码持有真相，AI 只演绎**（防真相漂移） |
+| 线索/物证承载 | 沿用背包 + 装备槽（「线索·」「物证·」前缀） |
+| 认罪判定 | **代码硬判定 + AI 叙事** |
+| 案件入口 | **先选题材，再一键生成** |
+| 数值规则 | 初始 HP 100；指认失败每次 -25（清空则失败）；认罪举证失败**不扣血且线索不消耗**；场景切换按钮 + 文字双通道 |
+| 旧存档兼容 | 不考虑，直接删除 |
+
+### 架构落地（阶段 A/B/C）
+
+```text
+阶段 A · 案件引擎
+  server/casegen.js    案件 AI 生成：真相 schema 提示词 + normalizeCase 结构校验
+                       （normalizeCase 用「线索归属表」确定性剔除凶手名下的 keyClues，
+                        因为模型惯于误选凶手口供为关键线索，而凶手口供玩家永远拿不到）
+
+阶段 B · 探案模式后端
+  server/modes/detective.js
+    newGame(name,{genre})      题材 → AI 生成案件 → 初始化局面
+    processAction / accuse / confront
+    resolveRebuttal            物证击破谎言：代码确定性判定（装装备证 + 在场说谎者 + rebuts 命中）
+    snapshot()                 剔除全部真相字段（isCulprit/isLiar/truth/culpritId/keyClues/crime）
+    useItem/discardItem        恒 {ok:false}（探案模式物品只能由装备/举证按钮操作）
+  server/index.js              新增 /api/genres、/api/games/:id/case、/accuse、/confront
+
+阶段 C · 侦探前端
+  frontend HomeView.vue        探案模式卡片 + 题材选择 + 开始查案
+  frontend DetectiveView.vue   侧栏：阶段/生命/案件说明折叠/场景/在场人物/物证槽/线索
+                               主区：剧情流 + 指认面板 + 举证面板（勾选线索）
+```
+
+### 关键机制与踩坑
+
+1. **案件说明折叠（含谜底二次确认）**
+   - 初版用 `<details>` + `@toggle.prevent`，导致折叠状态下二次确认提示不可达、确认后不加载真相
+   - 改为**受控 div + 语义化 button**：`toggleCase()` 未确认时只展开到「剧透警告」，`confirmCase()` 确认后才调 `GET /case` 展示真相 ✅
+2. **快照防剧透**：`snapshot()` 剔除真相后，前端通过 Debug 无法窥探凶手（实测响应体无 `truth`/`isCulprit`）✅
+3. **keyClues 归属校验**：`validateCase` 强制关键线索"不得来自凶手"、"至少 1 条来自说谎者真话"，否则重生成；实测生成 5/5 通过 ✅
+4. **首页卡片小视口不可达**：`.home` 用 `align-items:center` 垂直居中，卡片高于视口时顶部溢出且无法滚动 → 移除居中、`.home-card` 改 `margin:auto` ✅
+
+### 实测验证（浏览器 + API 端到端，模拟真实用户）
+
+1. 案件生成：选「现代都市」+ 名字 → AI 设计「都市午夜坠落谜案」，快照响应无剧透 ✅
+2. **场景切换**：点场景按钮「28层员工通道监控室」→ 代码切换 + AI 演绎到达叙事 ✅
+3. **收集线索/物证**：勘查现场 → 程序结算「发现物证」，入背包；「装备」按钮移入单槽物证槽 ✅
+4. **物证击破说谎者**：装备「顶层公寓门禁刷卡记录」并当面向说谎者赵晴出示 → `物证击破了「赵晴」的谎言`，真话线索入背包、撒谎原因交代、假线索标记「谎话」 ✅
+5. **误导性假线索**：凶手谎称「我当晚一直在办公室」，举证时被标记「谎话」（false）状态 ✅
+6. **两步指认-失败路径**：连续 4 次错误指认 → HP 100→75→50→25→0，阶段「调查终止」，终局「💀 调查到此为止」 ✅
+7. **两步指认-举证失败**：对质中提交非关键线索（0/3 命中）→ 「举证失败」，**HP 不变、线索不消耗** ✅
+8. **两步指认-成功路径**：正确指认凶手 → 进入「对质阶段」，勾选关键线索举证 → 「举证成立（关键线索 2/3），凶手认罪」→「🎉 案件告破」 ✅
+9. `npm run build` 前端构建通过；控制台无错误 ✅
+
+### 涉及代码文件
+
+| 文件 | 改动 |
+|------|------|
+| [server/casegen.js](../server/casegen.js) | 新增：案件生成提示词 + 真相 schema normalize/validate |
+| [server/modes/detective.js](../server/modes/detective.js) | 新增：探案模式（约 830 行），确定性结算 + 防剧透快照 |
+| [server/modes/index.js](../server/modes/index.js) | 注册 `detective` 模式 |
+| [server/index.js](../server/index.js) | 新增 `/api/genres`、`/case`、`/accuse`、`/confront` 路由 |
+| [frontend/src/components/HomeView.vue](../frontend/src/components/HomeView.vue) | 探案模式卡片 + 题材选择；修复小视口卡片不可达 |
+| [frontend/src/components/DetectiveView.vue](../frontend/src/components/DetectiveView.vue) | 新增：探案界面（案件说明折叠/指认/举证/场景按钮/物证槽） |
+| [frontend/src/composables/useGame.js](../frontend/src/composables/useGame.js) | 探案状态字段与 `loadCase/accuseSuspect/submitConfront` |
+| [frontend/src/api.js](../frontend/src/api.js) | `listGenres/getCase/accuse/confront` |
+| [frontend/src/App.vue](../frontend/src/App.vue) | 按 `mode === 'detective'` 切换 DetectiveView |
+
+### 关联知识点（详见 TECH_DOC.md §2.4.5）
+
+- **真相代码持有**：AI 只演绎不决定结局，杜绝"硬编的凶手在叙事里被改写"
+- **确定性结算收归程序**：场景切换/物证发现/击破谎言由代码判定，交 AI 会出现"叙事卡死、对方不松口"
+- **关键线索归属表**：keyClues 必须能被玩家真的拿到（非凶手、含说谎者真话），否则认罪闭环断裂
 
 

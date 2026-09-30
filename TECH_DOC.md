@@ -1,10 +1,11 @@
-# 艾泽洛姆 · AI 文字冒险 RPG
+# AI 文字冒险 RPG · 技术文档
 
-> LLM 驱动的互动文字冒险游戏 —— 玩家的每个行动都会由 AI 实时生成剧情，世界随你的选择而变化。
+> LLM 驱动的多模式互动文字冒险游戏 —— 玩家的每个行动都会由 AI 实时生成剧情，世界随你的选择而变化。
 
 - 技术栈：Node.js / Express / Vue 3 / Vite
 - AI 接入：OpenAI 兼容接口（当前使用 Sensenova）
 - 数据存储：JSON 文件（零数据库依赖）
+- 核心设计：**可插拔游戏模式（Mode） + 世界观配置（Theme）**
 
 ---
 
@@ -14,22 +15,29 @@
 
 | 模块 | 说明 |
 |------|------|
-| 后端 API | 新建游戏 / 读取存档 / 执行动作 / 删除存档 / 健康检查 |
-| AI 剧情生成 | 调用 OpenAI 兼容接口，LLM 扮演游戏主持人（GM），实时生成剧情、选项与状态变化 |
-| 角色状态系统 | 生命值（HP）、金币、经验升级（含升级回血）、背包增删、装备 |
-| 存档系统 | JSON 文件持久化，支持多存档、列表展示、断点续玩 |
-| 前端界面 | 暗色奇幻风 UI：开场页（新建/读档）、游戏页（对话流 + 状态面板 + 指令输入） |
+| 多模式架构 | 模式注册表 + 可插拔模式处理器；`/api/modes` 供前端选择，新增模式无需改动路由 |
+| 大世界模式 | 原有自由探索玩法迁移至 `server/modes/world.js`，由世界观配置驱动 |
+| 世界观系统 | 内置模板（`themes/azeroth.json`）+ **纯文本世界观由 AI 结构化为可玩配置** |
+| 能力驱动（capabilities） | 是否战斗、启用哪些数值、有哪些装备槽、物品类别，全部由世界观决定，前端与提示词动态适配 |
+| 引擎共享层 | JSON 容错解析 / 自动重试 / 降级兜底 / 物品按钮操作，模式无关（`server/engine.js`） |
+| 角色状态系统 | 生命值（HP）、金币、经验升级（含升级回血）、背包增删、装备槽 |
+| 存档系统 | JSON 文件持久化，支持多存档、列表展示（含模式与世界名）、断点续玩 |
+| 前端界面 | 首页（模式/世界选择 + 文本导入 + 存档列表）、游戏页（对话流 + 能力驱动的动态侧栏） |
 | 选项持久化 | AI 推荐选项随剧情一起存入存档，重进游戏不丢失 |
-| AI 输出可靠性 | 五层防护机制（参数调优 + 自动重试 + 降级兜底），实测 6/6 回合稳定（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
+| AI 输出可靠性 | 五层防护机制（参数调优 + 自动重试 + 降级兜底），详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) |
+| 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)） |
+| 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破谎言由代码确定性结算，AI 只演绎；两类数值规则（指认-25、举证0.6覆盖率） |
+| 探案前端 | 题材选择 + DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽、线索列表、指认与举证面板） |
 
 ### 已修复的 Bug 🐛
 
 | 问题 | 根因 | 修复 |
 |------|------|------|
-| 返回主界面显示"尚无存档" | `listSaves()` 被误声明为 `async`，返回 Promise 被序列化成 `{}` | 移除 `async` 关键字（见 [server/storage.js](server/storage.js)） |
-| 重进存档后 AI 推荐选项消失 | 历史记录只存 `content`，未存 `choices` | 选项随剧情一并持久化（见 [server/game.js](server/game.js)） |
+| 返回主界面显示"尚无存档" | `listSaves()` 被误声明为 `async`，返回 Promise 被序列化成 `{}` | 移除 `async` 关键字（[server/storage.js](server/storage.js)） |
+| 重进存档后 AI 推荐选项消失 | 历史记录只存 `content`，未存 `choices` | 选项随剧情一并持久化（现位于 [server/modes/world.js](server/modes/world.js)） |
 | npm audit 报 2 个漏洞 | vite 5.x 内嵌 esbuild 存在 dev-server 漏洞 | 升级 vite 5.4.21 → 6.4.3，audit 归零 |
 | AI 频繁返回无法解析的内容 | 模型不按协议输出 JSON（约 2/3 概率输出纯文本） | 五层防护：参数调优 + 自动重试 + 降级兜底（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
+| 使用道具一次扣光 / 卸下装备消失 | 按钮动作未同步给 AI，AI 又重复移动物品 | **架构级硬约束**：AI 无权移动物品，所有物品操作只能由前端按钮触发 |
 
 ### 已知限制 ⚠️
 
@@ -57,18 +65,44 @@
 ```text
 浏览器 (http://localhost:5173)
    │
-   │  页面里的操作：新建 / 行动 / 读档 / 删除
+   │  页面里的操作：新建 / 行动 / 读档 / 删除 / 物品按钮
    ▼
 Vite 开发服务器 :5173
    │  代理转发 /api/* 请求（见 frontend/vite.config.js）
    ▼
-Express 后端 :3001
+Express 后端 :3001  (server/index.js)
    │
-   ├── /api/saves           存档列表
-   ├── /api/games           新建/读取/删除
-   ├── /api/games/:id/action  核心游戏循环
-   └── 游戏引擎 → LLM 网关 → 外部 AI 服务 (token.sensenova.cn)
-               └── 存档读写 → data/*.json
+   ├── /api/health              健康检查（含 LLM 配置状态）
+   ├── /api/modes               可用游戏模式列表
+   ├── /api/themes              内置世界观列表
+   ├── /api/themes/parse        纯文本世界观 → AI 结构化配置
+   ├── /api/genres              探案题材列表（现代都市/古代衙门/民国旧案/奇幻王国）
+   ├── /api/saves               存档列表
+   ├── /api/games               新建 / 读取 / 删除
+   ├── /api/games/:id/save      手动保存
+   ├── /api/games/:id/case      探案：案件说明（含谜底，玩家主动展开时才下发）
+   ├── /api/games/:id/accuse    探案：指认凶手（对则进对质、错则扣血）
+   ├── /api/games/:id/confront  探案：举证令凶手认罪（0.6 覆盖率判定）
+   ├── /api/games/:id/action    核心游戏循环（按 mode 分发）
+   └── /api/games/:id/{use-item,equip,unequip,discard,cancel-pending}
+                                物品按钮操作（按 mode 分发）
+                                 │
+                                 ▼
+                  ┌──────────────────────────────┐
+                  │  modes/ 模式处理器（可插拔）    │
+                  │   ├── world.js 大世界模式      │
+                  │   └── detective.js 探案模式    │
+                  └──────────────┬───────────────┘
+                                 │ 复用
+                  ┌──────────────▼───────────────┐
+                  │  engine.js 引擎共享层         │
+                  │   解析 / 重试 / 降级 / 物品操作 │
+                  └──────────────┬───────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+         llm.js 网关        themes/ 世界观       storage.js 存档
+      (外部 AI 服务)     (模板 + 文本结构化)     (data/*.json)
 ```
 
 ### 2.3 核心工作流程
@@ -77,20 +111,135 @@ Express 后端 :3001
 
 ```text
 1. 前端发送玩家输入 → POST /api/games/:id/action
-2. 后端把玩家输入追加进对话历史
-3. 构造系统提示词（世界观 + 角色面板 + 最近剧情回顾）
-4. 调用 LLM → 返回 JSON：{ narrative, choices, delta, battle }
-5. 严格解析 JSON（兼容 markdown 代码块包裹）
-6. 应用 delta：生命/金币/经验/背包增减，处理升级与死亡
-7. 剧情 + 选项写入历史并持久化到存档文件
-8. 返回给前端渲染
+2. 后端 findGame() 载入存档，按其 mode 找到对应模式处理器
+3. 模式处理器把玩家输入追加进对话历史（并合并待结算的按钮动作）
+4. 按「世界观配置」构造系统提示词（能力裁剪 + 角色面板 + 最近剧情回顾）
+5. 调用 LLM → 返回 JSON：{ narrative, choices, delta, battle? }
+6. 严格解析 JSON（兼容 markdown 代码块包裹）
+7. 按世界观启用的字段应用 delta：生命/金币/经验/背包，处理升级与死亡
+8. 剧情 + 选项写入历史并持久化到存档文件
+9. 返回给前端渲染
 ```
 
-### 2.4 AI 交互实现详解
+### 2.4 多模式 + 世界观架构
+
+这是本项目与"单一题材文字冒险"最大的区别，是后续扩展（如探案模式）的地基。
+
+#### 2.4.1 游戏模式（Mode）——可插拔
+
+`server/modes/index.js` 是一张模式注册表：
+
+```js
+const MODES = { [world.modeId]: world };   // 新增模式只需在此登记
+function getMode(id) { return MODES[id] || null; }
+function listModes() { /* 返回 [{id, name, needsTheme}] 供前端渲染 */ }
+```
+
+每个模式模块需导出统一契约，路由**只认契约、不认具体模式**：
+
+| 导出 | 作用 |
+|------|------|
+| `modeId` / `modeName` | 模式标识与展示名 |
+| `needsTheme` | 是否需要世界观配置（大世界模式为 `true`） |
+| `newGame(name, { theme })` | 初始化一局游戏 |
+| `processAction(game, input)` | 核心回合处理（提示词 + LLM + 状态应用） |
+| `useItem / discardItem / equipItem / unequipItem / cancelPendingAction` | 物品按钮操作 |
+| `summarize(game)` | 存档摘要 |
+
+> 已有实例：**探案模式（`detective`）** 正是在不修改 `index.js` 路由的前提下通过注册表接入的——它注册了 `needsGenre`（题材）与探案专用接口 `accuse` / `confront`、`GET /case`，路由层仅新增了这几个探案专属 URI，核心 `/action` 循环仍走统一契约分发。前端首页从 `/api/modes` 动态渲染出「探案模式」卡片与题材选择。
+
+#### 2.4.2 世界观配置（Theme）——数据驱动
+
+一个 Theme 描述了"这个世界长什么样、玩家能做什么"：
+
+```jsonc
+{
+  "id": "azeroth",
+  "name": "艾泽洛姆",
+  "intro": "中世纪奇幻大陆……",
+  "capabilities": {
+    "hasCombat": true,                       // 是否有战斗
+    "statSchema": ["hp", "gold", "exp"],     // 启用哪些数值
+    "itemCategories": ["weapon", "armor", "item"], // 有哪些物品类别
+    "slots": [                               // 有哪些装备槽
+      { "id": "weapon", "label": "武器" },
+      { "id": "armor", "label": "防具" }
+    ]
+  },
+  "startState": { "hp": 100, "gold": 10, "inventory": ["干粮 x2"], "slots": { "weapon": "武器·旧铁剑[普通]" } },
+  "gmGuidelines": "该世界特有的叙事约束"
+}
+```
+
+**capabilities 是"通用化"的关键**：它同时驱动后端提示词与前端 UI，从而支持任意题材：
+
+| 世界观举例 | hasCombat | statSchema | itemCategories | slots |
+|-----------|-----------|------------|----------------|-------|
+| 中世纪奇幻（艾泽洛姆） | true | hp, gold, exp | weapon, armor, item | 武器、防具 |
+| 现代悬疑 / 解谜 | false | hp | item | （无） |
+
+`server/themes/index.js` 的 `normalizeTheme()` 会做安全兜底：至少保留 `hp`、至少保留 `item` 类别；若没有 `weapon`/`armor` 类别，则**自动移除对应装备槽**，并让 `startState.slots` 的键与 `slots` 完全对齐 —— 保证引擎取用安全。
+
+#### 2.4.3 纯文本世界观 → 可玩配置
+
+玩家在首页粘贴一段世界观文本，后端 `themes.parseThemeFromText()`：
+
+1. 用一段**元提示词**要求 AI 只输出符合 Theme 结构的 JSON（明确"无需战斗时必须 `slots: []`、`itemCategories` 只含 `item`"等规则）
+2. 复用 `parseActionJson()` 容错解析
+3. 经 `normalizeTheme()` 规范化后返回前端
+4. 前端把该对象随"新建游戏"请求带回，落库到存档的 `theme` 字段
+
+> 该接口**不落盘**：自定义世界观随具体存档保存，不污染内置模板目录。
+
+#### 2.4.4 能力驱动的 UI（前端）
+
+`frontend/src/composables/useGame.js` 通过 `provide('game', ...)` 暴露模式无关的状态与操作；`WorldView.vue` 按 `state.theme.capabilities` 动态渲染：
+
+```js
+const caps  = computed(() => state.theme?.capabilities || { ...默认值 });
+const stats = computed(() => caps.value.statSchema);   // 决定显示 HP / 金币 / 经验条
+const slots = computed(() => caps.value.slots);         // 决定渲染哪些装备槽
+const hasItem = computed(() => caps.value.itemCategories.includes('item'));
+```
+
+因此同一套前端可渲染"有武器防具的奇幻世界"与"只有背包的现代世界"，无需分支硬编码。
+
+#### 2.4.5 探案模式设计（案件驱动的确定性结算）
+
+探案模式与"大世界模式"最大的区别：**真相由代码持有，AI 只负责演绎**，防止真相漂移。
+
+**案件真相（`game.case`）** —— 生成时由 AI 产出、经结构校验后落库：
+
+| 字段 | 说明 |
+|------|------|
+| `culpritId` / `victim` | 凶手 / 死者（含死因与发现信息） |
+| `crime` | 动机 / 手法 / 时间窗 / 破绽 |
+| `suspects[]` | 嫌疑人：`isLiar`（说谎者）、`statements[]`（口供，`truth` 标记真假）、`rebuttalEvidenceId`（能击破他的物证）、`onRebuttal`（被击破后交代的真相与撒谎原因） |
+| `evidence[]` | 物证：`foundAt`（发现场景）、`rebuts[]`（能反驳哪些说谎者） |
+| `scenes[]` | 场景：`npcs`（在场人物），探索范围明确、无法无穷自由探索 |
+| `keyClues[]` | 关键线索 id（2~4 条，**不得来自凶手**），举证时按覆盖率判定认罪 |
+
+**确定性结算（代码判定，AI 只演绎）**：
+
+| 事件 | 判定 |
+|------|------|
+| 场景切换 | 玩家提交含场景名的行动（或点场景按钮）→ 代码移动 `detective.currentScene` |
+| 发现物证 | 行动命中物件物证所在场景的关键词 → 代码将「物证·xxx」放入背包 |
+| 击破谎言 | 玩家**装备**物证并当面质问在场说谎者，且物证 `rebuts` 命中该说谎者 → 代码判定击破，说谎者改口、真相线索入背包、假线索标记「谎话」 |
+| 指认凶手 | `detective.accuse(id)`：命中 `culpritId` → 进入对质；否则 `hp -25`，归零则游戏失败 |
+| 举证认罪 | `detective.confront(clueIds)`：提交的线索中命中 `keyClues` 的覆盖率 ≥ `CONFESS_RATIO(0.6)` → 凶手认罪、胜利；失败不扣血、线索不消耗 |
+
+**游戏状态（`game.detective`）**：`phase`（`investigate → confront → win/lose`）、`clues[]`（已获得的线索及真伪标记）、`evidenceIds`、`revealed[]`（已被击破的说谎者）、`failedAccusations`、`currentScene`。
+
+**快照防剧透（`snapshot()`）**：下发给前端的探案状态**剔除一切真相字段**（`isCulprit/isLiar/truth/culpritId/keyClues/crime`）；完整案件说明只由 `GET /api/games/:id/case` 在玩家于前端主动展开（二次确认后）时下发。
+
+**物体操作延续硬约束**：线索与物证均以「线索·/物证·」前缀物品进入背包；装备、卸下、举证勾选等均由前端按钮完成，AI 只结算与演绎。
+
+### 2.5 AI 交互实现详解
 
 本节说明游戏与 AI 交互的三个核心问题：**如何连接 AI、如何把世界观交给 AI、如何约束 AI 的输出**。
 
-#### 2.4.1 连接 AI（server/llm.js）
+#### 2.5.1 连接 AI（server/llm.js）
 
 - 项目**不依赖任何 AI SDK**，使用 Node.js ≥18 内置的 `fetch` 直接请求 OpenAI 兼容的 `/chat/completions` 接口
 - 请求参数来自环境变量（`.env`）：`LLM_BASE_URL`（服务地址）、`LLM_API_KEY`（密钥）、`LLM_MODEL`（模型名）
@@ -120,27 +269,32 @@ await fetch(`${cfg.baseUrl}/chat/completions`, {
 });
 ```
 
-#### 2.4.2 世界观与状态的传递（server/game.js → buildSystemPrompt）
+#### 2.5.2 世界观与状态的传递（server/modes/world.js → buildSystemPrompt）
 
-每次调用 AI 前，后端会动态构造**系统提示词（system prompt）**，一次性告诉 AI 四类信息：
+每次调用 AI 前，模式处理器会**按世界观能力动态构造**系统提示词（system prompt）：
 
 | 提示词组成部分 | 内容 | 作用 |
 |---------------|------|------|
-| **角色设定** | "你是「艾泽洛姆」的至高游戏主持人（Game Master）" | 定义 AI 的身份与职责 |
-| **输出协议** | 必须输出指定结构的 JSON（见 2.4.3） | 让 AI 的返回可被程序解析 |
-| **世界观** | "中世纪奇幻大陆「艾泽洛姆」…有龙、精灵、兽人、遗迹、瘟疫、财宝与阴谋" | 统一叙事背景，防止 AI 跑偏到现代/科幻 |
-| **当前状态** | 玩家姓名/等级/HP/金币/装备/背包（`renderPlayer()` 生成） | 让 AI 知道玩家的实时数据，据此填 delta |
-| **剧情回顾** | 最近 6 条对话历史（玩家行动 + 旁白） | 保证前后剧情连贯、承接上一回合 |
+| **角色设定** | "你是「{世界名}」的至高游戏主持人（Game Master）" | 定义 AI 的身份与职责（世界名来自 Theme） |
+| **输出协议** | 必须输出指定结构的 JSON（见 2.5.3） | 让 AI 的返回可被程序解析 |
+| **字段填写规则** | 按 `statSchema` / `itemCategories` **裁剪**的 delta 规则 | 无金币的世界不会有金币规则 |
+| **物品操作权限** | AI 无权移动物品（仅当有物品类别时注入） | 物品移动一律由前端按钮完成 |
+| **道具效果规则** | 食物回血、毒物扣血等（仅当有 item 类别时注入） | 无预设效果表，效果由 AI 判定 |
+| **物品品质规则** | 武器「武器·名称[品质]」、防具「防具·名称[品质]」（仅当有武器/防具时注入） | 统一命名与稀有度 |
+| **剧情原则** | 不替玩家做决定；含 hp 时才加死亡规则 | 保证玩法一致性 |
+| **世界观** | `theme.intro` + `gmGuidelines` | 统一叙事背景，防止 AI 跑偏 |
+| **当前状态** | 玩家姓名/等级/HP/金币/装备/背包（`renderPlayer()` 按能力裁剪） | 让 AI 知道实时数据，据此填 delta |
+| **剧情回顾** | 最近 6 条对话历史 | 保证前后剧情连贯、承接上一回合 |
 
-这套提示词在**每回合都重新生成**，因为玩家状态和历史在持续变化。它是"游戏规则"和"AI 行为"之间的桥梁。
+这套提示词在**每回合都重新生成**，因为玩家状态和历史在持续变化。它就是"游戏规则"和"AI 行为"之间的桥梁。
 
-#### 2.4.3 约束 AI 输出（多层防护架构）
+#### 2.5.3 约束 AI 输出（多层防护架构）
 
 AI 是"尽力遵守协议"的，不能指望它永远正确。本项目用**五层防护**确保游戏稳定：
 
 **第 1 层 · 协议约束（提示词中强制）**
 
-提示词明确要求 AI 只输出如下 JSON，不得输出其他文字：
+提示词明确要求 AI 只输出如下 JSON（delta 字段按世界观裁剪），不得输出其他文字：
 
 ```json
 {
@@ -180,19 +334,20 @@ AI 是"尽力遵守协议"的，不能指望它永远正确。本项目用**五�
 
 重试仍失败（模型固执输出纯文本）时，直接把纯文本当作剧情接续，**不打断游戏**。前端用隐晦的游戏内语言过渡（如"命运之线悄然转动"），玩家感知不到技术细节，仅当轮次没有推荐选项和数值变化。
 
-**状态兜底（贯穿第 3-5 层）**：`normalizeDelta` + `applyDelta` 做数值规范化与钳制——HP 钳制 `[0,100]`、金币不为负、背包上限 20、升级/死亡规则由后端强制执行。**即使 AI 返回异常数值，游戏状态也不会崩坏。**
+**状态兜底（贯穿第 3-5 层）**：`normalizeDelta` + `applyDelta` 做数值规范化与钳制——HP 钳制 `[0, maxHp]`、金币不为负、背包上限 20、升级/死亡规则由后端强制执行。**即使 AI 返回异常数值，游戏状态也不会崩坏。**
 
 > **五层防护的意义**：提示词"引导" → 参数"要求" → 解析"容错" → 重试"救回" → 降级"兜底"。每一层都为下一层的失效做准备，保证极端情况下游戏依然可玩。
 
-### 2.4.4 关键知识点（踩坑总结）
+### 2.6 关键知识点（踩坑总结）
 
 1. **`response_format: json_object` 是软约束**：OpenAI 兼容接口的标准参数，但部分模型未真正实现。若需要硬约束，需换支持严格 JSON 模式的服务/模型。且使用时要确保提示词中包含 "json" 关键字与格式示例（官方要求）。
 2. **sensenova 思考模式默认开启**：`reasoning_effort` 默认 `high`，思考内容与输出**共享 max_tokens 配额**。长剧情下配额被思考吃光 → `finish_reason: length` → 输出为空。解法：设 `reasoning_effort: "none"` 并提高 `max_tokens`。
 3. **`thinking` 字段不等于 `reasoning_effort`**：部分文档提到的 `thinking: "disabled"` 在 sensenova 上**不受支持**（返回 HTTP 400）。关闭思考请用 `reasoning_effort: "none"`。
 4. **测试必须模拟真实用户**：发"继续推进冒险N"这种无意义指令会让模型困惑，且降级产生的纯文本写回 history 会污染上下文、诱使模型模仿输出纯文本。应**读取 AI 返回的 choices 并选择其一继续**。
 5. **降级文本要"隐晦"**：不要向玩家展示"AI 未按格式返回"等技术信息，用游戏内语言包装，保持沉浸感。
+6. **物品移动必须是代码级硬约束**：提示词是软约束，模型仍会"演绎"剧情而擅自移动物品。因此把 `removeInventory` / `weapon` / `armor` 在 `normalizeDelta` 中**直接丢弃**，把物品移动权限完全收归前端按钮。
 
-### 2.5 目录结构
+### 2.7 目录结构
 
 ```text
 Whatever/
@@ -201,29 +356,43 @@ Whatever/
 ├── .gitignore
 ├── package.json          # 根：一键脚本
 ├── server/               # 后端
-│   ├── index.js          # Express 入口 + 全部路由
-│   ├── game.js           # 游戏引擎：提示词构造、JSON 解析、状态应用
+│   ├── index.js          # Express 入口 + 全部路由（按 mode 分发）
+│   ├── engine.js         # 引擎共享层：JSON 解析 / 重试 / 降级 / 物品按钮操作
+│   ├── casegen.js        # 探案：案件生成（真相 schema + 提示词 + 结构校验）
+│   ├── modes/            # 游戏模式（可插拔）
+│   │   ├── index.js      #   模式注册表
+│   │   ├── world.js      #   大世界模式（提示词构造 / delta 应用 / 回合处理）
+│   │   └── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透）
+│   ├── themes/           # 世界观配置
+│   │   ├── index.js      #   读取 / 规范化 / 纯文本 → Theme 的 AI 解析
+│   │   └── azeroth.json  #   默认世界观模板（艾泽洛姆）
 │   ├── llm.js            # LLM 网关：fetch 调用 + 配置读取
 │   ├── storage.js        # JSON 存档读写
+│   ├── quality.js        # 物品品质系统（普通/优秀/稀有/史诗/传说）
 │   └── config.js         # 极简 .env 加载器
 ├── frontend/             # 前端
 │   ├── vite.config.js    # 代理 /api → :3001
 │   └── src/
-│       ├── App.vue       # 全部界面与交互逻辑
+│       ├── App.vue               # 薄壳：首页 / 游戏页切换 + provide('game')
+│       ├── api.js                # 后端 API 薄封装
+│       ├── composables/useGame.js# 模式无关的状态与操作层
+│       ├── components/
+│       │   ├── HomeView.vue      # 首页：模式/题材选择 + 文本导入 + 存档列表
+│       │   ├── WorldView.vue     # 大世界模式游戏页：能力驱动的动态侧栏 + 对话流
+│       │   └── DetectiveView.vue # 探案模式游戏页：案件说明/场景/在场人物/物证/线索/指认/举证
 │       ├── main.js
 │       └── style.css
 ├── data/                 # 游戏存档（运行时生成）
-├── TECH_DOC.md           # 本技术文档（架构/AI 交互原理/踩坑总结）
-├── DEVELOPMENT_LOG.md    # 开发记录（问题排查与修复过程）
-└── game/                 # （空目录，早期规划遗留）
+├── TECH_DOC.md           # 本技术文档
+└── DEVELOPMENT_LOG.md    # 开发记录（问题排查与修复过程）
 ```
 
-### 2.6 其他关键实现说明
+### 2.8 其他关键实现说明
 
-- **前端交互**：输入框自由行动 + 推荐选项快捷点击；左侧实时显示 HP/金币/经验/背包；等待提示与战斗/死亡状态标识（`frontend/src/App.vue`）
-- **选项持久化**：AI 推荐选项随剧情存入存档历史，重进游戏不丢失（`server/game.js`）
+- **前端交互**：输入框自由行动 + 推荐选项快捷点击；侧栏按能力显示 HP/金币/经验/装备/背包；等待提示与战斗/死亡状态标识
+- **选项持久化**：AI 推荐选项随剧情存入存档历史，重进游戏不丢失
 - **上下文裁剪**：对话历史超过 40 条时丢弃最早的记录，防止请求体无限膨胀、控制 token 消耗
-- **自动重试**：AI 首次输出解析失败时，用精简提示词自动重试一次（见 2.4.3 第 4 层）
+- **存档可移植**：存档文件自带 `mode` 与 `theme` 字段，读档时自动还原玩法上下文
 
 ---
 
@@ -237,7 +406,7 @@ Whatever/
 # 终端 1 —— 后端（端口 3001）
 cd server
 npm start
-# 看到 [艾泽洛姆] 服务已启动 + LLM 配置状态: 已配置
+# 看到 [文字冒险] 服务已启动 + LLM 配置状态: 已配置
 
 # 终端 2 —— 前端（端口 5173）
 cd frontend
@@ -313,15 +482,20 @@ FRONTEND_ORIGIN=http://localhost:5173        # CORS 允许来源
 **Q3：重进存档选项不显示**
 → 已修复（选项随历史持久化）。若为旧存档，新操作后的剧情会带选项。
 
-**Q4：端口被占用**
+**Q4：导入世界观提示解析失败**
+→ 需后端已配置 LLM；文本尽量说明"是否有战斗/货币/装备"，或重试一次。
+
+**Q5：端口被占用**
 → 参考"如何关闭"一节清理残留进程。
 
 ---
 
 ## 7. 后续可扩展方向
 
+- ~~探案模式（案件 AI 生成、线索收集、物证反驳说谎 NPC、指认凶手与认罪）~~ ✅ 已实现，见 §2.4.5
+- 探案模式增强：更多题材模板、案件难度分级、限时破案
+- 更多内置世界观模板（赛博朋克、武侠、太空歌剧……）
 - 多人在线（共享世界 / 实时协作冒险）
-- 自动重试与更健壮的 JSON 解析（应对模型不稳定输出）
 - 富文本渲染（物品/战斗高亮）、自动配图
 - 数据库升级（SQLite）以支持多用户与查询
 - 存档加密 / 云同步
