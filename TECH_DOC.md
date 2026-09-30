@@ -103,7 +103,7 @@ Express 后端 :3001
 | 参数 | 值 | 为什么 |
 |------|-----|--------|
 | `temperature` | 0.9 | 剧情随机性，创意写作偏高 |
-| `max_tokens` | 2048 | 官方推荐普通任务额度；**思考模式下思考与输出共享此配额**，设太小会截断输出 |
+| `max_tokens` | 4096 | 官方推荐普通任务额度（2048~4096）；系统提示词+历史已占约 2000 token，2048 时输出被截断导致 JSON 解析失败、触发降级 |
 | `reasoning_effort` | `"none"` | **关闭思考模式**（sensenova 思考默认开启，会抢占输出配额导致空内容） |
 | `response_format` | `{type: "json_object"}` | 结构化输出，要求返回合法 JSON |
 
@@ -113,7 +113,7 @@ await fetch(`${cfg.baseUrl}/chat/completions`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
   body: JSON.stringify({
-    model, messages, temperature: 0.9, max_tokens: 2048,
+    model, messages, temperature: 0.9, max_tokens: 4096,
     reasoning_effort: 'none',
     response_format: { type: 'json_object' },
   }),
@@ -146,12 +146,14 @@ AI 是"尽力遵守协议"的，不能指望它永远正确。本项目用**五�
 {
   "narrative": "本回合剧情，300~500字，第二人称，结尾不替玩家做决定",
   "choices": ["建议选项A", "建议选项B", "建议选项C"],
-  "delta": { "hp": 0, "gold": 0, "exp": 0, "inventory": ["获得的物品"], "removeInventory": ["失去的物品"] },
+  "delta": { "hp": 0, "gold": 0, "exp": 0, "inventory": ["获得的物品"] },
   "battle": true
 }
 ```
 
 并附带数值规则：hp 幅度 5~40、gold 幅度 1~50、exp 幅度 10~30、未发生的事填 0 或空数组、死亡时 delta.hp 恰好归零等。
+
+> **物品操作权限**：delta 中只有 `inventory`（AI 赠送的新物品，进入背包）。**使用 / 丢弃 / 卸下 / 装备物品由玩家通过前端按钮完成并自动同步**，AI 无权移动任何物品（`removeInventory` / `weapon` / `armor` 字段已被后端硬性忽略），只负责在剧情中描写按钮动作并结算其效果（如食用食物 → hp 回血）。
 
 **第 2 层 · 参数约束（请求级）**
 

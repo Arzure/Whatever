@@ -3,7 +3,7 @@ const path = require('path');
 const { loadEnv } = require('./config');
 const { isConfigured, llmConfig } = require('./llm');
 const storage = require('./storage');
-const { newGame, processAction } = require('./game');
+const { newGame, processAction, useItem, discardItem, cancelPendingAction, equipItem, unequipItem } = require('./game');
 
 loadEnv();
 
@@ -36,14 +36,14 @@ app.post('/api/games', (req, res) => {
   const name = String(req.body?.playerName || '').trim().slice(0, 20);
   const game = newGame(name);
   storage.saveGame(game.id, game);
-  res.status(201).json({ id: game.id, player: game.player, history: game.history });
+  res.status(201).json({ id: game.id, player: game.player, history: game.history, pendingActions: game.pendingActions });
 });
 
 // 读取存档
 app.get('/api/games/:id', (req, res) => {
   const game = storage.loadGame(req.params.id);
   if (!game) return res.status(404).json({ error: '存档不存在' });
-  res.json({ id: game.id, player: game.player, history: game.history });
+  res.json({ id: game.id, player: game.player, history: game.history, pendingActions: game.pendingActions });
 });
 
 // 存档（手动静默保存，返回当前快照）
@@ -59,6 +59,65 @@ app.post('/api/games/:id/save', (req, res) => {
 app.delete('/api/games/:id', (req, res) => {
   storage.deleteGame(req.params.id);
   res.json({ ok: true });
+});
+
+// 使用道具（从背包移除，记为待结算动作，效果延迟到下次 AI 回合）
+app.post('/api/games/:id/use-item', (req, res) => {
+  const game = storage.loadGame(req.params.id);
+  if (!game) return res.status(404).json({ error: '存档不存在' });
+  const item = String(req.body?.item || '').trim();
+  if (!item) return res.status(400).json({ error: '物品名不能为空' });
+  const result = useItem(game, item);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+  storage.saveGame(game.id, game);
+  res.json({ ok: true, player: game.player, pendingActions: game.pendingActions, message: result.message });
+});
+
+// 装备背包中的武器/防具
+app.post('/api/games/:id/equip', (req, res) => {
+  const game = storage.loadGame(req.params.id);
+  if (!game) return res.status(404).json({ error: '存档不存在' });
+  const item = String(req.body?.item || '').trim();
+  if (!item) return res.status(400).json({ error: '物品名不能为空' });
+  const result = equipItem(game, item);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+  storage.saveGame(game.id, game);
+  res.json({ ok: true, player: game.player, pendingActions: game.pendingActions, message: result.message });
+});
+
+// 卸下当前武器/防具
+app.post('/api/games/:id/unequip', (req, res) => {
+  const game = storage.loadGame(req.params.id);
+  if (!game) return res.status(404).json({ error: '存档不存在' });
+  const slot = String(req.body?.slot || '').trim();
+  const result = unequipItem(game, slot);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+  storage.saveGame(game.id, game);
+  res.json({ ok: true, player: game.player, pendingActions: game.pendingActions, message: result.message });
+});
+
+// 丢弃背包中的物品（默认丢弃 1 个，记为待结算动作）
+app.post('/api/games/:id/discard', (req, res) => {
+  const game = storage.loadGame(req.params.id);
+  if (!game) return res.status(404).json({ error: '存档不存在' });
+  const item = String(req.body?.item || '').trim();
+  if (!item) return res.status(400).json({ error: '物品名不能为空' });
+  const result = discardItem(game, item);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+  storage.saveGame(game.id, game);
+  res.json({ ok: true, player: game.player, pendingActions: game.pendingActions, message: result.message });
+});
+
+// 撤销待结算动作（恢复道具/状态）
+app.post('/api/games/:id/cancel-pending', (req, res) => {
+  const game = storage.loadGame(req.params.id);
+  if (!game) return res.status(404).json({ error: '存档不存在' });
+  const index = Number(req.body?.index);
+  if (!Number.isInteger(index)) return res.status(400).json({ error: '缺少有效的动作索引' });
+  const result = cancelPendingAction(game, index);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+  storage.saveGame(game.id, game);
+  res.json({ ok: true, player: game.player, pendingActions: game.pendingActions, message: result.message });
 });
 
 // 执行动作（核心游戏循环）

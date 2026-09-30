@@ -27,6 +27,7 @@ function newGame(playerName) {
       armor: '防具·皮甲[普通]',
     },
     history: [],
+    pendingActions: [], // 前端按钮产生的待结算动作（提交给 AI 前暂存，可撤销）
   };
 }
 
@@ -73,22 +74,19 @@ function parseActionJson(text) {
 
 /**
  * 校验并规范化 LLM 返回的 delta（属性变化）。
+ * 物品操作权限：AI 只能"赠送新物品"（inventory）；消耗/丢弃/换装等物品移动
+ * 一律由玩家通过前端按钮完成并自动同步，因此 AI 返回的 removeInventory / weapon / armor 一律忽略。
  */
 function normalizeDelta(delta) {
-  const out = { hp: 0, gold: 0, exp: 0, inventory: [], removeInventory: [], weapon: null, armor: null };
+  const out = { hp: 0, gold: 0, exp: 0, inventory: [] };
   if (!delta || typeof delta !== 'object') return out;
 
   out.hp = Math.round(Number(delta.hp) || 0);
   out.gold = Math.round(Number(delta.gold) || 0);
   out.exp = Math.round(Number(delta.exp) || 0);
-  out.weapon = typeof delta.weapon === 'string' && delta.weapon.trim() ? delta.weapon.trim() : null;
-  out.armor = typeof delta.armor === 'string' && delta.armor.trim() ? delta.armor.trim() : null;
 
   const inv = Array.isArray(delta.inventory) ? delta.inventory : [];
   out.inventory = inv.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
-
-  const rm = Array.isArray(delta.removeInventory) ? delta.removeInventory : [];
-  out.removeInventory = rm.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
 
   return out;
 }
@@ -96,16 +94,21 @@ function normalizeDelta(delta) {
 /**
  * 从背包移除物品，支持带数量的条目（如「干粮 x2」）。
  * 数量由物品名末尾的「 xN」解析；未带数量则完整移除单个条目。
- * 找不到同名物品时，宁可不删也不误伤其他物品。
+ * @returns {boolean} 是否成功移除
  */
 function removeFromInventory(player, effects, itemName) {
   const trimmed = String(itemName || '').trim();
-  if (!trimmed) return;
+  if (!trimmed) return false;
 
   // 解析名称与数量：「干粮 x2」→ { name: '干粮', count: 2 }
   const countMatch = trimmed.match(/^(.*?)\s*[x×](\d+)$/i);
   const targetName = (countMatch ? countMatch[1].trim() : trimmed);
   const targetCount = countMatch ? parseInt(countMatch[2], 10) : 1;
+
+  // 装备类（武器/防具）与道具的文案区分
+  const isEquip = targetName.startsWith('武器·') || targetName.startsWith('防具·');
+  const removePhrase = (n, extra = '') =>
+    isEquip ? `背包移除「${n}」${extra}` : `失去「${n}」${extra}`;
 
   // 在背包中查找同名条目
   for (let i = 0; i < player.inventory.length; i++) {
@@ -119,21 +122,21 @@ function removeFromInventory(player, effects, itemName) {
       const newCount = parseInt(entryMatch[2], 10) - targetCount;
       if (newCount <= 0) {
         player.inventory.splice(i, 1);
-        effects.push(`失去「${targetName}」`);
+        effects.push(removePhrase(targetName));
       } else {
         player.inventory[i] = `${entryName} x${newCount}`;
-        effects.push(`失去「${targetName}」x${targetCount}，剩余 x${newCount}`);
+        effects.push(removePhrase(targetName, `x${targetCount}，剩余 x${newCount}`));
       }
     } else {
       // 背包条目不带数量：视为单件，直接移除
       player.inventory.splice(i, 1);
-      effects.push(`失去「${targetName}」`);
+      effects.push(removePhrase(targetName));
     }
-    return;
+    return true;
   }
 
-  // 背包中完全没有
-  effects.push(`失去「${targetName}」（但背包中没有，可能已丢弃）`);
+  // 背包中完全没有（可能是按钮操作已移除的道具被 AI 重复声明移除，静默忽略，不打扰玩家）
+  return false;
 }
 
 /**
@@ -163,58 +166,138 @@ function applyDelta(player, delta) {
   }
 
   for (const item of delta.inventory) {
-    const { type, name } = parseItem(item);
-    if (type === 'weapon' || type === 'armor') {
-      // 武器/防具：直接装备到对应槽位（旧装备放回背包）
-      const slot = type === 'weapon' ? 'weapon' : 'armor';
-      if (player[slot]) {
-        player.inventory.push(player[slot]);
-        effects.push(`卸下「${parseItem(player[slot]).name}」，放回背包`);
-      }
-      player[slot] = item;
-      effects.push(`装备「${name}」`);
-    } else {
-      // 道具：进背包
-      if (player.inventory.length >= MAX_INVENTORY) {
-        effects.push(`背包已满，无法获得「${item}」`);
-        continue;
-      }
-      player.inventory.push(item);
-      effects.push(`获得「${item}」`);
+    const { name } = parseItem(item);
+    // 武器/防具/道具一律进背包：装备到槽位由玩家通过按钮完成，AI 无权直接装备
+    if (player.inventory.length >= MAX_INVENTORY) {
+      effects.push(`背包已满，无法获得「${name}」`);
+      continue;
     }
+    player.inventory.push(item);
+    effects.push(`获得「${item}」`);
   }
-
-  for (const item of delta.removeInventory) {
-    removeFromInventory(player, effects, item);
-  }
-
-  // 装备切换（AI 指定目标装备）
-  // 目标可能来自：a) 背包中的旧装备（玩家要求换装）；b) 本回合剧情刚获得（AI 在叙事中给了装备但忘了写进 inventory）
-  // 两种情况都应成功装备：背包有则从背包取，背包没有则视为剧情直接获得，保证剧情与状态一致。
-  const switchSlot = (slot, target) => {
-    if (!target) return;
-    const { type, name } = parseItem(target);
-    if (slot === 'weapon' && type !== 'weapon') {
-      effects.push(`装备失败：「${name}」不是武器`);
-      return;
-    }
-    if (slot === 'armor' && type !== 'armor') {
-      effects.push(`装备失败：「${name}」不是防具`);
-      return;
-    }
-    // 目标已是当前槽位装备：AI 重复声明切换时静默跳过，不重复报错
-    if (player[slot] === target) return;
-    const idx = player.inventory.indexOf(target);
-    if (idx !== -1) player.inventory.splice(idx, 1); // 从背包移除（若是背包已有装备）
-    // 卸下当前装备放回背包，再换上目标
-    if (player[slot]) player.inventory.push(player[slot]);
-    player[slot] = target;
-    effects.push(`装备「${name}」`);
-  };
-  switchSlot('weapon', delta.weapon);
-  switchSlot('armor', delta.armor);
 
   return { player, effects };
+}
+
+// ==================== 按钮快捷操作（装备/卸下/使用道具） ====================
+
+/**
+ * 使用道具：从背包移除，记为待结算动作（效果延迟到下次 AI 回合结算）。
+ * @returns {{ok: boolean, pending: object|null, message: string}}
+ */
+function useItem(game, itemName) {
+  const player = game.player;
+  const effects = [];
+  // 按钮点击默认只使用 1 个：即使条目带数量（如「干粮 x2」）也按 x1 扣减，
+  // 想一次用多个可改用文字输入（走 AI 结算流程）。
+  const countMatch = String(itemName).match(/^(.*?)\s*[x×](\d+)$/i);
+  const useOne = countMatch ? `${countMatch[1].trim()} x1` : String(itemName).trim();
+  const ok = removeFromInventory(player, effects, useOne);
+  if (!ok) {
+    return { ok: false, pending: null, message: `背包里没有「${useOne}」` };
+  }
+  const pending = { type: 'use', item: useOne, message: `使用「${useOne}」` };
+  game.pendingActions.push(pending);
+  game.updatedAt = Date.now();
+  return { ok: true, pending, message: pending.message };
+}
+
+/**
+ * 恢复道具到背包（支持数量合并）。
+ * 例如背包现有「干粮 x1」，恢复「干粮 x1」→ 合并为「干粮 x2」。
+ */
+function restoreItem(player, itemName) {
+  const countMatch = String(itemName).match(/^(.*?)\s*[x×](\d+)$/i);
+  const name = countMatch ? countMatch[1].trim() : String(itemName).trim();
+  const count = countMatch ? parseInt(countMatch[2], 10) : 1;
+
+  for (let i = 0; i < player.inventory.length; i++) {
+    const entry = player.inventory[i];
+    const entryMatch = entry.match(/^(.*?)\s*[x×](\d+)$/i);
+    if (entryMatch && entryMatch[1].trim() === name) {
+      player.inventory[i] = `${name} x${parseInt(entryMatch[2], 10) + count}`;
+      return;
+    }
+    if (!entryMatch && entry === name) {
+      player.inventory[i] = `${name} x${1 + count}`;
+      return;
+    }
+  }
+  player.inventory.push(itemName);
+}
+
+/**
+ * 丢弃背包中的物品（默认丢弃 1 个，与"使用"一致；带数量条目按 x1 扣减），记为待结算动作。
+ */
+function discardItem(game, itemName) {
+  const player = game.player;
+  const effects = [];
+  const countMatch = String(itemName).match(/^(.*?)\s*[x×](\d+)$/i);
+  const discardOne = countMatch ? `${countMatch[1].trim()} x1` : String(itemName).trim();
+  const ok = removeFromInventory(player, effects, discardOne);
+  if (!ok) {
+    return { ok: false, pending: null, message: `背包里没有「${discardOne}」` };
+  }
+  const pending = { type: 'discard', item: discardOne, message: `丢弃「${discardOne}」` };
+  game.pendingActions.push(pending);
+  game.updatedAt = Date.now();
+  return { ok: true, pending, message: pending.message };
+}
+
+/**
+ * 撤销待结算动作：恢复道具到背包。
+ */
+function cancelPendingAction(game, index) {
+  const pending = game.pendingActions[index];
+  if (!pending) return { ok: false, message: '待结算动作不存在' };
+  if (pending.type === 'use' || pending.type === 'discard') {
+    restoreItem(game.player, pending.item);
+    game.pendingActions.splice(index, 1);
+    game.updatedAt = Date.now();
+    return { ok: true, message: `已撤销「${pending.type === 'use' ? '使用' : '丢弃'}${pending.item}」，道具已恢复` };
+  }
+  return { ok: false, message: '该类型动作暂不支持撤销' };
+}
+
+/**
+ * 装备背包中的武器/防具到对应槽位（立即生效，写入待结算动作供 AI 感知）。
+ */
+function equipItem(game, itemName) {
+  const player = game.player;
+  const { type, name } = parseItem(itemName);
+  if (type !== 'weapon' && type !== 'armor') {
+    return { ok: false, message: `「${name}」不是武器或防具` };
+  }
+  const slot = type === 'weapon' ? 'weapon' : 'armor';
+  const idx = player.inventory.indexOf(itemName);
+  if (idx === -1) return { ok: false, message: `背包里没有「${itemName}」` };
+  // 卸下当前装备放回背包
+  player.inventory.splice(idx, 1);
+  if (player[slot]) player.inventory.push(player[slot]);
+  player[slot] = itemName;
+  game.pendingActions.push({ type: 'equip', item: itemName, message: `装备「${itemName}」` });
+  game.updatedAt = Date.now();
+  return { ok: true, message: `已装备「${itemName}」` };
+}
+
+/**
+ * 卸下当前武器/防具到背包（立即生效，写入待结算动作供 AI 感知）。
+ */
+function unequipItem(game, slot) {
+  if (slot !== 'weapon' && slot !== 'armor') return { ok: false, message: '无效的槽位' };
+  const player = game.player;
+  const current = player[slot];
+  if (!current) return { ok: false, message: slot === 'weapon' ? '当前没有装备武器' : '当前没有装备防具' };
+  player.inventory.push(current);
+  player[slot] = null;
+  game.pendingActions.push({ type: 'unequip', slot, item: current, message: `卸下「${current}」` });
+  game.updatedAt = Date.now();
+  return { ok: true, message: `已卸下「${current}」` };
+}
+
+/** 清空待结算动作（提交给 AI 前调用） */
+function clearPendingActions(game) {
+  game.pendingActions = [];
 }
 
 /**
@@ -225,7 +308,7 @@ function buildSystemPrompt(player, history) {
 
 【输出格式 — 最高优先级，必须严格遵守】
 你的每一次回复都必须是一个【合法且完整】的 JSON 对象，除此之外不允许输出任何其他内容（包括开场的思考、解释、代码块标记、多余的标点或空白行）。JSON 结构唯一，示例如下：
-{"narrative":"...","choices":["...","..."],"delta":{"hp":0,"gold":0,"exp":0,"inventory":[],"removeInventory":[],"weapon":null,"armor":null},"battle":false}
+{"narrative":"...","choices":["...","..."],"delta":{"hp":0,"gold":0,"exp":0,"inventory":[]},"battle":false}
 
 【严格禁止】
 - 严禁输出纯文本、散文、对话式回复或剧情片段 —— 即使玩家输入触发你「想直接描写」，你也必须先构造 JSON 对象，把全部剧情写进 narrative 字段。
@@ -239,12 +322,23 @@ function buildSystemPrompt(player, history) {
 3. "delta"：严格按本回合实际发生的事件填写：
    - 受伤/治疗 → hp（负数受伤、正数治疗，幅度 5~40）
    - 获得/失去金币 → gold（幅度 1~50）
-   - 获得武器/防具 → inventory（格式见【物品品质规则】；会直接装备到对应槽位）
-   - 获得道具（干粮/药水等）→ inventory
-   - 失去道具 → removeInventory（名称须与玩家背包完全一致）
+   - 获得武器/防具/道具 → inventory（武器防具格式见【物品品质规则】；获得后会进入玩家背包，由玩家通过按钮自行装备）
    - 战斗胜利或重要发现 → exp（10~30）
-   - 玩家要求更换武器/防具时 → weapon / armor（填玩家背包中已有的完整物品名，含类型前缀与品质标记；程序会自动换装）
    - 未发生的事件一律填 0、空数组或 null
+
+【物品操作权限（核心规则，必须遵守）】
+- 所有物品的移动操作【使用 / 丢弃 / 卸下 / 装备】只能由玩家在界面通过按钮完成，程序会自动同步状态。
+- 因此你的 delta 中【不要、也不需要】包含 removeInventory、weapon、armor 这类字段——你无权移动任何物品。
+- 玩家通过按钮操作时，输入会以「（已操作：使用「干粮 x1」，卸下「防具·皮甲[普通]」）」的形式提示你：这些动作已经实际生效，你只需在剧情中如实描写，并在 delta 中结算其效果（如食用食物在 hp 填正数）。
+- 玩家要求换装备时，请只在剧情中描写他取出/收好装备的意图，装备实际切换由玩家点击按钮完成，你不要在 delta 里替玩家操作。
+
+【道具效果规则（重要）】
+- 道具没有预设效果表，效果完全由你根据道具性质自主决定并如实填写在 delta 中（道具的移除动作已由玩家按钮完成，你只管效果）：
+  - 玩家食用食物/饮水/使用回复类道具（干粮、面包、药水、草药、药剂、果实等）→ 在 hp 中填正数（回复 5~40，与道具价值相符；大餐/稀有药剂可回复更多）
+  - 玩家使用有毒/腐败/危险道具 → 在 hp 中填负数
+  - 玩家使用增益道具（增益临时力量等）→ 在 exp 中填正数（10~30）或视情况在 hp/gold 体现
+  - 玩家使用照明/工具类道具（火把、绳索等）→ 无属性变化，效果留空即可
+- 关键：只要玩家使用了道具，就必须在 hp/gold/exp 中如实反映其效果（无效果的工具类除外）。宁可高估效果，也不要漏写——漏写会让玩家产生「吃了东西却没反应」的困惑。
 4. "battle"：本回合处于战斗状态填 true，否则 false。
 
 【物品品质规则】
@@ -277,15 +371,23 @@ ${history.length ? history.slice(-6).map((h) => `[${h.role === 'user' ? '玩家'
 async function processAction(game, userInput) {
   const history = game.history;
 
+  // 0. 若存在待结算的按钮动作（使用道具/换装/卸装），合并进玩家输入一并提交给 AI
+  let mergedInput = userInput;
+  if (game.pendingActions && game.pendingActions.length) {
+    const pendingDesc = game.pendingActions.map((p) => `（动作：${p.message}）`).join('，');
+    mergedInput = `${userInput}。此前你已通过快捷按钮执行：${pendingDesc}，请根据这些已发生的动作推进剧情并结算其效果（使用道具的效果由你决定，如食物回血等；已在背包中移除的消耗品不要重复移除）。`;
+    clearPendingActions(game);
+  }
+
   // 1. 追加玩家输入到历史
-  history.push({ role: 'user', content: userInput });
+  history.push({ role: 'user', content: mergedInput });
 
   // 2. 调用 LLM
   const system = buildSystemPrompt(game.player, history);
   const text = await chat([
     { role: 'system', content: system },
     ...history.map((h) => ({ role: h.role, content: h.content })),
-  ], { temperature: 0.9, maxTokens: 2048 });
+  ], { temperature: 0.9, maxTokens: 4096 });
 
   // 3. 解析动作 JSON
   let action = parseActionJson(text);
@@ -295,11 +397,11 @@ async function processAction(game, userInput) {
     console.log('[debug] 首次解析失败，尝试重试…');
     try {
       const retryPrompt = `你是一个文字冒险游戏主持人，请严格以 JSON 格式输出本回合结果，不要输出任何其他文字。必须使用如下格式：
-{"narrative":"200~400字剧情，第二人称，承接上回合", "choices":["选项1","选项2"], "delta":{"hp":0,"gold":0,"exp":0,"inventory":[],"removeInventory":[],"weapon":null,"armor":null}, "battle":false}
-武器命名「武器·名称[品质]」、防具命名「防具·名称[品质]」（品质：普通/优秀/稀有/史诗/传说），道具无前缀；玩家要求换装时在 weapon/armor 填背包中的完整物品名。玩家状态：
+{"narrative":"200~400字剧情，第二人称，承接上回合", "choices":["选项1","选项2"], "delta":{"hp":0,"gold":0,"exp":0,"inventory":[]}, "battle":false}
+武器命名「武器·名称[品质]」、防具命名「防具·名称[品质]」（品质：普通/优秀/稀有/史诗/传说），道具无前缀；获得物品填 inventory（进入背包，装备由玩家按钮完成），你无权移除或换装任何物品。玩家状态：
 ${renderPlayer(game.player)}`;
       const retryMessages = [{ role: 'system', content: retryPrompt }, { role: 'user', content: `上一回合玩家行动：${history[history.length - 1]?.content}\n请继续推进剧情。` }];
-      const retryText = await chat(retryMessages, { temperature: 0.9, maxTokens: 2048 });
+      const retryText = await chat(retryMessages, { temperature: 0.9, maxTokens: 4096 });
       action = parseActionJson(retryText);
       console.log('[debug] 重试结果:', action === null ? '仍失败' : '成功');
     } catch (e) {
@@ -352,4 +454,4 @@ ${renderPlayer(game.player)}`;
   };
 }
 
-module.exports = { newGame, processAction, renderPlayer, buildSystemPrompt };
+module.exports = { newGame, processAction, renderPlayer, buildSystemPrompt, useItem, discardItem, cancelPendingAction, equipItem, unequipItem, clearPendingActions };

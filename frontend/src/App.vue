@@ -13,6 +13,7 @@ const error = ref('');
 const gameOver = ref(false);
 const inBattle = ref(false);
 const lastEffects = ref([]);
+const pendingActions = ref([]); // 待结算的按钮动作（可撤销）
 
 const messagesEl = ref(null);
 
@@ -76,6 +77,41 @@ async function refreshSaves() {
   saves.value = await api('/saves');
 }
 
+// ---------- 按钮快捷操作（装备/卸下/使用道具） ----------
+async function quickAction(path, body) {
+  if (loading.value || gameOver.value || !gameId.value) return;
+  error.value = '';
+  try {
+    const data = await api(`/games/${gameId.value}${path}`, { method: 'POST', body: JSON.stringify(body) });
+    player.value = data.player;
+    pendingActions.value = data.pendingActions || [];
+    return data.message;
+  } catch (e) {
+    error.value = e.message;
+    return null;
+  }
+}
+
+function useItemBtn(item) {
+  quickAction('/use-item', { item });
+}
+
+function discardItemBtn(item) {
+  quickAction('/discard', { item });
+}
+
+function equipBtn(item) {
+  quickAction('/equip', { item });
+}
+
+function unequipBtn(slot) {
+  quickAction('/unequip', { slot });
+}
+
+function cancelPending(index) {
+  quickAction('/cancel-pending', { index });
+}
+
 function scrollToBottom() {
   nextTick(() => {
     if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
@@ -119,6 +155,7 @@ function enterGame(data) {
   gameId.value = data.id;
   player.value = data.player;
   history.value = data.history || [];
+  pendingActions.value = data.pendingActions || [];
   gameOver.value = player.value.hp <= 0;
   inBattle.value = false;
   lastEffects.value = [];
@@ -139,8 +176,13 @@ async function pushAction(actionText) {
   inBattle.value = false;
   input.value = '';
 
-  // 先把玩家输入回显到对话流
-  history.value.push({ role: 'user', content: actionText });
+  // 先把玩家输入回显到对话流（若有待结算按钮动作，合并展示）
+  let displayText = actionText;
+  if (pendingActions.value.length) {
+    const pendingDesc = pendingActions.value.map((p) => p.message).join('，');
+    displayText = `${actionText}（已操作：${pendingDesc}）`;
+  }
+  history.value.push({ role: 'user', content: displayText });
 
   try {
     const result = await api(`/games/${gameId.value}/action`, {
@@ -149,6 +191,7 @@ async function pushAction(actionText) {
     });
 
     player.value = result.player;
+    pendingActions.value = []; // 待结算动作已随本次行动提交给 AI
     inBattle.value = result.battle;
     lastEffects.value = result.effects || [];
     // 降级接续：AI 本次未按格式返回 JSON，后端已直接接续剧情，用游戏内语言给玩家一个简短过渡
@@ -257,6 +300,13 @@ watch(history, scrollToBottom, { deep: true });
           {{ player.weapon ? parseItemName(player.weapon).name : '徒手' }}
           <em v-if="player.weapon && parseItemName(player.weapon).quality">[{{ parseItemName(player.weapon).quality }}]</em>
         </span>
+        <button
+          v-if="player.weapon"
+          class="slot-btn"
+          :disabled="loading || gameOver"
+          title="卸下武器"
+          @click="unequipBtn('weapon')"
+        >卸下</button>
       </div>
       <div class="slot">
         <span class="slot-label">防具</span>
@@ -267,12 +317,41 @@ watch(history, scrollToBottom, { deep: true });
           {{ player.armor ? parseItemName(player.armor).name : '无' }}
           <em v-if="player.armor && parseItemName(player.armor).quality">[{{ parseItemName(player.armor).quality }}]</em>
         </span>
+        <button
+          v-if="player.armor"
+          class="slot-btn"
+          :disabled="loading || gameOver"
+          title="卸下防具"
+          @click="unequipBtn('armor')"
+        >卸下</button>
       </div>
 
       <div class="inventory">
         <h3>背包</h3>
         <ul>
-          <li v-for="item in player.inventory" :key="item">{{ item }}</li>
+          <li v-for="item in player.inventory" :key="item" class="inv-item">
+            <span>{{ item }}</span>
+            <span class="inv-actions">
+              <button
+                v-if="parseItemName(item).type === 'weapon' || parseItemName(item).type === 'armor'"
+                class="slot-btn mini"
+                :disabled="loading || gameOver"
+                @click="equipBtn(item)"
+              >装备</button>
+              <button
+                v-else
+                class="slot-btn mini"
+                :disabled="loading || gameOver"
+                @click="useItemBtn(item)"
+              >使用</button>
+              <button
+                class="slot-btn mini danger"
+                :disabled="loading || gameOver"
+                title="丢弃 1 个（可撤销）"
+                @click="discardItemBtn(item)"
+              >丢弃</button>
+            </span>
+          </li>
           <li v-if="!player.inventory.length" class="dim">空空如也</li>
         </ul>
       </div>
@@ -317,6 +396,16 @@ watch(history, scrollToBottom, { deep: true });
 
       <div class="input-bar">
         <p v-if="error" class="error inline">{{ error }}</p>
+
+        <!-- 待结算动作框：使用道具/换装等按钮动作，提交前可撤销 -->
+        <div v-if="pendingActions.length" class="pending-bar">
+          <span class="pending-label">待结算动作：</span>
+          <span v-for="(p, i) in pendingActions" :key="i" class="pending-chip">
+            {{ p.message }}
+            <button class="pending-x" :disabled="loading" title="撤销此动作" @click="cancelPending(i)">✕</button>
+          </span>
+        </div>
+
         <form class="input-row" @submit.prevent="pushAction(input)">
           <input
             v-model="input"
@@ -572,6 +661,90 @@ watch(history, scrollToBottom, { deep: true });
   font-style: normal;
   font-size: 12px;
   opacity: 0.9;
+}
+
+.slot-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  background: var(--panel);
+  transition: all 0.15s;
+}
+
+.slot-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+
+.slot-btn.mini {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.slot-btn.danger {
+  border-color: #e5484d55;
+  color: #e5484d;
+}
+
+.slot-btn.danger:hover:not(:disabled) {
+  border-color: #e5484d;
+  color: #ff6b6b;
+}
+
+.inv-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.inv-actions {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pending-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: rgba(212, 161, 44, 0.08);
+  border: 1px dashed rgba(212, 161, 44, 0.4);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.pending-label {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+}
+
+.pending-x {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 50%;
+}
+
+.pending-x:hover:not(:disabled) {
+  color: var(--danger);
 }
 
 .inventory h3 {
