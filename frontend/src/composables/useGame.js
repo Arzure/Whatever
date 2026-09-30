@@ -33,6 +33,8 @@ export function useGame() {
     scenes: [],
     suspects: [],
     present: [],
+    evidence: [], // 物证明细 [{id,name,desc,foundAt}]
+    caseResult: null, // 案件告破复盘：{ got:[{text,holder}], missing:[{text,holder}], total }
   });
 
   const hpPercent = computed(() =>
@@ -120,6 +122,8 @@ export function useGame() {
     state.scenes = data.scenes || [];
     state.suspects = data.suspects || [];
     state.present = data.present || [];
+    state.evidence = data.evidence || [];
+    state.caseResult = data.caseResult || null;
     state.gameOver = isOver(data, data.player);
     state.inBattle = false;
     state.lastEffects = [];
@@ -146,6 +150,8 @@ export function useGame() {
       state.scenes = data.scenes || state.scenes;
       state.suspects = data.suspects || state.suspects;
       state.present = data.present || state.present;
+      state.evidence = data.evidence || state.evidence;
+      state.caseResult = data.caseResult || state.caseResult;
       state.gameOver = isOver(data, data.player);
     } catch (e) {
       // 快照刷新失败不影响本回合，本地状态已更新
@@ -168,6 +174,8 @@ export function useGame() {
     state.scenes = [];
     state.suspects = [];
     state.present = [];
+    state.evidence = [];
+    state.caseResult = null;
     refreshSaves();
   }
 
@@ -284,6 +292,7 @@ export function useGame() {
     state.pendingActions = result.pendingActions || [];
     state.lastEffects = result.effects || [];
     if (result.detective) state.detective = result.detective;
+    state.caseResult = result.caseResult || null;
     if (result.narrative) {
       state.history.push({ role: 'assistant', content: result.narrative, choices: result.choices || [] });
     }

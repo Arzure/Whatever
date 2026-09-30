@@ -65,6 +65,9 @@ function trimHistory(history) {
 /** 把一条口供记入线索清单（并作为「道具」放进背包，永久保留） */
 function addClue(game, suspect, st) {
   const item = CLUE_PREFIX + st.text;
+  // 说话人已被物证击破（或凶手已被指认）时，新获得的口供直接按其真伪标记
+  const revealed = game.detective.revealed.includes(suspect.id);
+  const status = revealed ? (st.truth ? 'confirmed' : 'false') : 'unknown';
   game.detective.clues.push({
     id: st.id,
     suspectId: suspect.id,
@@ -72,7 +75,7 @@ function addClue(game, suspect, st) {
     text: st.text,
     item,
     truth: st.truth,
-    status: 'unknown', // unknown | confirmed | false
+    status, // unknown | confirmed | false
   });
   if (game.player.inventory.length < MAX_INVENTORY) game.player.inventory.push(item);
 }
@@ -112,10 +115,13 @@ function matchScene(kase, text) {
 }
 
 /**
- * 物证击破谎言由代码确定性判定：玩家当面出示「当前装备的物证」质问某位在场说谎者，
+ * 物证击破由代码确定性判定：玩家当面出示「当前装备的物证」质问某位在场的人，
  * 且该物证恰好能反驳他（rebuts 命中）时即判定击破。
+ * 不限于说谎者（isLiar）——若某件物证恰好能拆穿疑似凶手某句谎话，
+ * 同样可以当场击破：凶手的假话一旦被物证盖穿，会改口补充只“部分”坦言的内容，
+ * 但绝不会因此直接自证杀人（否则就绕开了认罪机制）。防剧透的约定由案件生成时保证。
  * 交给 AI 判断会出现「叙事里对方始终不松口」的卡死，故与场景切换一样收归程序。
- * @returns {object|null} 被击破的说谎者
+ * @returns {object|null} 被击破的人（说谎者或凶手）
  */
 function resolveRebuttal(game, text) {
   const d = game.detective;
@@ -129,7 +135,8 @@ function resolveRebuttal(game, text) {
   const t = String(text || '');
   for (const id of ev.rebuts) {
     const su = findSuspect(game.case, id);
-    if (!su || !su.isLiar || d.revealed.includes(su.id) || !present.includes(su.id)) continue;
+    // 击破不限定说谎者：物证能反驳的人（含凶手）都可被击破
+    if (!su || d.revealed.includes(su.id) || !present.includes(su.id)) continue;
     // 玩家必须点明对象（人名）或亮明物证（物证名），避免误判
     if (t.includes(su.name) || t.includes(ev.name)) return su;
   }
@@ -245,16 +252,17 @@ function applyDelta(game, delta) {
     effects.push(`获得线索「${st.text}」`);
   }
 
-  // 3. 物证击破说谎者
+  // 3. 物证击破（说谎者或疑似凶手，不限定 isLiar）
   if (delta.rebut) {
     const su = findSuspect(kase, delta.rebut);
     const equipped = (game.player.slots && game.player.slots.evidence) || null;
     const ev = equipped ? equipNameToEvidence(kase, equipped) : null;
-    if (su && ev && present.includes(su.id) && su.isLiar && !d.revealed.includes(su.id) && ev.rebuts.includes(su.id)) {
+    if (su && ev && present.includes(su.id) && !d.revealed.includes(su.id) && ev.rebuts.includes(su.id)) {
       d.revealed.push(su.id);
       markSuspectClues(game, su.id);
       effects.push(`物证「${ev.name}」击破了「${su.name}」的谎言`);
-      // 击破后其真话立刻到手，避免玩家卡关（AI 通常也会在同一回合给出）
+      // 击破后其真话立刻到手（凶手被击破时，案件生成已保证其真话不直接自证杀人），
+      // 避免玩家卡关（AI 通常也会在同一回合给出）
       for (const st of su.statements) {
         if (!st.truth || d.clues.some((c) => c.id === st.id)) continue;
         addClue(game, su, st);
@@ -314,7 +322,9 @@ function presentStatementList(kase, d, present) {
   for (const su of present) {
     for (const st of su.statements) {
       if (d.clues.some((c) => c.id === st.id)) continue;
-      const blocked = st.truth && su.isLiar && !d.revealed.includes(su.id);
+      // 说谎者与凶手：truth=true 的口供在被物证击破（或凶手被指认）前都不可主动说出
+      const needsRebuttal = su.isLiar || su.isCulprit;
+      const blocked = st.truth && needsRebuttal && !d.revealed.includes(su.id);
       lines.push(`    · ${su.name} / ${st.id}${st.truth ? '' : '（此条不实）'}${blocked ? ' → 当前不可说出' : ''}`);
     }
   }
@@ -364,13 +374,14 @@ function buildSystemPrompt(game) {
     `1. 只演绎，不创作：所有台词、动机、手法、时间线都必须与【案件真相】完全一致。\n` +
     `2. 绝不主动说破凶手是谁，也绝不让 NPC 说出真相中不存在的信息。真相只能通过玩家自己指认与举证来揭开。\n` +
     `3. delta.clues 只填玩家【本回合确实从在场者口中取得】的口供 id（必须来自【案件真相】的 statements）。玩家盘问谁，就让谁按规则发言，并把取得的 id 填进 clues；玩家没有询问的人不要发言。\n` +
-    `4. 说谎者（isLiar=true）在被击破前，只能说出 truth=false 的口供，并把谎言包装得像真话；被 delta.rebut 击破或已在「已被物证击破」名单中后，才说出 truth=true 的口供，并明确交代自己撒谎的原因（lieMotive）。\n` +
-    `5. 凶手（isCulprit=true）在被正确指认前只会否认与推脱，只说出其 truth=false 的口供。\n` +
+    `4. 说谎者（isLiar=true）在被物证击破前，只能说出 truth=false 的口供，并把谎言包装得像真话；被 delta.rebut 击破或已在「已被物证击破」名单中后，才说出 truth=true 的口供，并明确交代自己撒谎的原因（lieMotive）。\n` +
+    `4.1 凶手（isCulprit=true）的假口供同样可能被对应物证击破：被击破后他会改口，只说「不直接指认自己杀人」的部分实话（onRebuttal），其 truth=true 的口供随之可得；但凶手绝不会因此当场认罪，认罪仍只能通过玩家指认后举证。\n` +
+    `5. 凶手（isCulprit=true）在被正确指认前只会否认与推脱，只说出其 truth=false 的口供（被物证击破后按 4.1 处理）。\n` +
     `6. 【位置以「当前局面」为准，且不会因为你而改变】玩家是否移动由程序判定。当叙事涉及移动时，delta.scene 必须填目标场景 id（未填即视为没有移动，此时 narrative 中【绝不可】描写玩家已经离开当前位置）。玩家进入新场景时，要描写新场景的样貌。\n` +
     `6.1 【严禁描写不在场的人】narrative 只能出现「在场人物」名单里的人；其他人一律不得出场、发言或表态。若玩家想找不在场的人，要明确告知此人不在这里，并提示可以去哪里找他。\n` +
     `6.2 【叙事中不得出现内部编号】narrative 里只能用场景名、人物名与物证名，绝不能出现 sc1、s2、c3、e1 这类内部 id，也不要照抄 id 字样；场景样貌以【案件真相】里的 desc 为准，不得自行编造。\n` +
     `7. 【物证只能来自真相】delta.evidence 只能填【当前场景尚未被发现的物证】里已列出的 id（照抄，一个字符都不能改）；玩家没有在场景里搜找就不要给物证；绝不允许虚构真相之外的新物证、新 id 或新线索。若你在 narrative 中描写玩家发现了某件物证，就必须同时把它的 id 填进 delta.evidence。\n` +
-    `8. delta.rebut 只在【玩家用当前装备的物证质问某人，且该物证恰好能反驳此人】时填写；填写时必须把该人所有 truth=true 的口供同时放进 delta.clues。\n` +
+    `8. delta.rebut 只在【玩家用当前装备的物证质问某人，且该物证恰好能反驳此人】时填写（不限于说谎者，凶手也可被击破）；填写时必须把该人所有 truth=true 的口供同时放进 delta.clues。\n` +
     `9. 玩家的生命值只由「指认失败」扣减，由程序结算，你不要填写任何血量变化。\n` +
     `10. narrative 结尾不要替玩家做决定；choices 给 2~3 个合乎当前情境的建议（如盘问某人、勘查某处、前往某地、指认某人）。`
   );
@@ -438,6 +449,8 @@ function resultPayload(game, extra) {
     phase,
     gameOver: phase === 'win' || phase === 'lose',
     degraded: !!extra.degraded,
+    // 案件告破信息（仅 win 时携带；平时为 null，避免泄露 keyClues）
+    caseResult: extra.caseResult || null,
   };
 }
 
@@ -695,6 +708,7 @@ async function confront(game, clueIds) {
   let effects = [];
   let instruction;
   let fallback;
+  let caseResult = null;
 
   if (success) {
     d.phase = 'win';
@@ -705,6 +719,16 @@ async function confront(game, clueIds) {
       `请描写凶手防线彻底崩溃、低头认罪并简短交代动机的场面（300~500字，第二人称「你」），基调收束、有余韵。\n` +
       `可以用凶手自己的口吻说出他的动机与手法，但必须与真相一致。`;
     fallback = winFallback(game);
+    // 告破后向玩家复盘：哪些关键证据命中、还有哪些关键证据未获取（此时真相已公开，可展示）
+    const clueText = (id) => {
+      const c = d.clues.find((x) => x.id === id);
+      if (c) return { text: c.text, holder: c.suspectName };
+      const owner = findStatement(kase, id);
+      return owner ? { text: owner.st.text, holder: owner.suspect.name } : { text: id, holder: '' };
+    };
+    const got = hit.map(clueText);
+    const missing = keyClues.filter((id) => !owned.has(id)).map(clueText);
+    caseResult = { got, missing, total: keyClues.length };
   } else {
     effects = [`举证失败（关键线索 ${hit.length}/${keyClues.length} 有效），未达到 ${required} 条`];
     instruction =
@@ -720,7 +744,7 @@ async function confront(game, clueIds) {
   trimHistory(game.history);
   game.updatedAt = Date.now();
 
-  return { ok: true, message: effects[0], payload: resultPayload(game, { narrative, choices, effects }) };
+  return { ok: true, message: effects[0], payload: resultPayload(game, { narrative, choices, effects, caseResult }) };
 }
 
 // ==================== 对外状态视图（剔除真相，防止前端泄露谜底） ====================
@@ -738,6 +762,25 @@ function snapshot(game) {
     .map((id) => findSuspect(kase, id))
     .filter(Boolean)
     .map((s) => ({ id: s.id, name: s.name, identity: s.identity }));
+
+  // 证据复盘只在案件告破（win）后下发：调查阶段绝不泄露哪些是关键线索
+  let caseResult = null;
+  if (d.phase === 'win') {
+    const keyClues = kase.keyClues || [];
+    const owned = new Set(d.clues.map((c) => c.id));
+    const clueText = (id) => {
+      const c = d.clues.find((x) => x.id === id);
+      if (c) return { text: c.text, holder: c.suspectName };
+      const owner = findStatement(kase, id);
+      return owner ? { text: owner.st.text, holder: owner.suspect.name } : { text: id, holder: '' };
+    };
+    caseResult = {
+      got: keyClues.filter((id) => owned.has(id)).map(clueText),
+      missing: keyClues.filter((id) => !owned.has(id)).map(clueText),
+      total: keyClues.length,
+    };
+  }
+
   return {
     genre: game.genre || null,
     caseTitle: kase.title || '',
@@ -761,6 +804,14 @@ function snapshot(game) {
     scenes: (kase.scenes || []).map((s) => ({ id: s.id, name: s.name, visited: d.visitedScenes.includes(s.id) })),
     suspects: (kase.suspects || []).map((s) => ({ id: s.id, name: s.name, identity: s.identity })),
     present,
+    // 物证明细（含描述）：前端物证栏展示，名称用于与背包「物证·」条目匹配
+    evidence: (kase.evidence || []).map((e) => ({
+      id: e.id,
+      name: e.name,
+      desc: e.desc,
+      foundAt: (() => { const sc = findScene(kase, e.foundAt); return sc ? sc.name : ''; })(),
+    })),
+    caseResult,
     gameOver: checkOver(game),
   };
 }

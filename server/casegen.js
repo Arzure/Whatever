@@ -52,7 +52,7 @@ function buildGenPrompt(genre, problems) {
     `1. 嫌疑人 3~5 名，id 用 s1..sN；恰好 1 名 isCulprit=true，且 culpritId 等于该人 id。\n` +
     `2. 至少 1 名【说谎者】：必须是【非凶手】，isLiar=true，并写明 lieMotive（合理的隐瞒动机）。说谎者至少有 1 条 truth=false 的假线索、至少 1 条 truth=true 的真实线索。\n` +
     `3. 说谎者必须能被物证击破：rebuttalEvidenceId 指向某件物证的 id，且该物证的 rebuts 数组必须包含这名说谎者的 id；onRebuttal 写明他被击破后的反应（改口交代真相 + 说明撒谎原因）。\n` +
-    `4. 其余嫌疑人 isLiar=false，statements 全部 truth=true。凶手在未被正确指认前只会否认，因此凶手至少有 1 条 truth=false 的否认式口供。\n` +
+    `4. 其余嫌疑人 isLiar=false。凶手在未被正确指认前只会否认，因此凶手至少有 1 条 truth=false 的否认式口供；且至少 1 条凶手的假口供也要能被某件物证当场拆穿（该物证的 rebuts 数组包含凶手 id，凶手同样填写 rebuttalEvidenceId 与 onRebuttal）——凶手被物证击破后只会「部分坦言」（比如承认自己确实到过现场/与死者有过接触，但绝不直接承认杀人，绝不提及自己的作案细节），这与说谎者被击破后的「全盘交代」不同。\n` +
     `5. 线索 id 全局唯一，用 c1、c2、c3… 连续编号；线索内容要具体、可复述（如「案发时段只有她进过钟楼」），不要空话。\n` +
     `6. keyClues 是「足以让凶手无法辩驳」的关键线索 id 列表（2~4 条），硬性要求：\n` +
     `   - 每条都必须出现在某个嫌疑人的 statements 中；\n` +
@@ -228,10 +228,14 @@ function validateCase(c) {
     for (const st of sts) if (st.truth) liarTrueClues.add(st.id);
   }
 
-  // 凶手必须有否认式假口供
+  // 凶手必须有否认式假口供；且至少 1 条假口供有对应物证可拆穿（物证 rebuts 含凶手）
   for (const cu of culprits) {
     if (!cu.statements.some((st) => st.truth === false)) {
       problems.push(`凶手「${cu.name}」至少要有 1 条否认式假口供`);
+    }
+    const hit = evidence.some((e) => (e.rebuts || []).includes(cu.id));
+    if (!hit) {
+      problems.push(`凶手「${cu.name}」的否认式假口供至少要有 1 件对应物证可拆穿（某物证的 rebuts 数组须包含凶手 id）`);
     }
   }
 

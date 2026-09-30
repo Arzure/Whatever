@@ -49,6 +49,13 @@ const PHASE_TEXT = {
 const evidenceItems = computed(() => (state.player?.inventory || []).filter((i) => i.startsWith('物证·')));
 const clueItems = computed(() => (state.player?.inventory || []).filter((i) => i.startsWith('线索·')));
 
+// 物证明细（描述）：按名称与背包「物证·」条目匹配
+function evidenceDesc(item) {
+  const name = item.startsWith('物证·') ? item.slice('物证·'.length) : item;
+  const ev = (state.evidence || []).find((e) => e.name === name);
+  return ev && ev.desc ? ev.desc : '';
+}
+
 function suspectName(id) {
   return state.suspects.find((s) => s.id === id)?.name || id;
 }
@@ -263,6 +270,7 @@ watch(phase, (p) => {
         <ul class="inv">
           <li v-for="item in evidenceItems" :key="item" class="inv-item">
             <span :class="{ 'is-equipped': equipped === item }">{{ item.replace('物证·', '') }}</span>
+            <span v-if="evidenceDesc(item)" class="clue-text evidence-desc">{{ evidenceDesc(item) }}</span>
             <button
               v-if="equipped !== item"
               class="slot-btn mini"
@@ -326,6 +334,21 @@ watch(phase, (p) => {
 
         <div v-if="phase === 'win'" class="ending win">
           🎉 案件告破！你已让真凶低头认罪，真相大白于天下。
+          <div v-if="state.caseResult" class="case-result">
+            <p class="case-result-title">📋 证据复盘（关键证据 {{ state.caseResult.got.length }}/{{ state.caseResult.total }}）</p>
+            <template v-if="state.caseResult.got.length">
+              <p class="case-result-sec"><b>你出示的关键证据：</b></p>
+              <ul class="case-list">
+                <li v-for="(c, i) in state.caseResult.got" :key="i">「{{ c.text }}」<em class="dim">（{{ c.holder }}）</em></li>
+              </ul>
+            </template>
+            <template v-if="state.caseResult.missing.length">
+              <p class="case-result-sec"><b>还有未掌握的关键证据：</b></p>
+              <ul class="case-list">
+                <li v-for="(c, i) in state.caseResult.missing" :key="i">「{{ c.text }}」<em class="dim">（{{ c.holder }}）</em></li>
+              </ul>
+            </template>
+          </div>
         </div>
         <div v-else-if="phase === 'lose'" class="ending lose">
           💀 调查到此为止。接连的失误耗尽了你的精力，真凶仍逍遥法外。
@@ -565,6 +588,33 @@ watch(phase, (p) => {
 
 .case-list li {
   padding: 2px 0;
+}
+
+.case-result {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  text-align: left;
+  font-size: 13px;
+}
+.case-result-title {
+  color: var(--accent-2);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.case-result-sec {
+  color: var(--text-dim);
+  margin: 6px 0 2px;
+}
+
+.evidence-desc {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.inv-item .evidence-desc {
+  margin-bottom: 4px;
 }
 
 .block h3 {
