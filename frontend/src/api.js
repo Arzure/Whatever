@@ -28,5 +28,8 @@ export const api = {
     request(`/games/${id}/accuse`, { method: 'POST', body: JSON.stringify({ suspectId }) }),
   confront: (id, clues) =>
     request(`/games/${id}/confront`, { method: 'POST', body: JSON.stringify({ clues }) }),
+  // 狼人杀投票放逐
+  vote: (id, targetId) =>
+    request(`/games/${id}/vote`, { method: 'POST', body: JSON.stringify({ targetId }) }),
   itemOp: (id, op, body) => request(`/games/${id}/${op}`, { method: 'POST', body: JSON.stringify(body) }),
 };

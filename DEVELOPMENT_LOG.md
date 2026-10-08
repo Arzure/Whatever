@@ -543,5 +543,71 @@ frontend/src/App.vue(910行) ──拆分──► App.vue        （薄壳：pr
 
 > ⚠️ 3001 端口需重启服务后生效；文字通道场景移动判定发生在 LLM 调用之前，移动后即使 LLM 限流/失败，位置也已正确更新。
 
+---
+
+## 2026-10-08 · 新增狼人杀模式（单人 5 人局推理）
+
+### 背景与目标
+
+项目第三个可插拔模式。用户需求一句话概括：**做一个人机对战的狼人杀，玩家是好人，找出狼人并投票放逐。**
+
+### 关键决策（用户拍板三轮确认）
+
+| 决策项 | 结论 |
+|--------|------|
+| 玩家身份 | **固定当好人**（村民），只推理不撒谎，上手友好 |
+| 人数配置 | **5 人局**：玩家 + 1 狼 + 1 预言家 + 2 村民 |
+| 夜晚交互 | **无交互**：狼刀 / 验人由程序结算，天亮直接给死讯（省 LLM 调用） |
+| 胜利条件 | 狼被放逐 → 好人胜；玩家死亡或好人阵营仅剩玩家 → 狼人胜 |
+| 死讯规则 | 被放逐者**亮身份**；被刀死者**不亮身份**（经典规则，推理张力所在） |
+
+### 架构落地（复用"真相代码持有"）
+
+```text
+server/modes/wolf.js
+  assignRoles()          5 人身份分配（玩家固定村民，其余随机 1 狼 + 1 预言家 + 2 村民）
+  settleNight()          夜晚确定性结算：狼刀（优先狼的怀疑目标，首夜保护玩家）+ 预言家验人
+  processAction()        白天：玩家发言 → AI 依次发言（每个一次 LLM）→ 进入投票
+  generateSpeech()       逐人提示词：自己的身份 + 前序全部发言 → {"speech","suspect"}
+  vote()                 玩家按钮 1 票 + AI 按怀疑目标投票 → 计票放逐（平票无人放逐）→ 判胜负
+  checkWinner()          胜负判定（白天投票后 + 夜晚结算后各一次）
+  snapshot()             防剧透：players 不含 role，终局才揭示 roles
+server/modes/index.js    注册 wolf 模式
+server/index.js          新增 POST /api/games/:id/vote
+frontend/src/components/WolfView.vue   侧栏（身份/轮次/存活/死讯/复盘）+ 主区（发言流/发言框/投票面板）
+frontend useGame.js      新增 wolf 状态 + voteTarget()；api.js 新增 vote
+frontend App.vue         按 mode === 'wolf' 切换 WolfView
+```
+
+### 踩坑记录
+
+1. **提示词格式（先文本再接 JSON 失败）**：初版要求 AI"先发言文本、末尾再补 JSON"，轻量模型 3/3 输出被解析为空 → 改为**只输出一个 JSON 对象** `{"speech","suspect"}`，与探案模式一致，发言全部成功 ✅
+2. **夜晚后胜负漏判**：狼刀死最后一名神职/村民后 `winner` 仍为 null（vote 只在白天投票后判胜负）→ 在"进入下一夜"的 `settleNight` 之后**再次调用 `checkWinner`** ✅
+3. **投票者不可投自己**：`pickSuspect` 校验"存活且非自己"，无效则随机回落，防止 AI 自票
+
+### 实测验证
+
+- 单元测试 24 项（开局身份分配 / 快照防剧透 / 发言流转 / 重复发言拦截 / 投票放逐 / 好人胜 / 狼胜 / 终局复盘）全通过 ✅
+- 端到端 API（真实 LLM）：开局 0.015s（无需 LLM）；白天 4 名 AI 发言形成真实博弈——狼人反击质疑、预言家公布验人结果、村民跟票；投票计票正确，预言家带票放逐狼人 → 好人胜，终局身份复盘完整 ✅
+- `npm run build:frontend` 通过（21 modules）✅
+
+### 涉及代码文件
+
+| 文件 | 改动 |
+|------|------|
+| [server/modes/wolf.js](../server/modes/wolf.js) | 新增：狼人杀模式（身份生成/夜晚结算/发言引擎/投票/防剧透快照） |
+| [server/modes/index.js](../server/modes/index.js) | 注册 `wolf` 模式 |
+| [server/index.js](../server/index.js) | 新增 `/vote` 路由 |
+| [frontend/src/components/WolfView.vue](../frontend/src/components/WolfView.vue) | 新增：狼人杀游戏页 |
+| [frontend/src/composables/useGame.js](../frontend/src/composables/useGame.js) | `wolf` 状态 + `voteTarget` |
+| [frontend/src/api.js](../frontend/src/api.js) | `vote` API |
+| [frontend/src/App.vue](../frontend/src/App.vue) | WolfView 切换 |
+
+### 关联知识点（详见 TECH_DOC.md §2.4.6）
+
+- **身份真相代码持有**：与探案模式同构，AI 只按身份发言，杜绝狼人身份漂移
+- **发言博弈**：每个 AI 的提示词带"自己的身份 + 前序全部发言"，形成质疑/辩解/带票的真实互动
+- **投票确定性**：AI 的怀疑目标由 LLM 在发言中给出、经校验后由程序计票，AI 无法篡改票数
+
 
 

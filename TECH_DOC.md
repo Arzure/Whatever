@@ -28,6 +28,8 @@
 | 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)）；**死者绝不被混入嫌疑人**（normalizeCase 确定性剔除 + validateCase 拦截）；**keyClues 自动修复兜底**（模型漏选说谎者真话时由 normalizeCase 确定性补选，减少重试） |
 | 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破（含凶手）由代码确定性结算，AI 只演绎；无效行动拦截 `quickNoopReply`；告破复盘 `caseResult`；两类数值规则（指认-25、举证0.6覆盖率）；文字通道场景移动支持简称/省略前缀（`matchScene` 三级匹配） |
 | 探案前端 | 题材选择（现代都市/古代衙门/民国旧案/奇幻王国/**蒸汽时代**）+ DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽含描述、线索列表、指认与举证面板、win 证据复盘；**案卷详情**：凶手/说谎者标签、撒谎动机、被击破反应、口供真伪、关键证据清单） |
+| 狼人杀模式 | `server/modes/wolf.js`：单人 5 人局（玩家固定村民 + 1狼 + 1预言家 + 2村民），身份真相代码持有；夜晚程序结算（狼刀/验人）；白天玩家先发言、AI 串行发言（狼人伪装/预言家公布验人/村民推理）；投票计票放逐（被放逐者亮身份）；夜晚后二次胜负判定；快照防剧透 + 终局身份复盘 |
+| 狼人杀前端 | WolfView：侧栏（身份/轮次/存活列表/死讯/终局复盘）+ 主区（发言流 + 发言输入 + 投票面板） |
 
 ### 已修复的 Bug 🐛
 
@@ -87,6 +89,7 @@ Express 后端 :3001  (server/index.js)
    ├── /api/games/:id/case      探案：案件说明（含谜底，玩家主动展开时才下发）
    ├── /api/games/:id/accuse    探案：指认凶手（对则进对质、错则扣血）
    ├── /api/games/:id/confront  探案：举证令凶手认罪（0.6 覆盖率判定）
+   ├── /api/games/:id/vote      狼人杀：投票放逐（玩家 1 票 + AI 按怀疑目标投票）
    ├── /api/games/:id/action    核心游戏循环（按 mode 分发）
    └── /api/games/:id/{use-item,equip,unequip,discard,cancel-pending}
                                 物品按钮操作（按 mode 分发）
@@ -253,6 +256,36 @@ const hasItem = computed(() => caps.value.itemCategories.includes('item'));
 
 **物体操作延续硬约束**：线索与物证均以「线索·/物证·」前缀物品进入背包；装备、卸下、举证勾选等均由前端按钮完成，AI 只结算与演绎。
 
+#### 2.4.6 狼人杀模式设计（身份驱动的发言博弈）
+
+狼人杀与探案模式共享同一架构信念：**身份真相由代码持有，AI 只按身份发言与投票**。首版为 MVP：玩家固定好人（村民）、5 人局（1 狼 + 1 预言家 + 3 村民）、夜晚无交互。
+
+**游戏状态（`game.wolf`）**：
+
+| 字段 | 说明 |
+|------|------|
+| `players[]` | 5 人：`id/name/role(wolf\|seer\|villager)/isPlayer/alive`（role 为真相，快照剔除） |
+| `phase` | `day（玩家发言）→ vote（玩家投票）→ win / lose` |
+| `round` | 当前天数（每放逐后+1，进入新夜晚） |
+| `speeches[]` | 本轮全部发言（`{round, playerId, name, speech}`），供后发言者参考 |
+| `suspect{}` | 每个 AI 的怀疑目标（LLM 在发言中给出，投票时使用） |
+| `deaths[]` | 死讯（`cause: night` 身份不公开 / `vote` 身份公开） |
+| `night` | 最近一夜结算：`killedByWolf / seerTarget / seerResult` |
+
+**确定性结算（AI 只演绎，不决定结局）**：
+
+| 事件 | 判定 |
+|------|------|
+| 夜晚（狼刀 + 验人） | `settleNight()`：狼刀目标 = 狼人 `suspect`（首夜保护玩家不刀）；预言家验人结果写入 `night`，供其发言引用。**无 LLM 调用**，天亮直接给死讯 |
+| 白天发言 | 玩家先发言（文字输入）→ 依次对每个存活 AI 生成一次发言（LLM，`generateSpeech`）。每个 AI 的提示词带「自己的身份 + 之前的全部发言」：狼人伪装/圆谎/带票，预言家可公布验人，村民凭矛盾推理。输出 JSON `{"speech","suspect"}`；失败回落模板保证回合不断 |
+| 投票放逐 | 玩家按钮 1 票 + 每个存活 AI 按 `suspect` 投 1 票 → 唯一最高票者被放逐并**公开身份**；平票无人放逐 |
+| 胜负判定 | `checkWinner()`：狼死 → 好人胜；玩家死 / 好人阵营仅剩玩家 → 狼人胜。**白天投票后与夜晚结算后各判定一次**（狼夜刀可能直接达成胜利条件） |
+| 终局复盘 | 游戏结束揭示全部身份（`roles`），前端展示 |
+
+**快照防剧透（`snapshot()`）**：`players` 只含 `id/name/alive/isPlayer`，**绝不含 `role`**；`roles` 仅终局时非空；`playerRole` 只对玩家本人可见（其身份本就公开）。AI 狼人/预言家的验人结果只在叙事中由对应角色按策略说出，绝不直接下发前端。
+
+**发言引擎要点**：narrative 由多段「角色名：发言」拼接展示，先发言者可引用前序发言做出反应（质疑/辩解/带票），形成真实的发言博弈；`suspect` 由 LLM 给出后经 `pickSuspect` 校验（存活、非自己），投票据此落地。
+
 ### 2.5 AI 交互实现详解
 
 本节说明游戏与 AI 交互的三个核心问题：**如何连接 AI、如何把世界观交给 AI、如何约束 AI 的输出**。
@@ -380,7 +413,8 @@ Whatever/
 │   ├── modes/            # 游戏模式（可插拔）
 │   │   ├── index.js      #   模式注册表
 │   │   ├── world.js      #   大世界模式（提示词构造 / delta 应用 / 回合处理）
-│   │   └── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透/matchScene 文字移动）
+│   │   ├── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透/matchScene 文字移动）
+│   │   └── wolf.js       #   狼人杀模式（身份驱动：settleNight/发言引擎/vote 投票）
 │   ├── themes/           # 世界观配置
 │   │   ├── index.js      #   读取 / 规范化 / 纯文本 → Theme 的 AI 解析
 │   │   └── azeroth.json  #   默认世界观模板（艾泽洛姆）
@@ -397,7 +431,8 @@ Whatever/
 │       ├── components/
 │       │   ├── HomeView.vue      # 首页：模式/题材选择 + 文本导入 + 存档列表
 │       │   ├── WorldView.vue     # 大世界模式游戏页：能力驱动的动态侧栏 + 对话流
-│       │   └── DetectiveView.vue # 探案模式游戏页：案件说明/场景/在场人物/物证/线索/指认/举证
+│       │   ├── DetectiveView.vue # 探案模式游戏页：案件说明/场景/在场人物/物证/线索/指认/举证
+│       │   └── WolfView.vue      # 狼人杀游戏页：身份/存活/死讯/复盘 + 发言流/投票面板
 │       ├── main.js
 │       └── style.css
 ├── data/                 # 游戏存档（运行时生成）
@@ -511,6 +546,8 @@ FRONTEND_ORIGIN=http://localhost:5173        # CORS 允许来源
 ## 7. 后续可扩展方向
 
 - ~~探案模式（案件 AI 生成、线索收集、物证反驳说谎 NPC、指认凶手与认罪）~~ ✅ 已实现，见 §2.4.5
+- ~~狼人杀模式（单人 5 人局、夜晚程序结算、白天发言博弈、投票放逐）~~ ✅ 已实现，见 §2.4.6
+- 狼人杀增强：更多角色（女巫/猎人/守卫）、玩家可抽狼人身份、夜晚交互（神职按钮操作）
 - 探案模式增强：更多题材模板、案件难度分级、限时破案
 - 更多内置世界观模板（赛博朋克、武侠、太空歌剧……）
 - 多人在线（共享世界 / 实时协作冒险）

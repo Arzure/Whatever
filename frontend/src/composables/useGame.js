@@ -35,6 +35,8 @@ export function useGame() {
     present: [],
     evidence: [], // 物证明细 [{id,name,desc,foundAt}]
     caseResult: null, // 案件告破复盘：{ got:[{text,holder}], missing:[{text,holder}], total }
+    // 狼人杀模式专用视图（由后端 snapshot 提供，已剔除真相字段）
+    wolf: null, // { phase, round, winner, playerRole, players, deaths, roles, aliveCount, canSpeak, canVote }
   });
 
   const hpPercent = computed(() =>
@@ -92,8 +94,8 @@ export function useGame() {
       return;
     }
     state.loading = false;
-    // 探案模式以「开场简报」作为首条旁白，无需再自动跑一回合
-    if (state.mode === 'detective') return;
+    // 探案模式与狼人杀模式以「开场简报」作为首条旁白，无需再自动跑一回合
+    if (state.mode === 'detective' || state.mode === 'wolf') return;
     await submitAction(FIRST_ACTION);
   }
 
@@ -124,6 +126,7 @@ export function useGame() {
     state.present = data.present || [];
     state.evidence = data.evidence || [];
     state.caseResult = data.caseResult || null;
+    state.wolf = data.wolf || null;
     state.gameOver = isOver(data, data.player);
     state.inBattle = false;
     state.lastEffects = [];
@@ -152,6 +155,7 @@ export function useGame() {
       state.present = data.present || state.present;
       state.evidence = data.evidence || state.evidence;
       state.caseResult = data.caseResult || state.caseResult;
+      state.wolf = data.wolf || state.wolf;
       state.gameOver = isOver(data, data.player);
     } catch (e) {
       // 快照刷新失败不影响本回合，本地状态已更新
@@ -176,6 +180,7 @@ export function useGame() {
     state.present = [];
     state.evidence = [];
     state.caseResult = null;
+    state.wolf = null;
     refreshSaves();
   }
 
@@ -223,6 +228,7 @@ export function useGame() {
       state.inBattle = result.battle;
       state.lastEffects = result.effects || [];
       if (result.detective) state.detective = result.detective;
+      if (result.wolf) state.wolf = result.wolf;
       // 降级接续：AI 未按 JSON 格式返回，后端已直接接续剧情，用游戏内语言做过渡
       const narrative = result.degraded
         ? `${result.narrative}\n\n—— 你的举动在${state.theme?.name || state.caseTitle || '这个世界'}泛起涟漪，命运之线悄然转动。`
@@ -292,12 +298,28 @@ export function useGame() {
     state.pendingActions = result.pendingActions || [];
     state.lastEffects = result.effects || [];
     if (result.detective) state.detective = result.detective;
+    if (result.wolf) state.wolf = result.wolf;
     state.caseResult = result.caseResult || null;
     if (result.narrative) {
       state.history.push({ role: 'assistant', content: result.narrative, choices: result.choices || [] });
     }
     state.gameOver = !!result.gameOver || !!(state.player && state.player.hp <= 0);
     return syncGame();
+  }
+
+  /** 狼人杀：投票放逐目标 */
+  async function voteTarget(targetId) {
+    if (state.loading || state.gameOver || !state.gameId) return;
+    state.error = '';
+    state.loading = true;
+    try {
+      const result = await api.vote(state.gameId, targetId);
+      applyTurn(result);
+    } catch (e) {
+      state.error = e.message;
+    } finally {
+      state.loading = false;
+    }
   }
 
   return {
@@ -320,5 +342,6 @@ export function useGame() {
     loadCase,
     accuseSuspect,
     submitConfront,
+    voteTarget,
   };
 }
