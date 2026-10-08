@@ -18,7 +18,7 @@ const GENRES = [
   { id: 'steampunk', name: '蒸汽时代', hint: '维多利亚式欧洲，浓雾煤气灯下的伦敦，马车、怀表、煤气管道与早期工业化；侦探凭观察、推理与物证破案，氛围古典冷峻' },
 ];
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
 const MAX_SUSPECTS = 5;
 
 const s = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -164,6 +164,30 @@ function normalizeCase(raw, genre) {
     keyClues.push(id);
   }
 
+  // —— 自动修复 keyClues（确定性兜底，减少重试）——
+  // 轻量模型常漏选"说谎者的真话"，导致「keyClues 至少 1 条来自说谎者真话」校验反复失败。
+  // 这里直接从已归一化的嫌疑人口供中补选，不再依赖模型全文重写。
+  const liarTrueIds = [];
+  const nonCulpritTrueIds = [];
+  for (const su of suspects) {
+    for (const st of su.statements) {
+      if (!st.truth) continue;
+      if (su.isLiar) liarTrueIds.push(st.id);
+      if (!su.isCulprit) nonCulpritTrueIds.push(st.id);
+    }
+  }
+  if (!keyClues.some((id) => liarTrueIds.includes(id))) {
+    const pick = liarTrueIds.find((id) => !keyClues.includes(id));
+    if (pick) keyClues.push(pick);
+  }
+  while (keyClues.length < 2) {
+    const pick = nonCulpritTrueIds.find((id) => !keyClues.includes(id));
+    if (!pick) break;
+    keyClues.push(pick);
+  }
+  // 上限 4 条，避免 keyClues 膨胀
+  if (keyClues.length > 4) keyClues.length = 4;
+
   return {
     genre: { id: genre.id, name: genre.name },
     title: s(o.title, 24) || `${genre.name}疑案`,
@@ -275,7 +299,10 @@ function validateCase(c) {
     if (owner.isCulprit) problems.push(`keyClues 中的「${id}」来自凶手，玩家无法获得`);
   }
   if (!kc.some((id) => liarTrueClues.has(id))) {
-    problems.push('keyClues 至少要有 1 条来自说谎者的真话（须先用物证击破他才能获得）');
+    const liarNames = liars.filter((L) => L.isCulprit !== true).map((L) => L.name);
+    problems.push(
+      `keyClues 至少要有 1 条来自说谎者（${liarNames.join('、') || '说谎者'}）的 truth=true 口供：请从说谎者说出的真话中选一条 id 加入 keyClues（玩家须先用物证击破该说谎者才能获得这条）`
+    );
   }
 
   return problems;

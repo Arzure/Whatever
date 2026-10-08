@@ -25,9 +25,9 @@
 | 前端界面 | 首页（模式/世界选择 + 文本导入 + 存档列表）、游戏页（对话流 + 能力驱动的动态侧栏） |
 | 选项持久化 | AI 推荐选项随剧情一起存入存档，重进游戏不丢失 |
 | AI 输出可靠性 | 五层防护机制（参数调优 + 自动重试 + 降级兜底），详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) |
-| 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)）；**死者绝不被混入嫌疑人**（normalizeCase 确定性剔除 + validateCase 拦截） |
-| 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破（含凶手）由代码确定性结算，AI 只演绎；无效行动拦截 `quickNoopReply`；告破复盘 `caseResult`；两类数值规则（指认-25、举证0.6覆盖率） |
-| 探案前端 | 题材选择（现代都市/古代衙门/民国旧案/奇幻王国/**蒸汽时代**）+ DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽含描述、线索列表、指认与举证面板、win 证据复盘） |
+| 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)）；**死者绝不被混入嫌疑人**（normalizeCase 确定性剔除 + validateCase 拦截）；**keyClues 自动修复兜底**（模型漏选说谎者真话时由 normalizeCase 确定性补选，减少重试） |
+| 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破（含凶手）由代码确定性结算，AI 只演绎；无效行动拦截 `quickNoopReply`；告破复盘 `caseResult`；两类数值规则（指认-25、举证0.6覆盖率）；文字通道场景移动支持简称/省略前缀（`matchScene` 三级匹配） |
+| 探案前端 | 题材选择（现代都市/古代衙门/民国旧案/奇幻王国/**蒸汽时代**）+ DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽含描述、线索列表、指认与举证面板、win 证据复盘；**案卷详情**：凶手/说谎者标签、撒谎动机、被击破反应、口供真伪、关键证据清单） |
 
 ### 已修复的 Bug 🐛
 
@@ -40,6 +40,8 @@
 | 使用道具一次扣光 / 卸下装备消失 | 按钮动作未同步给 AI，AI 又重复移动物品 | **架构级硬约束**：AI 无权移动物品，所有物品操作只能由前端按钮触发 |
 | 终局出现"永远拿不到的关键证据" | 案件生成把死者混入 suspects 且配了口供，keyClues 未排除死者名下线索 | `normalizeCase` 确定性剔除死者嫌疑人 + `validateCase` 拦截（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
 | 探案叙事"人人疑神疑鬼"、无效探索冗长 | 提示词未约束诚实 NPC 风格；narrative 固定 300~500 字；无"已问尽/已搜遍"终止信号 | 诚实 NPC 坦然基调（规则 4.2）+ 字数弹性 + `quickNoopReply()` 无效行动拦截 |
+| 案件生成反复重试（keyClues 漏选说谎者真话） | 轻量模型常漏选说谎者真话，校验失败后整案重写 | `normalizeCase` **确定性补选** keyClues（说谎者真话 → 非凶手真话，上限 4 条），不再依赖全文重写 |
+| 文字通道场景移动不命中 | `matchScene` 按分隔符拆整词匹配，玩家省略公共前缀（「云岭大厦物业前台」→「物业前台」）即落空 | `matchScene` 三级匹配（场景 id → 完整场景名 → 移动意图词 + 场景独有片段），支持简称，无移动意图不误触发 |
 
 ### 已知限制 ⚠️
 
@@ -225,12 +227,13 @@ const hasItem = computed(() => caps.value.itemCategories.includes('item'));
 
 **案件生成的结构硬约束**：
 - **死者绝不能出现在 `suspects` 中**（`normalizeCase` 按「与 `victim.name` 同名 / identity 含 受害·死者·被害人」确定性剔除；`validateCase` 也会拦截）。死者的言论只能由活着的证人转述（如「（管家口述）凌女士那晚曾说…」），keyClues 必须来自可盘问的活人——否则会出现"玩家永远拿不到的关键证据"。
+- **keyClues 自动修复兜底**：`normalizeCase` 在归一化后检查——若 keyClues 没有说谎者的真话，直接从已归一化的口供中补选 1 条（模型常漏选，触发「至少 1 条来自说谎者真话」校验反复失败）；不足 2 条时从非凶手真话中补足；上限 4 条。生成重试上限 `MAX_ATTEMPTS = 5`。
 
 **确定性结算（代码判定，AI 只演绎）**：
 
 | 事件 | 判定 |
 |------|------|
-| 场景切换 | 玩家提交含场景名的行动（或点场景按钮）→ 代码移动 `detective.currentScene` |
+| 场景切换 | 按钮通道（`scene` 参数）或文字通道 `matchScene()` 三级匹配：场景 id → 完整场景名 → **移动意图词 + 场景独有片段**（支持省略公共前缀的简称，如「云岭大厦物业前台」→「前往物业前台」；无移动意图词不触发片段匹配，避免"提及场景名"被误判为移动）→ 代码移动 `detective.currentScene` |
 | 发现物证 | 行动命中物件物证所在场景的关键词 → 代码将「物证·xxx」放入背包 |
 | 击破谎言 | 玩家**装备**物证并当面质问在场嫌疑人，且物证 `rebuts` 命中该人（**不限于说谎者，凶手也可被击破**）→ 代码判定击破。说谎者全盘交代真相+撒谎原因；凶手被击破后只会**部分坦言**（如承认到过现场，但绝不直接自证杀人，认罪仍须走举证） |
 | 指认凶手 | `detective.accuse(id)`：命中 `culpritId` → 进入对质；否则 `hp -25`，归零则游戏失败 |
@@ -242,6 +245,7 @@ const hasItem = computed(() => caps.value.itemCategories.includes('item'));
 **快照防剧透（`snapshot()`）**：下发给前端的探案状态**剔除一切真相字段**（`isCulprit/isLiar/truth/culpritId/keyClues/crime`）；完整案件说明只由 `GET /api/games/:id/case` 在玩家于前端主动展开（二次确认后）时下发。快照额外提供：
 - `evidence[]`：物证明细（`name/desc/foundAt` 场景名），前端物证栏展示描述
 - `caseResult`：**仅 `win` 阶段**携带的证据复盘 `{ got:[{text,holder}], missing:[{text,holder}], total }`（命中/未获取的关键证据），调查阶段为 `null` 不泄露
+- 前端**案卷详情**（`GET /case` 下发完整真相后展示）：凶手/说谎者标签、撒谎动机 `lieMotive`、被击破后的反应 `onRebuttal`、口供逐条真/假标记、「关键证据（足以锁定凶手）」清单——按 `keyClues` 反查口供文本与持有人
 
 **叙事风格约束**：
 - 诚实 NPC（非说谎者、非凶手）说话**坦然直接、配合调查**，不渲染心虚；只有说谎者/凶手在隐瞒时才有躲闪紧张的表现（提示词规则 4.2）
@@ -376,7 +380,7 @@ Whatever/
 │   ├── modes/            # 游戏模式（可插拔）
 │   │   ├── index.js      #   模式注册表
 │   │   ├── world.js      #   大世界模式（提示词构造 / delta 应用 / 回合处理）
-│   │   └── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透）
+│   │   └── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透/matchScene 文字移动）
 │   ├── themes/           # 世界观配置
 │   │   ├── index.js      #   读取 / 规范化 / 纯文本 → Theme 的 AI 解析
 │   │   └── azeroth.json  #   默认世界观模板（艾泽洛姆）

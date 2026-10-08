@@ -93,23 +93,55 @@ function hiddenEvidenceAt(kase, d) {
   return (kase.evidence || []).filter((e) => e.foundAt === d.currentScene && !d.evidenceIds.includes(e.id));
 }
 
+/** 触发场景匹配的移动意图词（防止对话里"提及场景名"被误判为移动） */
+const MOVE_VERBS = ['前往', '去往', '来到', '走进', '进入', '回到', '赶往', '赶到', '返回', '移步', '赶赴', '去', '到', '回'];
+
+/**
+ * 场景名的「独有片段」：长度 minLen~6 的连续子串，且不出现在其他场景名中。
+ * 按长度从长到短返回，优先匹配更完整的说法。
+ * 例：「云岭大厦物业前台」→ 物业前台、前台……（「云岭大厦」与其他场景共享，被排除）
+ */
+function uniqueFragments(name, scenes, minLen) {
+  const others = scenes.filter((s) => s.name !== name);
+  const out = [];
+  const maxLen = Math.min(6, name.length);
+  for (let len = maxLen; len >= minLen; len--) {
+    for (let i = 0; i + len <= name.length; i++) {
+      const f = name.slice(i, i + len);
+      if (others.some((s) => s.name.includes(f))) continue;
+      out.push(f);
+    }
+  }
+  return out;
+}
+
 /**
  * 场景移动由代码确定性判定（文字输入与按钮双通道），
  * 避免把「玩家是否换了地方」交给 AI 判断而出现叙事与状态不一致。
+ * 匹配优先级：场景 id → 场景全名 → 「移动意图词 + 独有片段」。
+ * 支持玩家用省略前缀的说法（如「云岭大厦物业前台」简称「物业前台」）。
  * @returns {object|null} 命中的场景
  */
 function matchScene(kase, text) {
   const t = String(text || '');
   if (!t) return null;
-  for (const sc of kase.scenes || []) {
+  const scenes = kase.scenes || [];
+  // 1. 场景 id（玩家可直接说「去 sc2」）
+  for (const sc of scenes) {
     if (t.includes(sc.id)) return sc;
   }
-  for (const sc of kase.scenes || []) {
-    const keywords = String(sc.name)
-      .split(/[与和·、，,／/｜|()（）\-—:：\s]+/)
-      .map((x) => x.trim())
-      .filter((x) => x.length >= 2);
-    if (keywords.some((k) => t.includes(k))) return sc;
+  // 2. 完整场景名
+  for (const sc of scenes) {
+    if (t.includes(sc.name)) return sc;
+  }
+  // 3. 移动意图 + 独有片段（省略公共前缀的说法）；不含移动词时不做片段匹配，避免误判
+  //    双字动词（前往/回到等）意图强，可放宽到 2 字片段；单字动词（去/到/回）仅匹配 ≥3 字片段，降低误触发
+  const strongVerb = MOVE_VERBS.some((v) => v.length >= 2 && t.includes(v));
+  if (!strongVerb && !MOVE_VERBS.some((v) => t.includes(v))) return null;
+  const minLen = strongVerb ? 2 : 3;
+  for (const sc of scenes) {
+    const frag = uniqueFragments(sc.name, scenes, minLen).find((f) => t.includes(f));
+    if (frag) return sc;
   }
   return null;
 }
@@ -945,4 +977,5 @@ module.exports = {
   unequipItem,
   cancelPendingAction,
   clearPendingActions,
+  matchScene, // 供单元测试与工具层复用
 };

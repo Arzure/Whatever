@@ -64,6 +64,21 @@ function sceneName(id) {
   return state.scenes.find((s) => s.id === id)?.name || id;
 }
 
+// 案件说明：按线索 id 找口供文本与持有人（供「关键证据」展示）
+function statementById(id) {
+  for (const s of caseDetail.value?.suspects || []) {
+    const st = (s.statements || []).find((x) => x.id === id);
+    if (st) return { text: st.text, holder: s.name };
+  }
+  return null;
+}
+
+function culpritName() {
+  const kase = caseDetail.value;
+  if (!kase) return '';
+  return (kase.suspects || []).find((s) => s.id === kase.culpritId)?.name || suspectName(kase.culpritId);
+}
+
 function statusInfo(status) {
   if (status === 'confirmed') return { text: '已证实', cls: 'ok' };
   if (status === 'false') return { text: '谎话', cls: 'bad' };
@@ -204,8 +219,21 @@ watch(phase, (p) => {
           </p>
           <p class="case-sec"><b>嫌疑人：</b></p>
           <ul class="case-list">
-            <li v-for="s in caseDetail.suspects" :key="s.id">
-              {{ s.name }}（{{ s.identity }}）—— {{ s.relation }}
+            <li v-for="s in caseDetail.suspects" :key="s.id" class="suspect-detail">
+              <div>
+                {{ s.name }}（{{ s.identity }}）—— {{ s.relation }}
+                <template v-if="s.id === caseDetail.culpritId"><span class="tag bad">凶手</span></template>
+                <template v-else-if="s.isLiar"><span class="tag bad">说谎者</span></template>
+              </div>
+              <div v-if="s.isLiar && s.lieMotive" class="lie-motive"><b>撒谎动机：</b>{{ s.lieMotive }}</div>
+              <div v-if="s.onRebuttal" class="lie-motive"><b>被击破后：</b>{{ s.onRebuttal }}</div>
+              <ul class="case-list sub">
+                <li v-for="st in s.statements" :key="st.id" class="statement-row">
+                  <span :class="{ 'truth-false': !st.truth }">「{{ st.text }}」</span>
+                  <span v-if="!st.truth" class="tag bad">假</span>
+                  <span v-else class="tag ok">真</span>
+                </li>
+              </ul>
             </li>
           </ul>
           <p class="case-sec"><b>物证：</b></p>
@@ -217,6 +245,13 @@ watch(phase, (p) => {
           <p class="case-sec"><b>场景：</b></p>
           <ul class="case-list">
             <li v-for="sc in caseDetail.scenes" :key="sc.id">{{ sc.name }}：{{ sc.desc }}</li>
+          </ul>
+          <p class="case-sec"><b>关键证据（足以锁定凶手 {{ culpritName() }} 的线索）：</b></p>
+          <ul class="case-list">
+            <li v-for="(kid, i) in caseDetail.keyClues" :key="i">
+              <template v-if="statementById(kid)">「{{ statementById(kid).text }}」<em class="dim">（{{ statementById(kid).holder }}）</em></template>
+              <template v-else>{{ kid }}</template>
+            </li>
           </ul>
           <button class="btn ghost full" @click="caseOpen = false">收起案卷</button>
           </div>
@@ -588,6 +623,29 @@ watch(phase, (p) => {
 
 .case-list li {
   padding: 2px 0;
+}
+
+.case-list.sub {
+  margin-left: 10px;
+}
+.suspect-detail {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.suspect-detail:last-child {
+  border-bottom: none;
+}
+.lie-motive {
+  margin: 3px 0;
+  font-size: 12px;
+  color: var(--accent-2);
+}
+.statement-row .truth-false {
+  color: var(--danger);
+}
+.statement-row .tag {
+  margin-left: 4px;
+  font-size: 11px;
 }
 
 .case-result {
