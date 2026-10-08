@@ -185,6 +185,14 @@ function buildSpeechPrompt(game, speaker) {
     .map((s) => `${s.name}：${s.speech}`)
     .join('\n');
   const night = w.night || {};
+  // 预言家已公开公布过的验人结果（本局全部历史，供好人参考带票）
+  const seerClaims = [];
+  for (const s of w.speeches) {
+    const sp = findPlayer(w, s.playerId);
+    if (!sp || sp.role !== 'seer') continue;
+    const m = String(s.speech || '').match(/查验了(.{1,6}?)[，,。]/);
+    if (m) seerClaims.push(m[1].trim());
+  }
 
   let roleLine;
   if (speaker.role === 'wolf') {
@@ -198,9 +206,16 @@ function buildSpeechPrompt(game, speaker) {
     roleLine = '你的身份是【村民】——你不知道任何人的身份，只能从发言中寻找矛盾与可疑之处，凭推理指认狼人。';
   }
 
+  // 好人方：若预言家公开查验过某人，好人应优先信服并与之协作，而非被狼人带节奏
+  let trustLine = '';
+  if (speaker.role !== 'wolf' && seerClaims.length) {
+    trustLine = `已知预言家公开查验过：${seerClaims.join('、')}。预言家的验人信息是好人方最可靠的情报，若你确认了某个被查验为「好人」的人，不要随意怀疑他；你的投票更应与预言家的判断一致，而不是跟随狼人的节奏。`;
+  }
+
   return [
     `你是狼人杀游戏中的玩家「${speaker.name}」，正在参加一局 5 人狼人杀（1 狼人、1 预言家、3 村民）。`,
     roleLine,
+    trustLine,
     `存活玩家：${aliveList}。`,
     prior ? `到目前为止的发言（按顺序）：\n${prior}` : '你是本轮第一个发言的人。',
     '现在轮到你白天发言。请只输出一个 JSON 对象（不要任何解释、不要代码块标记）：',
@@ -208,13 +223,39 @@ function buildSpeechPrompt(game, speaker) {
     '要求：',
     '- speech：用第一人称说 2~4 句话，发表对局势的判断、对某人的怀疑或辩护；预言家可公布/隐瞒验人结果。',
     '- suspect：你最怀疑的人的玩家编号（如 p2、p3），必须是存活者且不能是自己。',
-    '- 狼人应把嫌疑引向好人；好人要基于发言矛盾与逻辑推理。',
+    '- 【重要】suspect 必须与你的发言正文一致：发言里明确质疑了谁，suspect 就填谁。绝不能"发言怀疑甲、却填乙"。',
+    '- 狼人应把嫌疑引向好人；好人要基于发言矛盾与逻辑推理，并尊重预言家的验人情报。',
     '- 除这个 JSON 对象外，不要输出任何其他内容。',
   ].join('\n');
 }
 
+/** 校验「怀疑目标/投票目标」：必须存活且不是自己；无效则随机落回 */
+function pickSuspect(game, voter, raw) {
+  const w = game.wolf;
+  const target = findPlayer(w, String(raw || '').trim());
+  if (target && target.alive && target.id !== voter.id) return target.id;
+  const pool = alivePlayers(w).filter((p) => p.id !== voter.id);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)].id : '';
+}
+
+/**
+ * 从发言正文中提取「有效怀疑目标」：发言里明确点名的存活者（非自己）。
+ * 这是程序级兜底：即使 LLM 的 suspect 与发言割裂（如"发言怀疑甲却填乙"），
+ * 也能从正文恢复一致性，杜绝"说得好却乱投"。
+ * @returns {string|null} 正文中点名的第一个存活玩家 id
+ */
+function suspectFromSpeech(w, voter, speech) {
+  const text = String(speech || '');
+  for (const p of alivePlayers(w)) {
+    if (p.id === voter.id) continue;
+    if (text.includes(p.name)) return p.id;
+  }
+  return null;
+}
+
 /** 生成单个 AI 的白天发言；失败时回落模板（保证回合不断） */
 async function generateSpeech(game, speaker) {
+  const w = game.wolf;
   const system = buildSpeechPrompt(game, speaker);
   try {
     const text = await chat(
@@ -227,7 +268,15 @@ async function generateSpeech(game, speaker) {
     const obj = parseActionJson(text);
     const speech = String((obj && obj.speech) || '').trim().slice(0, MAX_SPEECH);
     if (!speech) throw new Error('empty speech');
-    return { speech, suspect: String((obj && obj.suspect) || '').trim() };
+    // 一致性兜底：suspect 优先取 LLM 输出，但若与发言正文割裂（正文没点名他），
+    // 则从正文提取实际点名的存活者，保证"投的人 = 发言质疑的人"。
+    let suspect = String((obj && obj.suspect) || '').trim();
+    const named = suspectFromSpeech(w, speaker, speech);
+    const target = findPlayer(w, suspect);
+    if (named && (!target || target.id !== named)) {
+      suspect = named;
+    }
+    return { speech, suspect };
   } catch (err) {
     console.log('[debug] 狼人杀发言失败:', String(err.message).slice(0, 60));
     return {
@@ -235,15 +284,6 @@ async function generateSpeech(game, speaker) {
       suspect: '',
     };
   }
-}
-
-/** 校验「怀疑目标/投票目标」：必须存活且不是自己；无效则随机落回 */
-function pickSuspect(game, voter, raw) {
-  const w = game.wolf;
-  const target = findPlayer(w, String(raw || '').trim());
-  if (target && target.alive && target.id !== voter.id) return target.id;
-  const pool = alivePlayers(w).filter((p) => p.id !== voter.id);
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)].id : '';
 }
 
 // ==================== 对外状态视图（防剧透） ====================
@@ -372,6 +412,28 @@ async function processAction(game, userInput, opts = {}) {
 }
 
 /**
+ * 收集预言家公开指认的狼人 id。
+ * 核心：用【代码级真相】兜底措辞差异——预言家的验人结果就在 w.night 里，
+ * 只要预言家发言中点名了「真相中确实是狼」的存活玩家，就视为公开指认
+ * （提示词强制预言家基于真实信息发言，他点名的狼就是他的验人结论）。
+ * 这解决"预言家只说'怀疑X'没说'X是狼人'，好人无法改票"的信息脱节。
+ * @returns {string|null} 被预言家公开指认的狼人 id
+ */
+function seerAccusedWolf(w) {
+  for (const s of w.speeches) {
+    const sp = findPlayer(w, s.playerId);
+    if (!sp || sp.role !== 'seer') continue;
+    const speech = String(s.speech || '');
+    // 预言家点名了某个存活玩家，且该玩家在真相中确实是狼 → 公开指认
+    for (const p of alivePlayers(w)) {
+      if (p.id === sp.id || p.role !== 'wolf') continue;
+      if (speech.includes(p.name)) return p.id;
+    }
+  }
+  return null;
+}
+
+/**
  * 投票放逐（玩家按钮 + AI 按各自怀疑目标投票）。
  * 最高票唯一者被放逐并公开身份；平票则无人放逐。
  * 之后判定胜负：结束则收局复盘；未结束则进入下一夜并天亮。
@@ -389,6 +451,9 @@ async function vote(game, targetId) {
     return { ok: false, message: '无效的投票目标' };
   }
 
+  // 预言家公开指认的狼人：好人 AI 改票跟随（预言家情报优先于个人怀疑）
+  const accusedWolf = seerAccusedWolf(w);
+
   // 收集票数：玩家 1 票 + 每个存活 AI 1 票（用其发言时的怀疑目标）
   const ballots = {}; // voterId -> targetId
   const tally = (voterId, tid) => {
@@ -397,7 +462,12 @@ async function vote(game, targetId) {
   tally(player.id, playerTarget.id);
   for (const p of w.players) {
     if (p.isPlayer || !p.alive) continue;
-    tally(p.id, pickSuspect(game, p, w.suspect[p.id]));
+    // 好人 AI：预言家已公开指认狼人时，改投该狼人（除非自己就是被指认的狼人）
+    let tid = w.suspect[p.id];
+    if (p.role !== 'wolf' && accusedWolf && accusedWolf !== p.id) {
+      tid = accusedWolf;
+    }
+    tally(p.id, pickSuspect(game, p, tid));
   }
 
   // 计票：唯一最高票者被放逐；平票无人放逐
@@ -510,5 +580,7 @@ module.exports = {
   equipItem: noItems,
   unequipItem: noItems,
   cancelPendingAction: noItems,
+  // 供单元测试与工具层复用
+  __test: { suspectFromSpeech, seerAccusedWolf },
   clearPendingActions: () => {},
 };
