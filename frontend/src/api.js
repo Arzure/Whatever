@@ -31,5 +31,8 @@ export const api = {
   // 狼人杀投票放逐
   vote: (id, targetId) =>
     request(`/games/${id}/vote`, { method: 'POST', body: JSON.stringify({ targetId }) }),
+  // 推理杀法官裁决（targetId 为空=放弃处刑）
+  adjudicate: (id, targetId) =>
+    request(`/games/${id}/adjudicate`, { method: 'POST', body: JSON.stringify({ targetId }) }),
   itemOp: (id, op, body) => request(`/games/${id}/${op}`, { method: 'POST', body: JSON.stringify(body) }),
 };

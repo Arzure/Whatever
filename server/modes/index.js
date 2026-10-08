@@ -1,6 +1,7 @@
 const world = require('./world');
 const detective = require('./detective');
 const wolf = require('./wolf');
+const deduction = require('./deduction');
 
 /**
  * 游戏模式注册表。
@@ -14,6 +15,7 @@ const MODES = {
   [world.modeId]: world,
   [detective.modeId]: detective,
   [wolf.modeId]: wolf,
+  [deduction.modeId]: deduction,
 };
 
 const DEFAULT_MODE = world.modeId;

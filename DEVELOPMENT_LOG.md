@@ -609,5 +609,67 @@ frontend App.vue         按 mode === 'wolf' 切换 WolfView
 - **发言博弈**：每个 AI 的提示词带"自己的身份 + 前序全部发言"，形成质疑/辩解/带票的真实互动
 - **投票确定性**：AI 的怀疑目标由 LLM 在发言中给出、经校验后由程序计票，AI 无法篡改票数
 
+---
+
+## 2026-10-08 · 新增推理杀模式（法官视角的甄谎推理）
+
+### 背景与目标
+
+狼人杀 MVP 上线后用户反馈"不够好玩"，核心问题是玩家几乎无权（固定村民、夜晚全自动、只有投票一个决策）。用户提出新方案：**推理杀**——玩家是拥有上帝视角的「法官」，不参与博弈，只做三件事：看死讯、听 AI 发言、决定处刑或放弃。这比狼人杀更契合 AI 叙事（AI 只需稳定地"说真话/编身份"，无需复杂带票博弈）。
+
+### 关键决策（用户拍板）
+
+| 决策项 | 结论 |
+|--------|------|
+| 玩家角色 | **法官**：不参与、不会出局 |
+| 人数配置 | **6 人局全 AI**：2 狼 + 1 预言家 + 3 村民 |
+| 夜晚交互 | 无交互（程序结算，法官只看结果） |
+| 死讯规则 | 被刀**不亮身份**（与狼人杀对齐）；被处刑**公开真实身份牌** |
+| 裁决规则 | 处刑某人（公开身份牌）或**放弃**（无人放逐直接进下一夜） |
+| 胜负 | 全部狼被处刑 → 好人胜；好人阵营全灭 → 狼胜 |
+
+### 架构落地（复用 wolf 骨架）
+
+```text
+server/modes/deduction.js
+  assignRoles()          6 人身份分配（2 狼 + 1 预言家 + 3 村民，全部 AI）
+  settleNight()          夜晚确定性结算：2 狼协同刀人 + 预言家验人
+  processAction()        白天：法官不发言，直接让所有存活 AI 依次发言 → 进入裁决
+  generateSpeech()       逐人提示词：
+                        · 村民如实亮身份 + 凭矛盾推理
+                        · 预言家如实公布验人结果
+                        · 狼人必须捏造假身份（谎称村民 / 悍跳预言家编假验人），与狼队友口径一致
+  adjudicate()           法官裁决：处刑 targetId（公开身份牌）或放弃（targetId 空）→ 判胜负
+  snapshot()             防剧透：players 不含 role；被刀死讯不带身份、处刑死讯带身份；终局 roles
+server/modes/index.js    注册 deduction 模式
+server/index.js          新增 POST /api/games/:id/adjudicate
+frontend DeductionView.vue   法官界面：侧栏（在场者/死讯记录/复盘）+ 主区（发言流 + 裁决面板）
+frontend useGame.js/api.js/App.vue   接入（adjudicateTarget / 模式切换）
+```
+
+### 实测验证
+
+- **单元测试 24 项全通过**：身份分配（2狼1预言3民）、快照防剧透、被刀不亮身份、放弃处刑、处刑狼人亮身份牌、双狼逐一击破、好人胜、终局复盘
+- **端到端（真实 LLM）**：双预言家对跳戏剧完整呈现——狼人「周舟」悍跳预言家谎称验苏晴是好人，真预言家「老陈」指认狼人「程野」；法官处刑程野 → 身份牌【狼人】✅；第二夜狼周舟改口自称村民并带动村民孟瑶怀疑老陈，法官识破处刑周舟 → 身份牌【狼人】→ **全部狼被处刑，好人胜**，终局 6 人身份复盘完整 ✅
+- `npm run build:frontend` 通过（23 modules）✅
+
+### 涉及代码文件
+
+| 文件 | 改动 |
+|------|------|
+| [server/modes/deduction.js](../server/modes/deduction.js) | 新增：推理杀模式（法官裁决/夜晚结算/发言引擎/防剧透快照） |
+| [server/modes/index.js](../server/modes/index.js) | 注册 `deduction` 模式 |
+| [server/index.js](../server/index.js) | 新增 `/adjudicate` 路由 |
+| [frontend/src/components/DeductionView.vue](../frontend/src/components/DeductionView.vue) | 新增：推理杀游戏页（法官界面） |
+| [frontend/src/composables/useGame.js](../frontend/src/composables/useGame.js) | `deduction` 状态 + `adjudicateTarget` |
+| [frontend/src/api.js](../frontend/src/api.js) | `adjudicate` API |
+| [frontend/src/App.vue](../frontend/src/App.vue) | DeductionView 切换 |
+
+### 关联知识点（详见 TECH_DOC.md §2.4.7）
+
+- **法官视角**：玩家不参与不死，获得完整决策权；"AI 自称身份 vs 处刑揭示身份牌"形成持续推理锚点
+- **狼人捏造身份**：提示词允许狼人悍跳预言家编假验人——双预言家对跳是本模式最精彩的戏剧场面
+- **AI 只发言不投票**：推理杀与狼人杀的本质差异——裁决权完全归法官，AI 无票可投，杜绝"带节奏"问题
+
 
 

@@ -243,6 +243,30 @@ app.post('/api/games/:id/vote', async (req, res) => {
   }
 });
 
+// 法官裁决（推理杀模式：处刑某人或放弃处刑）
+app.post('/api/games/:id/adjudicate', async (req, res) => {
+  const found = findGame(req, res);
+  if (!found) return;
+  const { game, mode } = found;
+  if (typeof mode.adjudicate !== 'function') return res.status(400).json({ error: '当前模式不支持裁决' });
+
+  const over = overState(mode, game);
+  if (over.over) return res.status(409).json({ error: over.message, gameOver: true });
+
+  // targetId 为空表示放弃处刑
+  const targetId = String(req.body?.targetId || '').trim();
+
+  try {
+    const result = await mode.adjudicate(game, targetId);
+    if (!result.ok) return res.status(400).json({ error: result.message });
+    storage.saveGame(game.id, game);
+    res.json(result.payload);
+  } catch (err) {
+    storage.saveGame(game.id, game);
+    res.status(502).json({ error: `裁决处理失败：${err.message}` });
+  }
+});
+
 // 存档（手动保存，返回当前快照）
 app.post('/api/games/:id/save', (req, res) => {
   const found = findGame(req, res);
