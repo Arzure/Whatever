@@ -25,9 +25,9 @@
 | 前端界面 | 首页（模式/世界选择 + 文本导入 + 存档列表）、游戏页（对话流 + 能力驱动的动态侧栏） |
 | 选项持久化 | AI 推荐选项随剧情一起存入存档，重进游戏不丢失 |
 | AI 输出可靠性 | 五层防护机制（参数调优 + 自动重试 + 降级兜底），详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) |
-| 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)） |
-| 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破谎言由代码确定性结算，AI 只演绎；两类数值规则（指认-25、举证0.6覆盖率） |
-| 探案前端 | 题材选择 + DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽、线索列表、指认与举证面板） |
+| 案件引擎 | 探案模式案件生成：真相 schema（凶手/动机/手法/物证/说谎者/关键线索）+ 提示词 + 结构校验（[server/casegen.js](server/casegen.js)）；**死者绝不被混入嫌疑人**（normalizeCase 确定性剔除 + validateCase 拦截） |
+| 探案模式 | `server/modes/detective.js`：场景切换/物证发现/物证击破（含凶手）由代码确定性结算，AI 只演绎；无效行动拦截 `quickNoopReply`；告破复盘 `caseResult`；两类数值规则（指认-25、举证0.6覆盖率） |
+| 探案前端 | 题材选择（现代都市/古代衙门/民国旧案/奇幻王国/**蒸汽时代**）+ DetectiveView（案件说明折叠/含谜底二次确认、场景与人物按钮、物证槽含描述、线索列表、指认与举证面板、win 证据复盘） |
 
 ### 已修复的 Bug 🐛
 
@@ -38,6 +38,8 @@
 | npm audit 报 2 个漏洞 | vite 5.x 内嵌 esbuild 存在 dev-server 漏洞 | 升级 vite 5.4.21 → 6.4.3，audit 归零 |
 | AI 频繁返回无法解析的内容 | 模型不按协议输出 JSON（约 2/3 概率输出纯文本） | 五层防护：参数调优 + 自动重试 + 降级兜底（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
 | 使用道具一次扣光 / 卸下装备消失 | 按钮动作未同步给 AI，AI 又重复移动物品 | **架构级硬约束**：AI 无权移动物品，所有物品操作只能由前端按钮触发 |
+| 终局出现"永远拿不到的关键证据" | 案件生成把死者混入 suspects 且配了口供，keyClues 未排除死者名下线索 | `normalizeCase` 确定性剔除死者嫌疑人 + `validateCase` 拦截（详见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)） |
+| 探案叙事"人人疑神疑鬼"、无效探索冗长 | 提示词未约束诚实 NPC 风格；narrative 固定 300~500 字；无"已问尽/已搜遍"终止信号 | 诚实 NPC 坦然基调（规则 4.2）+ 字数弹性 + `quickNoopReply()` 无效行动拦截 |
 
 ### 已知限制 ⚠️
 
@@ -215,9 +217,14 @@ const hasItem = computed(() => caps.value.itemCategories.includes('item'));
 | `culpritId` / `victim` | 凶手 / 死者（含死因与发现信息） |
 | `crime` | 动机 / 手法 / 时间窗 / 破绽 |
 | `suspects[]` | 嫌疑人：`isLiar`（说谎者）、`statements[]`（口供，`truth` 标记真假）、`rebuttalEvidenceId`（能击破他的物证）、`onRebuttal`（被击破后交代的真相与撒谎原因） |
-| `evidence[]` | 物证：`foundAt`（发现场景）、`rebuts[]`（能反驳哪些说谎者） |
+| `evidence[]` | 物证：`foundAt`（发现场景）、`rebuts[]`（能反驳哪些嫌疑人，含说谎者与凶手） |
 | `scenes[]` | 场景：`npcs`（在场人物），探索范围明确、无法无穷自由探索 |
-| `keyClues[]` | 关键线索 id（2~4 条，**不得来自凶手**），举证时按覆盖率判定认罪 |
+| `keyClues[]` | 关键线索 id（2~4 条，**不得来自凶手、也不得来自死者**），举证时按覆盖率判定认罪 |
+
+**题材（`GET /api/genres`）**：现代都市 / 古代衙门 / 民国旧案 / 奇幻王国 / **蒸汽时代**（维多利亚式欧洲推理，`server/casegen.js` 的 `GENRES` 注册即可，前端自动渲染）。
+
+**案件生成的结构硬约束**：
+- **死者绝不能出现在 `suspects` 中**（`normalizeCase` 按「与 `victim.name` 同名 / identity 含 受害·死者·被害人」确定性剔除；`validateCase` 也会拦截）。死者的言论只能由活着的证人转述（如「（管家口述）凌女士那晚曾说…」），keyClues 必须来自可盘问的活人——否则会出现"玩家永远拿不到的关键证据"。
 
 **确定性结算（代码判定，AI 只演绎）**：
 
@@ -225,13 +232,20 @@ const hasItem = computed(() => caps.value.itemCategories.includes('item'));
 |------|------|
 | 场景切换 | 玩家提交含场景名的行动（或点场景按钮）→ 代码移动 `detective.currentScene` |
 | 发现物证 | 行动命中物件物证所在场景的关键词 → 代码将「物证·xxx」放入背包 |
-| 击破谎言 | 玩家**装备**物证并当面质问在场说谎者，且物证 `rebuts` 命中该说谎者 → 代码判定击破，说谎者改口、真相线索入背包、假线索标记「谎话」 |
+| 击破谎言 | 玩家**装备**物证并当面质问在场嫌疑人，且物证 `rebuts` 命中该人（**不限于说谎者，凶手也可被击破**）→ 代码判定击破。说谎者全盘交代真相+撒谎原因；凶手被击破后只会**部分坦言**（如承认到过现场，但绝不直接自证杀人，认罪仍须走举证） |
 | 指认凶手 | `detective.accuse(id)`：命中 `culpritId` → 进入对质；否则 `hp -25`，归零则游戏失败 |
 | 举证认罪 | `detective.confront(clueIds)`：提交的线索中命中 `keyClues` 的覆盖率 ≥ `CONFESS_RATIO(0.6)` → 凶手认罪、胜利；失败不扣血、线索不消耗 |
+| 无效行动拦截 | `quickNoopReply()`：盘问**已问尽的诚实 NPC**（口供全取得且非说谎者/凶手）或**重复搜索已搜遍的场景**（无未发现物证）→ 程序直接返回一句简短反馈与引导选项，**不调 LLM**，杜绝"人人疑神疑鬼 + 无效推进冗长" |
 
-**游戏状态（`game.detective`）**：`phase`（`investigate → confront → win/lose`）、`clues[]`（已获得的线索及真伪标记）、`evidenceIds`、`revealed[]`（已被击破的说谎者）、`failedAccusations`、`currentScene`。
+**游戏状态（`game.detective`）**：`phase`（`investigate → confront → win/lose`）、`clues[]`（已获得的线索及真伪标记）、`evidenceIds`、`revealed[]`（已被击破的人）、`failedAccusations`、`currentScene`。
 
-**快照防剧透（`snapshot()`）**：下发给前端的探案状态**剔除一切真相字段**（`isCulprit/isLiar/truth/culpritId/keyClues/crime`）；完整案件说明只由 `GET /api/games/:id/case` 在玩家于前端主动展开（二次确认后）时下发。
+**快照防剧透（`snapshot()`）**：下发给前端的探案状态**剔除一切真相字段**（`isCulprit/isLiar/truth/culpritId/keyClues/crime`）；完整案件说明只由 `GET /api/games/:id/case` 在玩家于前端主动展开（二次确认后）时下发。快照额外提供：
+- `evidence[]`：物证明细（`name/desc/foundAt` 场景名），前端物证栏展示描述
+- `caseResult`：**仅 `win` 阶段**携带的证据复盘 `{ got:[{text,holder}], missing:[{text,holder}], total }`（命中/未获取的关键证据），调查阶段为 `null` 不泄露
+
+**叙事风格约束**：
+- 诚实 NPC（非说谎者、非凶手）说话**坦然直接、配合调查**，不渲染心虚；只有说谎者/凶手在隐瞒时才有躲闪紧张的表现（提示词规则 4.2）
+- narrative 字数弹性：**有实质进展 150~350 字 / 无进展 60~120 字**（替代原固定 300~500 字）
 
 **物体操作延续硬约束**：线索与物证均以「线索·/物证·」前缀物品进入背包；装备、卸下、举证勾选等均由前端按钮完成，AI 只结算与演绎。
 

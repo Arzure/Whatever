@@ -316,12 +316,18 @@ function compactCase(kase) {
   });
 }
 
-/** 列出在场人物尚未被玩家取得的口供（含 id 与是否可说） */
+/** 列出在场人物尚未被玩家取得的口供（含 id 与是否可说）；已问尽的诚实 NPC 会明确标注 */
 function presentStatementList(kase, d, present) {
   const lines = [];
   for (const su of present) {
-    for (const st of su.statements) {
-      if (d.clues.some((c) => c.id === st.id)) continue;
+    const pending = su.statements.filter((st) => !d.clues.some((c) => c.id === st.id));
+    if (!pending.length) {
+      // 该 NPC 的所有口供玩家都已取得：标记"已无可取得口供"，避免玩家继续无效盘问
+      const isHiding = su.isLiar || su.isCulprit;
+      lines.push(`    · ${su.name}：已无可取得的口供${isHiding ? '（仍在隐瞒，需物证击破或指认）' : '（诚实配合，已全部告知）'}`);
+      continue;
+    }
+    for (const st of pending) {
       // 说谎者与凶手：truth=true 的口供在被物证击破（或凶手被指认）前都不可主动说出
       const needsRebuttal = su.isLiar || su.isCulprit;
       const blocked = st.truth && needsRebuttal && !d.revealed.includes(su.id);
@@ -329,6 +335,48 @@ function presentStatementList(kase, d, present) {
     }
   }
   return lines.length ? lines.join('\n') : '    （暂无可获取的口供）';
+}
+
+/**
+ * 无效行动拦截：玩家盘问某位已问尽的诚实 NPC，或重复勘查已无物证可发现的场景时，
+ * 程序直接给一句简短反馈并结束本回合（不调 LLM），避免「人人疑神疑鬼、无效推进冗长」。
+ * @returns {object|null} { narrative, choices }；不命中返回 null
+ */
+function quickNoopReply(game, userInput) {
+  const kase = game.case;
+  const d = game.detective;
+  const t = String(userInput || '');
+  if (!t) return null;
+
+  const scene = findScene(kase, d.currentScene);
+  if (!scene) return null;
+  const present = scene.npcs.map((id) => findSuspect(kase, id)).filter(Boolean);
+
+  // 1) 盘问已问尽的在场诚实 NPC（非说谎者、非凶手，且口供全部取得）
+  for (const su of present) {
+    if (su.isLiar || su.isCulprit) continue;
+    if (!t.includes(su.name)) continue;
+    const pending = su.statements.filter((st) => !d.clues.some((c) => c.id === st.id));
+    if (pending.length) continue; // 还有没拿到的话，正常走 LLM
+    return {
+      narrative: `${su.name}平静地摊了摊手：「我知道的都告诉你了，没有别的了。你要是还想去哪里看看，我随时配合。」`,
+      choices: ['前往其他场景', '盘问其他人', '重新梳理已有线索'],
+    };
+  }
+
+  // 2) 重复勘查已搜遍的场景（当前场景全部物证都已发现，且玩家行动明显是"搜索/勘查"意图）
+  const searchWords = ['搜查', '搜索', '搜', '勘查', '勘察', '查看', '检查', '寻找', '找找', '翻', '搜找', '查找'];
+  if (searchWords.some((w) => t.includes(w))) {
+    const left = hiddenEvidenceAt(kase, d);
+    if (!left.length) {
+      return {
+        narrative: `你把${scene.name}的每一处角落又过了一遍——抽屉、夹层、地面缝隙都翻过了，这里确实没有更多发现了。`,
+        choices: ['前往其他场景', '盘问在场的人', '重新梳理已有线索'],
+      };
+    }
+  }
+
+  return null;
 }
 
 function buildSystemPrompt(game) {
@@ -347,11 +395,14 @@ function buildSystemPrompt(game) {
   sections.push(
     `【输出格式 — 最高优先级，必须严格遵守】\n` +
     `每次回复必须是一个合法完整的 JSON 对象，此外不得输出任何内容（不要解释、不要代码块标记）：\n` +
-    `{"narrative":"本回合剧情，300~500字，中文，第二人称「你」","choices":["选项1","选项2","选项3"],"delta":{"scene":null,"clues":[],"evidence":[],"rebut":null}}\n` +
+    `{"narrative":"本回合剧情，中文，第二人称「你」，长度见下方字数规则","choices":["选项1","选项2","选项3"],"delta":{"scene":null,"clues":[],"evidence":[],"rebut":null}}\n` +
     `- delta.scene：玩家移动到新场景时填该场景 id，否则 null\n` +
     `- delta.clues：玩家本回合新获得的口供/线索 id 数组（没有则空数组）\n` +
     `- delta.evidence：玩家本回合发现的物证 id 数组（没有则空数组）\n` +
-    `- delta.rebut：玩家用已装备的物证成功质问说谎者时，填该说谎者的 id，否则 null`
+    `- delta.rebut：玩家用已装备的物证成功质问说谎者时，填该说谎者的 id，否则 null\n` +
+    `【narrative 字数规则（重要）】\n` +
+    `- 有实质进展的回合（获得新线索/物证/击破谎言/场景切换/指认举证）：150~350 字，写清该进展的来龙去脉即可。\n` +
+    `- 无实质进展的回合（盘问已问尽的人、搜查已搜遍的场景、行动落空）：60~120 字，简短如实说明"没有新的发现"，不铺陈氛围、不硬凑字数。`
   );
 
   sections.push(`【案件真相（绝密，绝不可直接说破）】\n${compactCase(kase)}`);
@@ -376,6 +427,7 @@ function buildSystemPrompt(game) {
     `3. delta.clues 只填玩家【本回合确实从在场者口中取得】的口供 id（必须来自【案件真相】的 statements）。玩家盘问谁，就让谁按规则发言，并把取得的 id 填进 clues；玩家没有询问的人不要发言。\n` +
     `4. 说谎者（isLiar=true）在被物证击破前，只能说出 truth=false 的口供，并把谎言包装得像真话；被 delta.rebut 击破或已在「已被物证击破」名单中后，才说出 truth=true 的口供，并明确交代自己撒谎的原因（lieMotive）。\n` +
     `4.1 凶手（isCulprit=true）的假口供同样可能被对应物证击破：被击破后他会改口，只说「不直接指认自己杀人」的部分实话（onRebuttal），其 truth=true 的口供随之可得；但凶手绝不会因此当场认罪，认罪仍只能通过玩家指认后举证。\n` +
+    `4.2 【诚实 NPC 的演绎基调——重要】只有 isLiar 的说谎者与凶手在隐瞒时，才会有躲闪、紧张、眼神游移、话里有话的表现；其余诚实 NPC（isLiar=false 且非凶手）说话【坦然、直接、配合调查】，不渲染他们心虚或可疑。若某个诚实 NPC 的线索玩家已经全部取得，再盘问他时，他应平静地说「我知道的都告诉你了，没有别的了」，而不是继续制造紧张气氛。\n` +
     `5. 凶手（isCulprit=true）在被正确指认前只会否认与推脱，只说出其 truth=false 的口供（被物证击破后按 4.1 处理）。\n` +
     `6. 【位置以「当前局面」为准，且不会因为你而改变】玩家是否移动由程序判定。当叙事涉及移动时，delta.scene 必须填目标场景 id（未填即视为没有移动，此时 narrative 中【绝不可】描写玩家已经离开当前位置）。玩家进入新场景时，要描写新场景的样貌。\n` +
     `6.1 【严禁描写不在场的人】narrative 只能出现「在场人物」名单里的人；其他人一律不得出场、发言或表态。若玩家想找不在场的人，要明确告知此人不在这里，并提示可以去哪里找他。\n` +
@@ -397,7 +449,7 @@ function buildRetryPrompt(game) {
   const present = (scene ? scene.npcs : []).map((id) => findSuspect(kase, id)).filter(Boolean);
   return [
     `你是「探案模式」的主持人，请严格以 JSON 输出本回合结果，不要输出任何其他文字：`,
-    `{"narrative":"300~500字剧情，第二人称","choices":["选项1","选项2"],"delta":{"scene":null,"clues":[],"evidence":[],"rebut":null}}`,
+    `{"narrative":"本回合剧情，第二人称，有实质进展150~350字、无进展60~120字","choices":["选项1","选项2"],"delta":{"scene":null,"clues":[],"evidence":[],"rebut":null}}`,
     `delta.clues 只能填玩家本回合从在场者处取得的口供 id，可选 id：`,
     presentStatementList(kase, d, present),
     `delta.evidence 只能填玩家本回合在本场景搜到的物证 id，可选 id：${hiddenEvidenceAt(kase, d).map((e) => e.id).join('、') || '（本场景已无可发现的物证，必须留空）'}`,
@@ -410,7 +462,7 @@ function buildNarratePrompt(game) {
   const kase = game.case;
   const culprit = findSuspect(kase, kase.culpritId);
   return (
-    `你是推理游戏「探案模式」的叙事主持。只输出一个 JSON 对象：{"narrative":"..."}，narrative 为 250~450 字中文剧情，第二人称「你」。\n` +
+    `你是推理游戏「探案模式」的叙事主持。只输出一个 JSON 对象：{"narrative":"..."}，narrative 为 150~350 字中文剧情（无实质进展的补写场景可 60~120 字），第二人称「你」。\n` +
     `必须严格依据用户的指令（其中给出程序判定结果）撰写；不得改变判定结果，不得透露未被要求披露的真相。\n` +
     `【真相摘要】凶手：${culprit ? culprit.name : '未知'}；动机：${kase.crime.motive}；手法：${kase.crime.method}；破绽：${kase.crime.trick}\n` +
     `【案件】${kase.title} —— ${kase.world}`
@@ -515,6 +567,17 @@ async function processAction(game, userInput, opts = {}) {
       addClue(game, rebutted, st);
       effects.push(`获得线索「${st.text}」`);
     }
+  }
+
+  // 无效行动拦截：盘问已问尽的诚实 NPC（或重复勘查已搜遍的场景）时，直接给简短反馈，
+  // 不再调 LLM 写长篇悬疑剧情，避免「人人疑神疑鬼 + 无效推进冗长」。
+  const noop = quickNoopReply(game, userInput);
+  if (noop) {
+    game.history.push({ role: 'user', content: userInput });
+    game.history.push({ role: 'assistant', content: noop.narrative, choices: noop.choices });
+    trimHistory(game.history);
+    game.updatedAt = Date.now();
+    return resultPayload(game, { narrative: noop.narrative, choices: noop.choices, effects });
   }
 
   // 把程序结算明确告知 AI，使叙事与状态保持一致

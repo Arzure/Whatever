@@ -15,6 +15,7 @@ const GENRES = [
   { id: 'ancient', name: '古代衙门', hint: '中国古代背景，公堂、仵作、江湖恩怨，物证多为器物、书信、尸格痕迹' },
   { id: 'republic', name: '民国旧案', hint: '民国时期租界旧城，洋行、报馆、帮会，氛围阴郁悬疑' },
   { id: 'fantasy', name: '奇幻王国', hint: '剑与魔法的奇幻世界，可有秘药、契约、魔法痕迹，但推理链条仍须自洽' },
+  { id: 'steampunk', name: '蒸汽时代', hint: '维多利亚式欧洲，浓雾煤气灯下的伦敦，马车、怀表、煤气管道与早期工业化；侦探凭观察、推理与物证破案，氛围古典冷峻' },
 ];
 
 const MAX_ATTEMPTS = 3;
@@ -50,15 +51,18 @@ function buildGenPrompt(genre, problems) {
     `"keyClues":["c3","c4"]}\n\n` +
     `硬性规则：\n` +
     `1. 嫌疑人 3~5 名，id 用 s1..sN；恰好 1 名 isCulprit=true，且 culpritId 等于该人 id。\n` +
+    `1.1 【死者绝不能出现在 suspects 中】victim 就是受害者本人，她/他已经死亡，无法开口作证，因此 suspects 里【绝对不要】包含死者（即嫌疑人的 name 不得等于 victim.name）。死者的言论、目击信息只能由【活着的证人转述】，且必须挂在某个可盘问的嫌疑人/证人名下（如「（管家口述）凌女士那晚曾说…」），由该活着的人说出来。\n` +
     `2. 至少 1 名【说谎者】：必须是【非凶手】，isLiar=true，并写明 lieMotive（合理的隐瞒动机）。说谎者至少有 1 条 truth=false 的假线索、至少 1 条 truth=true 的真实线索。\n` +
+    `2.1 身份与性格基调：不要给每个嫌疑人塞秘密。多数嫌疑人应是【清白且坦然的普通目击者/相关人员】——他们没有任何需要隐瞒的东西，说话直率、配合调查、希望早点洗清嫌疑；只有说谎者（isLiar）有隐瞒动机，凶手在掩饰罪行。lieMotive 要克制、具体（如担心连累家人、怕被辞退），不要写成"人人都有把柄、都在偷摸干坏事"。\n` +
     `3. 说谎者必须能被物证击破：rebuttalEvidenceId 指向某件物证的 id，且该物证的 rebuts 数组必须包含这名说谎者的 id；onRebuttal 写明他被击破后的反应（改口交代真相 + 说明撒谎原因）。\n` +
     `4. 其余嫌疑人 isLiar=false。凶手在未被正确指认前只会否认，因此凶手至少有 1 条 truth=false 的否认式口供；且至少 1 条凶手的假口供也要能被某件物证当场拆穿（该物证的 rebuts 数组包含凶手 id，凶手同样填写 rebuttalEvidenceId 与 onRebuttal）——凶手被物证击破后只会「部分坦言」（比如承认自己确实到过现场/与死者有过接触，但绝不直接承认杀人，绝不提及自己的作案细节），这与说谎者被击破后的「全盘交代」不同。\n` +
     `5. 线索 id 全局唯一，用 c1、c2、c3… 连续编号；线索内容要具体、可复述（如「案发时段只有她进过钟楼」），不要空话。\n` +
     `6. keyClues 是「足以让凶手无法辩驳」的关键线索 id 列表（2~4 条），硬性要求：\n` +
     `   - 每条都必须出现在某个嫌疑人的 statements 中；\n` +
     `   - 不得来自凶手（否则玩家拿不到）：撰写时先写清凶手是谁，再把他名下的所有口供 id 一一排除，只从其余嫌疑人中挑选；\n` +
+    `   - 也不得来自死者（玩家无法盘问死者）：所有 keyClues 必须来自【可盘问的活着的人】名下；\n` +
     `   - 至少 1 条来自说谎者的真话（玩家必须先用物证击破他才能获得）。\n` +
-    `7. 场景 2~4 个，id 用 sc1..scN，每个场景写明在场嫌疑人（npcs）；victim.foundAt 与 crime.sceneId 必须是已定义的场景 id。\n` +
+    `7. 场景 2~4 个，id 用 sc1..scN，每个场景写明在场嫌疑人（npcs）；victim.foundAt 与 crime.sceneId 必须是已定义的场景 id；npcs 中不得包含死者。\n` +
     `8. 物证 2~4 件，id 用 e1..eN，每件都要有 foundAt（发现它的场景 id）。物证既是辨别线索真假的工具，也可以只是氛围道具。\n` +
     `9. 真相必须唯一：依据 keyClues 能唯一锁定 culpritId，凶手的动机与手法能自洽解释现场。\n` +
     `10. 全部文本用中文，不要出现「某」「某某」这类占位词。\n` +
@@ -96,6 +100,9 @@ function normalizeCase(raw, genre) {
     });
 
   let seq = 0;
+  const victim = o.victim && typeof o.victim === 'object' ? o.victim : {};
+  const victimName = s(victim.name, 20);
+
   const suspects = arr(o.suspects)
     .slice(0, MAX_SUSPECTS)
     .map((su, i) => {
@@ -124,6 +131,13 @@ function normalizeCase(raw, genre) {
         onRebuttal: s(row.onRebuttal, 200),
         statements,
       };
+    })
+    // 死者不能作为可盘问的嫌疑人（防模型把 victim 塞进 suspects）：
+    // 与 victim.name 同名、或 identity 明示"受害/死者"者剔除，其名下口供同时作废
+    .filter((su) => {
+      const nameEq = victimName && su.name === victimName;
+      const idMarked = /受害|死者|被害人|遗体/.test(su.identity || '');
+      return !(nameEq || idMarked);
     });
   const suspectIds = suspects.map((x) => x.id);
 
@@ -134,7 +148,6 @@ function normalizeCase(raw, genre) {
 
   const crime = o.crime && typeof o.crime === 'object' ? o.crime : {};
   const crimeScene = s(crime.sceneId, 16);
-  const victim = o.victim && typeof o.victim === 'object' ? o.victim : {};
   const victimFoundAt = s(victim.foundAt, 16);
 
   // 线索归属：clueId -> 是否凶手所有。凶手在认罪前只会否认，其口供玩家根本拿不到，
@@ -146,7 +159,7 @@ function normalizeCase(raw, genre) {
   for (const x of arr(o.keyClues)) {
     const id = s(x, 16);
     if (!id || keyClues.includes(id)) continue;
-    if (!(id in clueOwnedByCulprit)) continue; // 无效引用
+    if (!(id in clueOwnedByCulprit)) continue; // 无效引用（含已剔除的死者名下线索）
     if (clueOwnedByCulprit[id]) continue; // 凶手口供：不可获得
     keyClues.push(id);
   }
@@ -187,10 +200,21 @@ function validateCase(c) {
   const suspects = arr(c.suspects);
   const scenes = arr(c.scenes);
   const evidence = arr(c.evidence);
+  const victimName = (c.victim && c.victim.name) || '';
 
   if (suspects.length < 3) problems.push('嫌疑人少于 3 名');
   if (scenes.length < 2) problems.push('场景少于 2 个');
   if (evidence.length < 2) problems.push('物证少于 2 件');
+
+  // 死者不得出现在嫌疑人名单中（玩家无法盘问死者，会出现"永远拿不到的关键证据"）
+  for (const su of suspects) {
+    if (victimName && su.name === victimName) {
+      problems.push(`嫌疑人「${su.name}」与死者同名：死者不能作为可盘问的嫌疑人，请把死者的证词改为由活着的证人转述`);
+    }
+    if (/受害|死者|被害人|遗体/.test(su.identity || '')) {
+      problems.push(`嫌疑人「${su.name}」的 identity 标明其为受害者：请移除该嫌疑人，将其证词转交给活着的证人`);
+    }
+  }
 
   const culprits = suspects.filter((x) => x.isCulprit);
   if (culprits.length !== 1) {
