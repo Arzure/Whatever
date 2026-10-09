@@ -1,15 +1,15 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
 
-const { state, submitAction, adjudicateTarget, backToHome, restart } = inject('game');
+const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject('game');
 
-const input = ref('');
 const messagesEl = ref(null);
 
 const d = computed(() => state.deduction || {});
 const phase = computed(() => d.value.phase || 'day');
 const disabled = computed(() => state.loading || state.gameOver);
 const canAdjudicate = computed(() => !!d.value.canAdjudicate && !disabled.value);
+const canListen = computed(() => phase.value === 'day' && !state.gameOver && !state.loading);
 
 const PHASE_TEXT = {
   day: '白天·听取发言',
@@ -17,13 +17,6 @@ const PHASE_TEXT = {
   win: '好人获胜',
   lose: '狼人获胜',
 };
-
-function send() {
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  submitAction(text);
-}
 
 function doExecute(targetId) {
   const p = (d.value.players || []).find((x) => x.id === targetId);
@@ -122,16 +115,12 @@ watch(() => state.history.length, scrollToBottom);
 
       <div v-if="state.error" class="error-bar">{{ state.error }}</div>
 
-      <!-- 白天：听取发言 -->
-      <div v-if="!canAdjudicate && !state.gameOver" class="input-bar">
-        <textarea
-          v-model="input"
-          rows="2"
-          maxlength="500"
-          placeholder="你是法官，无需发言——点击下方按钮听取所有存活者发言…"
-          @keydown.ctrl.enter="send"
-        ></textarea>
-        <button class="btn primary" :disabled="disabled" @click="send">听取发言</button>
+      <!-- 白天：听取发言（法官无需输入文字） -->
+      <div v-else-if="canListen" class="listen-bar">
+        <button class="btn listen-btn" :disabled="disabled" @click="listenSpeeches">
+          {{ state.loading ? '正在听取发言…' : '🗣️ 听取所有存活者发言' }}
+        </button>
+        <p class="listen-hint">法官无需发言，点击按钮即可听取在场所有人的陈述。</p>
       </div>
 
       <!-- 裁决面板 -->
@@ -300,26 +289,36 @@ watch(() => state.history.length, scrollToBottom);
   background: rgba(200, 60, 60, 0.08);
 }
 
-.input-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px;
+.listen-bar {
+  padding: 14px 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.input-bar textarea {
-  flex: 1;
-  padding: 10px 12px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  resize: none;
-  outline: none;
+.listen-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: rgba(212, 161, 44, 0.12);
+  color: var(--accent-2);
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.input-bar textarea:focus {
-  border-color: var(--accent);
+.listen-btn:hover:not(:disabled) {
+  background: rgba(212, 161, 44, 0.22);
+}
+.listen-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.listen-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
 .adjudicate-panel {

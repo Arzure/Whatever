@@ -5,10 +5,10 @@
   "description": "AI 文字冒险 RPG —— LLM 驱动的多模式互动冒险游戏（大世界模式 / 探案模式）",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix frontend install",
+    "play": "bash dev.sh",
     "dev:server": "npm --prefix server run dev",
     "dev:frontend": "npm --prefix frontend run dev",
-    "build:frontend": "npm --prefix frontend run build",
-    "start": "npm --prefix server start"
+    "build:frontend": "npm --prefix frontend run build"
   },
   "engines": {
     "node": ">=18"

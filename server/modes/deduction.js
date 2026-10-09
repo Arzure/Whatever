@@ -45,30 +45,38 @@ function trimHistory(game) {
 
 // ==================== 身份与开局 ====================
 
-/** 6 人局身份分配：全部 AI，2 狼 + 1 预言家 + 3 村民 */
+/** 6 人局身份分配：全部 AI，1 狼 + 1 预言家 + 4 村民 */
 function assignRoles() {
   const names = shuffle(AI_NAMES).slice(0, 6);
-  const roles = shuffle(['wolf', 'wolf', 'seer', 'villager', 'villager', 'villager']);
+  const roles = shuffle(['wolf', 'seer', 'villager', 'villager', 'villager', 'villager']);
   return names.map((n, i) => ({ id: `p${i + 1}`, name: n, role: roles[i], isPlayer: false, alive: true }));
 }
 
 /**
- * 结算一夜：狼刀（两狼协同选目标）+ 预言家验人（程序确定性判定）。
+ * 结算一夜：狼刀 + 预言家验人（程序确定性判定）。
+ * 首夜（round 1）狼只能刀村民——保证预言家至少活过第一轮，避免"首夜预言家暴毙、信息归零"。
  * @returns {object|null} 被狼刀死的人
  */
 function settleNight(game) {
   const w = game.deduction;
-  const wolves = w.players.filter((p) => p.role === 'wolf' && p.alive);
+  const wolf = w.players.find((p) => p.role === 'wolf' && p.alive);
   const aliveNonWolf = alivePlayers(w).filter((p) => p.role !== 'wolf');
+  // 首夜刀人池：仅村民（预言家首夜安全）；后续夜为全部非狼
+  const killPool = w.round === 1
+    ? aliveNonWolf.filter((p) => p.role === 'villager')
+    : aliveNonWolf;
 
-  // 狼刀目标：两狼优先刀「任一狼发言中怀疑的人」，否则随机
+  // 狼刀目标：优先刀「狼发言中怀疑的人」，否则从刀人池随机
   let target = null;
-  for (const wolf of wolves) {
+  if (wolf) {
     const sus = findPlayer(w, w.suspect[wolf.id]);
-    if (sus && sus.alive && sus.role !== 'wolf') { target = sus; break; }
+    if (sus && sus.alive && sus.role !== 'wolf') {
+      // 首夜若怀疑目标是预言家则忽略（只能刀村民）
+      if (w.round !== 1 || sus.role === 'villager') target = sus;
+    }
   }
   if (!target) {
-    target = aliveNonWolf.length ? aliveNonWolf[Math.floor(Math.random() * aliveNonWolf.length)] : null;
+    target = killPool.length ? killPool[Math.floor(Math.random() * killPool.length)] : null;
   }
 
   let killed = null;
@@ -180,42 +188,58 @@ function buildSpeechPrompt(game, speaker) {
   if (speaker.role === 'wolf') {
     const killed = findPlayer(w, night.killedByWolf);
     roleLine =
-      `你的身份是【狼人】——昨夜你们刀杀了${killed ? `「${killed.name}」` : '目标'}。你的任务：隐藏自己活到最后。` +
-      `【重要】你绝不能透露真实身份，必须【捏造一个假身份】来自称——你可以谎称自己是村民，也可以悍跳预言家编造假的验人结果` +
-      `（例如谎称自己查验了某人，捏造结果以混淆视听），但【始终只说一个身份】且要与前面的狼队友配合、口径一致。` +
-      `若被法官怀疑，要冷静辩解并把怀疑引向别人。记住：你在被处刑前，身份是秘密，法官只能通过你的发言来推理。`;
+      `你的身份是【狼人】——昨夜你刀杀了${killed ? `「${killed.name}」` : '目标'}。你的任务：隐藏身份，避免自己被处刑。` +
+      `你【必须伪装成一个村民】来自称（只能说自己是普通村民，不要自称预言家）。` +
+      `你的发言要【冷静、克制、符合常理】：只陈述"你自己做了什么、看到了什么"这类貌似合理的内容，` +
+      `可以编造一些与自己"村民身份"相符的日常信息（如"我昨夜在屋内休息，没有外出"），` +
+      `但【不要做出任何无端指控】——不要凭空说"我怀疑X是狼"而没有理由，那样反而会暴露自己。` +
+      `当别人怀疑你时，用平静的事实自证（如"我不可能刀人，因为我整夜都在家"），绝不歇斯底里。`;
   } else if (speaker.role === 'seer') {
     const t = findPlayer(w, night.seerTarget);
     const res = night.seerResult === 'wolf' ? '狼人' : '好人';
     roleLine =
       `你的身份是【预言家】——每夜可查验一人。昨夜你查验了「${t ? t.name : '某人'}」，结果是【${res}】。` +
-      `你要【如实公布】你的身份与验人结果（不要谎报身份），这是好人方最可靠的情报。`;
+      `你要【如实公布】你的身份与验人结果（不要谎报身份），这是最可靠的信息。` +
+      `除此之外，只陈述客观事实，不做无端猜测。`;
   } else {
     roleLine =
-      `你的身份是【村民】——你不知道任何人的身份。你要【如实说出】自己的村民身份，并根据发言寻找矛盾，` +
-      `指出你怀疑谁是狼人（你可以点名怀疑某人），但不要说谎、不要编造身份。`;
+      `你的身份是【村民】——你不知道任何人的身份。你只能陈述自己的行为与亲眼所见、亲耳所闻的信息` +
+      `（如"我昨夜在家中休息""我听到隔壁有动静"），以及你自己被谁质疑、你如何回应。` +
+      `你不掌握任何他人身份的实据，所以【不要凭空指控谁一定是狼】；你可以说明"据我所知……""我只知道我自己是村民"。`;
   }
 
+  // 陈述事实原则（对所有角色统一约束）
+  const factLine =
+    `【发言风格 — 最高原则】\n` +
+    `1. 只陈述事实：只说自己做了什么、看到/听到/经历到什么，以及自己知道的信息；不做无意义寒暄，不喊口号。\n` +
+    `2. 理性克制：不情绪化、不歇斯底里、不无端指控他人。你可以表达"据我所知/我没有证据"这样的谨慎判断，但不要空泛地"我觉得X可疑"。\n` +
+    `3. 诚实角色（村民/预言家）说真话；狼人也【理性地】编造貌似真实的日常陈述来伪装，但绝不过度表演。`;
+
   return [
-    `你是狼人杀类游戏「推理杀」中的玩家「${speaker.name}」，正在参加一局 6 人局（2 狼人、1 预言家、3 村民）。法官正在旁观并会裁决。`,
+    `你是狼人杀类游戏「推理杀」中的玩家「${speaker.name}」，正在参加一局 6 人局（1 狼人、1 预言家、4 村民）。法官正在旁观并会裁决。`,
     roleLine,
+    factLine,
     `存活玩家：${aliveList}。`,
     prior ? `到目前为止的发言（按顺序）：\n${prior}` : '你是本轮第一个发言的人。',
     '现在轮到你发言。请只输出一个 JSON 对象（不要任何解释、不要代码块标记）：',
-    '{"speech":"你的发言，第一人称，80~150字","suspect":"pX"}',
+    '{"speech":"你的发言，第一人称，60~120字","suspect":"pX"}',
     '要求：',
-    '- speech：用第一人称说 2~4 句话：亮明你自称的身份（真或假），发表对局势的判断、对某人的怀疑或辩护。',
-    '- suspect：你最怀疑的人的玩家编号（如 p2、p3），必须是存活者且不能是自己。',
-    '- 【重要】suspect 必须与你的发言正文一致：发言里明确质疑了谁，suspect 就填谁。绝不能"发言怀疑甲、却填乙"。',
-    '- 好人应互相帮助找出狼人；狼人应伪装好自己并引导法官怀疑好人。',
+    '- speech：用第一人称说 2~3 句话，按上述【发言风格】陈述。',
+    '- suspect：你认为最可疑的人的玩家编号（如 p2、p3），必须是存活者且不能是自己；若没有实据，可填自己（表示暂无怀疑对象）。',
+    '- 【重要】suspect 必须与你的发言正文一致：发言里明确质疑了谁，suspect 就填谁；发言未质疑任何人时，suspect 填自己。',
     '- 除这个 JSON 对象外，不要输出任何其他内容。',
   ].join('\n');
 }
 
-/** 校验「怀疑目标」：必须存活且不是自己；无效则随机落回 */
+/**
+ * 校验「怀疑目标」：必须存活且不是自己；无效则随机落回。
+ * 填自己表示"暂无怀疑对象"（返回 voter.id，供狼刀逻辑识别为无目标）。
+ */
 function pickSuspect(game, voter, raw) {
   const w = game.deduction;
-  const target = findPlayer(w, String(raw || '').trim());
+  const rawId = String(raw || '').trim();
+  const target = findPlayer(w, rawId);
+  if (rawId === voter.id) return voter.id; // 自我标记：无怀疑对象
   if (target && target.alive && target.id !== voter.id) return target.id;
   const pool = alivePlayers(w).filter((p) => p.id !== voter.id);
   return pool.length ? pool[Math.floor(Math.random() * pool.length)].id : '';
@@ -484,4 +508,6 @@ module.exports = {
   unequipItem: noItems,
   cancelPendingAction: noItems,
   clearPendingActions: () => {},
+  // 供单元测试与工具层复用
+  __test: { pickSuspect },
 };

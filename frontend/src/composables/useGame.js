@@ -344,6 +344,22 @@ export function useGame() {
     }
   }
 
+  /** 推理杀：法官无需发言，点击按钮直接听取所有存活 AI 发言（不写入用户历史） */
+  async function listenSpeeches() {
+    if (state.loading || state.gameOver || !state.gameId) return;
+    state.error = '';
+    state.loading = true;
+    try {
+      // 后端 action 路由要求非空文本；推理杀的 processAction 忽略输入内容，仅触发 AI 发言
+      const result = await api.action(state.gameId, '请各位依次发言', '');
+      applyTurn(result);
+    } catch (e) {
+      state.error = e.message;
+    } finally {
+      state.loading = false;
+    }
+  }
+
   return {
     state,
     hpPercent,
@@ -366,5 +382,6 @@ export function useGame() {
     submitConfront,
     voteTarget,
     adjudicateTarget,
+    listenSpeeches,
   };
 }

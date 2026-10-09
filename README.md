@@ -100,7 +100,18 @@ LLM_MODEL=你的模型名
 npm run install:all
 ```
 
-### 第三步：启动（需要两个终端）
+### 第三步：启动
+
+**一键启动（推荐）**——项目根目录执行，同时启动后端与前端：
+
+```bash
+npm run play
+```
+
+浏览器打开 **http://localhost:5173** 即可。按 `Ctrl + C` 同时停止前后端；运行终端的后端 `[debug]` 日志会实时显示。
+
+<details>
+<summary>或分两个终端单独启动</summary>
 
 ```bash
 # 终端 1 —— 后端（端口 3001）
@@ -117,6 +128,7 @@ npm run dev
 ### 关闭
 
 在两个终端分别按 `Ctrl + C` 即可。
+</details>
 
 ---
 
