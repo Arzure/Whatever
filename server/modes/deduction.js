@@ -368,7 +368,7 @@ function settleNight(game) {
       : null,
     accomplice: A.accomplice.target ? nameOf(A.accomplice.target) : null,
     thief: A.thief.target
-      ? { target: nameOf(A.thief.target), effect: copiedRole ? `复制了「${nameOf(A.thief.target)}」的能力` : forgotten.size ? '清除了目标记忆' : thiefHitsWolf ? '干扰了狼人（狼刀失效）' : null }
+      ? { target: nameOf(A.thief.target), effect: copiedRole ? `获取了死者原本的动作信息` : forgotten.size ? '清除了目标记忆' : thiefHitsWolf ? '干扰了狼人（狼刀失效）' : null }
       : null,
     gambler: A.gambler.target
       ? { target: nameOf(A.gambler.target), claim: CAMP[A.gambler.claim] || A.gambler.claim, correct: result.gamblerCorrect, forgot: result.gamblerForgot, died: result.gamblerDied ? nameOf(result.gamblerDied) : null }
@@ -483,8 +483,10 @@ function buildEndNarrative(w, lastExiled) {
     return `所有狼人已被处刑——${wolfNames}。村庄恢复宁静，好人阵营获胜！${buildNightReview(w)}`;
   }
   if (lastExiled) {
+    const camp = campOf(lastExiled.role);
+    const distinct = camp === 'neutral' ? '那是一位中立者' : '那就是好人中的一员';
     return (
-      `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人。\n\n` +
+      `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人，${distinct}。\n\n` +
       `好人阵营的力量已经耗尽，狼人「${wolfNames}」仍然潜伏在阴影中。狼人获胜。${buildNightReview(w)}`
     );
   }
@@ -497,9 +499,18 @@ function buildAdjudicateNarrative(w, target, isPass) {
   }
   const roleText = ROLES[target.role];
   const correct = target.role === 'wolf';
+  let verdict;
+  if (correct) {
+    verdict = '这正是狼人，你的判断精准无误。';
+  } else {
+    const camp = campOf(target.role);
+    verdict = camp === 'neutral'
+      ? '可惜，那不是狼人——那是一位中立者。误杀中立虽不直接削弱好人，但也无助于找出真凶。'
+      : '可惜，那不是狼人……你误伤了一位好人。好人阵营再少一员。';
+  }
   return (
     `你举起法槌，指向「${target.name}」，下令处刑。\n\n` +
-    `「${target.name}」被带下去，身份牌翻开——【${roleText}】！${correct ? '这正是狼人，你的判断精准无误。' : '可惜，那不是狼人……你误伤了一位好人。'}`
+    `「${target.name}」被带下去，身份牌翻开——【${roleText}】！${verdict}`
   );
 }
 
@@ -617,7 +628,13 @@ function buildRoleKnowledge(game, p) {
   }
 
   if (affected) {
-    lines.push(`【本夜状态】你昨夜${drunk ? '被酒鬼迷醉' : '被小偷清除记忆'}——技能无效，且你不记得昨夜发生了什么事。你的发言只能用一句话表达：「我……抱歉，我完全不记得昨夜做了什么。」`);
+    // 被迷醉/遗忘：技能记忆失效，但【文员的角色名单是越常信息，不受影响】
+    if (p.role === 'clerk') {
+      lines.push(`你昨夜被${drunk ? '迷醉' : '清除记忆'}，完全不记得昨夜技能相关的细节。但你【仍然清楚】本局存在的角色名单：${w.rolePoolName.join('、')}。`);
+      if (w.round === 1) lines.push(`首轮你应照常当众公布该名单。除此之外，昨夜经历一律表示「我不记得」。`);
+    } else {
+      lines.push(`【本夜状态】你昨夜${drunk ? '被酒鬼迷醉' : '被小偷清除记忆'}——技能无效，且你不记得昨夜发生了什么事。你的发言只能用一句话表达：「我……抱歉，我完全不记得昨夜做了什么。」`);
+    }
     return lines;
   }
 
@@ -632,10 +649,21 @@ function buildRoleKnowledge(game, p) {
       const t = findPlayer(w, night.guardTarget);
       const name = t ? t.name : '';
       if (night.wolfBlocked && night.guardTarget === night.wolfTarget) {
-        lines.push(`你昨夜守护了「${name}」，并成功挡下了狼人的袭击——他活了下来。`);
+        const variants = [
+          `你昨夜守护了「${name}」，成功挡下了狼人的袭击——他活了下来。`,
+          `你昨夜守在「${name}」身边，和袭击者搏斗，把他挡了下来。`,
+          `你昨夜护住了「${name}」——狼人确实来了，但被你击退。`,
+        ];
+        lines.push(`【昨夜经历】${variants[Math.floor(Math.random() * variants.length)]}`);
       } else {
-        lines.push(`你昨夜守护了「${name}」，没有遭遇袭击事件。`);
+        const variants = [
+          `你昨夜守护了「${name}」，整夜平安无事，没有任何袭击。`,
+          `你昨夜在「${name}」住所外守了一夜，没有异常动静。`,
+          `你昨夜保护了「${name}」，直到天亮都风平浪静。`,
+        ];
+        lines.push(`【昨夜经历】${variants[Math.floor(Math.random() * variants.length)]}`);
       }
+      lines.push(`【重要】你整夜只守在「${name}」这一处，只掌握守护目标的情况。你没有走访、没有监视其他人，因此【不得】声称自己「留意到其他某人的动向」或知道他人夜里做了什么——你没看到。若有人质疑你，就如实说明自己只守护了「${name}」。`);
       break;
     }
     case 'detective': {
@@ -685,7 +713,34 @@ function buildRoleKnowledge(game, p) {
       const t = findPlayer(w, night.thiefTarget);
       const tName = t ? t.name : '';
       if (night.thiefCopiedRole) {
-        lines.push(`你昨夜造访了「${tName}」，他已经死了——你复制了他的能力（${ROLES[night.thiefCopiedRole]}），今天可以透露相关信息一次。`);
+        // 访死者：获取死者「原本要进行的动作」信息（不继承行动能力）
+        const deadRole = night.thiefCopiedRole;
+        let info = '';
+        if (deadRole === 'guard') {
+          const g = findPlayer(w, night.guardTarget);
+          info = g ? `守卫原本想要守护「${g.name}」` : '守卫原本没有明确守护目标';
+        } else if (deadRole === 'detective') {
+          const d = findPlayer(w, night.detectiveTarget);
+          info = d
+            ? `侦探原本探访了「${d.name}」，线索是${(night.leavers || []).includes(d.id) ? '他昨夜曾外出活动' : '他昨夜没有外出活动'}（以死者生前的探查为准）`
+            : '侦探原本准备探访某人';
+        } else if (deadRole === 'forensics') {
+          info = night.forensicsDeadRole
+            ? `法医原本要验的尸体「${night.forensicsDeadName}」，真实身份是${ROLES[night.forensicsDeadRole]}`
+            : '法医原本没有可供检验的尸体';
+        } else if (deadRole === 'gambler') {
+          const g = findPlayer(w, night.gamblerTarget);
+          if (night.gamblerForgot) {
+            info = '赌徒昨夜被人清除记忆，并没有完成猜测';
+          } else if (g) {
+            info = `赌徒原本猜测「${g.name}」的阵营是${night.gamblerTargetCamp || '未知'}（${night.gamblerCorrect ? '他猜对了' : '他赌错了，并因此而死'}）。你只需获得这条情报，无需也不应替他重新下注`;
+          } else {
+            info = '赌徒原本没有进行猜测';
+          }
+        } else {
+          info = `「${tName}」是${ROLES[deadRole]}，没有可继承的夜间动作信息`;
+        }
+        lines.push(`你昨夜拜访了「${tName}」，他已经死了。你获得了他原本要进行的动作：${info}。`);
       } else if (night.wolfForgot) {
         lines.push(`你昨夜造访了「${tName}」，但你的手段没能生效。`);
       } else if (tName) {
@@ -727,7 +782,9 @@ function buildSpeechPrompt(game, speaker) {
     `3. 诚实角色说真话；坏人按上述【伪装行为】编造合理细节伪装；中立自选。\n` +
     `4. 【绝对禁止】坏人（狼人/帮凶/酒鬼）在发言中提及或暗示自己的真实夜间行动（如"我刀了X"）。只能按伪装身份编造行为。违反此条等于自曝。\n` +
     `5. 【游戏常识·重要】「呆在家中」或「没有外出」不等于「没被袭击」——狼人可以在住所内行凶。不要用「他在家」去反驳「他被刀了」，这是错误的逻辑。\n` +
-    `6. 发言中不要重复别人已经说过的话，只补充自己独有的新信息或对他人信息的判断。`;
+    `6. 发言中不要重复别人已经说过的话，只补充自己独有的新信息或对他人信息的判断。\n` +
+    `7. 【技能真实·铁律】你只能声称行使了【你的身份真正拥有的能力】。文员只能公布角色名单、村民无能力、守卫只能保护、侦探只能获知外出线索、法医只能验尸体、赌徒只能猜阵营、小偷只能清记忆/复制、狼人只能夜晚出刀。严禁凭空声称"查验/占卜/鉴定他人身份"等本游戏不存在的技能。若要诡辩，只能围绕真实能力做伪陈述。\n` +
+    `8. 【信息边界·铁律】只能陈述【你的素材里明确提供的信息】（技能结果 / 亲历事件 / 你的身份与阵营）。不得编造你身份无法观测到的情报，例如守卫不能说「我留意到其他人的动向」，村民不能说「我看到谁半夜出门」。若你确实没有更多有效信息，宁可只说现状，也不要虚构细节凑字数。`;
 
   return {
     system: [
@@ -811,11 +868,12 @@ async function generateSpeech(game, speaker) {
   const w = game.deduction;
   const built = buildSpeechPrompt(game, speaker);
   if (built.affected) {
-    return {
-      speech: '我……抱歉，我完全不记得昨夜发生了什么。',
-      suspect: '',
-      affected: true,
-    };
+    // 文员被遗忘时仍应公布名单（越常信息不受影响），其它角色走"忘记"模板
+    const clerkPool = w.rolePoolName.join('、');
+    const speech = speaker.role === 'clerk'
+      ? `我是文员。本局存在的角色有：${clerkPool}。昨夜我被人${w.night && (w.night.drunkIds || []).includes(speaker.id) ? '迷醉不清' : '清除了记忆'}，具体经过不记得了。`
+      : '我……抱歉，我完全不记得昨夜发生了什么。';
+    return { speech, suspect: '', affected: true };
   }
   try {
     const text = await chat(
