@@ -745,5 +745,40 @@ frontend DeductionView.vue
 - **首轮身份声明程序注入**：轻量模型让 LLM 自由编谎是"噪音冲突"来源，代码注入后才变成"有效冲突"推理素材
 - **信息边界铁律**：AI 只能在素材范围内发言，宁短不虚构，否则守卫"留意多人动向"这类越权情报会污染推理
 
+---
+
+## 2026-10-09 · 推理杀多轮对战修复（发言质量/身份自曝/复盘准确性/阵营文案）
+
+### 背景与目标
+
+7 人局上线后连续打了多局，玩家逐局反馈积累了 8 个类 bug：发言敷衍或自曝、信息误读、复盘错误、阵营文案不准等。逐一修复并对每一局存档验证。
+
+### 修复清单（按玩家反馈逐条）
+
+| # | 问题（存档事例） | 修复 |
+|---|------------------|------|
+| 1 | 真赌徒只报"我是赌徒。"（`fallbackSpeech` 正则匹配不到知识包） | 赌徒专属分支直接读 `night` 组成品句（猜对/猜错/被遗忘）；正则 `/我昨/`→`/昨夜/`；新增长度保险（<20 字补一句话） |
+| 2 | 坏人自曝："我是帮凶。"（孟瑶） | `generateSpeech` 坏人自曝拦截：`我是狼人/帮凶/酒鬼` 命中 → 替换为 `fallbackSpeech` 的 cover 伪装话术 |
+| 3 | LLM 若干次输出一句话敷衍（阿澈"我是侦探"、老陈"我是守卫"） | 过短拦截：`speech.length < 24` → `fallbackSpeech` 兜底 |
+| 4 | 复盘中"赌徒""侦探"执行者名字为空（夜死后 roleToId 取不到） | `lockActions` 记录 `A.*.who`；nightLogs 全部改用 `who`；deaths 按 playerId 去重 |
+| 5 | 复盘"本夜逝去：许诺、许诺"重复 | 同上：`uniqueDeaths` Map 去重 |
+| 6 | 处刑帮凶误报"误伤了好人" | `buildAdjudicateNarrative` 三阵营：帮凶/酒鬼 →"削弱坏人阵营但没抓真狼"；`buildEndNarrative` 同步 |
+| 7 | 法医污名化中立："孟瑶并非好人阵营…警惕立场相近者" | 法医知识包给阵营标注（好人/中立/坏人）+ 中立纪律"明确说中立阵营，不得暗示立场" |
+| 8 | 同一身份双人在场无人质疑（真/假双赌徒） | 身份冲突引导已上线（第 2 轮起强制质疑真实身份被冒充）——局限：仅对真实身份生效，首轮不触发 |
+
+### 实测验证
+
+- `fallbackSpeech` 全角色验证：12069 个角色兜底 0 过短、0 缺失身份；赌徒 509/509 输完整猜侧结果
+- nightLogs 修复：8000 夜模拟 0 空 who、0 重复死亡
+- extractClaim 兼容性：18 种口语格式全通过（含"我是名字，身份"）
+- 前端构建通过（23 modules）
+
+### 涉及代码文件
+
+| 文件 | 改动 |
+|------|------|
+| [server/modes/deduction.js](../server/modes/deduction.js) | `fallbackSpeech` 全角色重构（赌徒/小偷/好人/坏人分支 + 长度保险）；`generateSpeech` 过短拦截 + 坏人自曝拦截；`lockActions`/nightLogs 增加 `who` 与去重；`buildAdjudicateNarrative`/`buildEndNarrative` 三阵营文案；法医中立标注；身份冲突引导 |
+| [frontend/src/components/DeductionView.vue](../frontend/src/components/DeductionView.vue) | 逐夜行动回顾面板（显示执行者名字） |
+
 
 
