@@ -161,19 +161,20 @@ function processTurn(w) {
  * }}
  */
 function lockActions(w) {
-  const A = { wolf: { target: null }, guard: { target: null }, detective: { target: null }, accomplice: { target: null }, thief: { target: null }, gambler: { target: null, claim: null }, forensics: { active: false, deadPlayerId: null, deadName: null } };
+  const A = { wolf: { who: null, target: null }, guard: { who: null, target: null }, detective: { who: null, target: null }, accomplice: { who: null, target: null }, thief: { who: null, target: null }, gambler: { who: null, target: null, claim: null }, forensics: { active: false, deadPlayerId: null, deadName: null } };
   const alive = alivePlayers(w);
 
   // 上一夜死者（法医本夜去现场取材的对象）；仅当法医存活且第二夜起生效
   const forensics = w.players.find((p) => p.role === 'forensics' && p.alive);
   const prevKill = [...w.deaths].reverse().find((d) => d.cause === 'night');
   if (forensics && w.round >= 2 && prevKill) {
-    A.forensics = { active: true, deadPlayerId: prevKill.playerId, deadName: prevKill.name };
+    A.forensics = { active: true, who: forensics.id, deadPlayerId: prevKill.playerId, deadName: prevKill.name };
   }
 
   // 狼人：刀一人（不能刀狼方自己人；首夜不可刀文员）
   const wolf = w.players.find((p) => p.role === 'wolf' && p.alive);
   if (wolf) {
+    A.wolf.who = wolf.id;
     const pool = alive.filter((p) => !EVIL_ROLES.includes(p.role) && (w.round !== 1 || p.role !== 'clerk'));
     let t = findPlayer(w, w.suspect[wolf.id]);
     if (t && t.alive && !EVIL_ROLES.includes(t.role) && (w.round !== 1 || t.role !== 'clerk')) {
@@ -186,6 +187,7 @@ function lockActions(w) {
   // 守卫：保护一人（可自保；不能连续两夜同一人）
   const guard = w.players.find((p) => p.role === 'guard' && p.alive);
   if (guard) {
+    A.guard.who = guard.id;
     const pool = alive.filter((p) => p.id !== w.lastGuardTarget);
     A.guard.target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : guard.id;
   }
@@ -194,6 +196,7 @@ function lockActions(w) {
   for (const role of ['detective', 'accomplice', 'thief']) {
     const p = w.players.find((x) => x.role === role && x.alive);
     if (p) {
+      A[role].who = p.id;
       const pool = alive.filter((x) => x.id !== p.id);
       A[role].target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
     }
@@ -202,6 +205,7 @@ function lockActions(w) {
   // 赌徒：猜一人 + 猜阵营
   const gambler = w.players.find((p) => p.role === 'gambler' && p.alive);
   if (gambler) {
+    A.gambler.who = gambler.id;
     const pool = alive.filter((p) => p.id !== gambler.id);
     if (pool.length) {
       const t = pool[Math.floor(Math.random() * pool.length)];
@@ -355,30 +359,40 @@ function settleNight(game) {
     turnedPlayerId: w.turned ? w.turned.playerId : null,
   };
 
-  // —— 逐夜行动日志（供终局「逐夜行动回顾」）——
+  // —— 逐夜行动日志（供终局「逐夜行动回顾」；用 A.*.who 记录执行者，兼容当夜死亡者）——
   const nameOf = (id) => { const p = findPlayer(w, id); return p ? p.name : ''; };
+  // 死亡名单去重（同一个人可能同时死于狼刀与赌徒猜错）
+  const uniqueDeaths = [...new Map(nightDeaths.map((d) => [d.playerId, d])).values()];
   w.nightLogs.push({
     round: w.round,
+    // 狼方行动
     wolf: A.wolf.target
-      ? { target: nameOf(A.wolf.target), killed: result.killed ? result.killed.name : null, blocked: result.wolfBlocked }
+      ? { who: nameOf(A.wolf.who), target: nameOf(A.wolf.target), killed: result.killed ? result.killed.name : null, blocked: result.wolfBlocked }
       : null,
-    guard: A.guard.target ? nameOf(A.guard.target) : null,
+    accomplice: A.accomplice.target
+      ? { who: nameOf(A.accomplice.who), target: nameOf(A.accomplice.target) }
+      : null,
+    // 好人行动
+    guard: A.guard.target
+      ? { who: nameOf(A.guard.who), target: nameOf(A.guard.target), effective: result.guardEffective }
+      : null,
     detective: A.detective.target
-      ? { target: nameOf(A.detective.target), clue: (leavers || []).includes(A.detective.target) ? '出门' : '在家' }
-      : null,
-    accomplice: A.accomplice.target ? nameOf(A.accomplice.target) : null,
-    thief: A.thief.target
-      ? { target: nameOf(A.thief.target), effect: copiedRole ? `获取了死者原本的动作信息` : forgotten.size ? '清除了目标记忆' : thiefHitsWolf ? '干扰了狼人（狼刀失效）' : null }
-      : null,
-    gambler: A.gambler.target
-      ? { target: nameOf(A.gambler.target), claim: CAMP[A.gambler.claim] || A.gambler.claim, correct: result.gamblerCorrect, forgot: result.gamblerForgot, died: result.gamblerDied ? nameOf(result.gamblerDied) : null }
+      ? { who: nameOf(A.detective.who), target: nameOf(A.detective.target), clue: (leavers || []).includes(A.detective.target) ? '出门' : '在家' }
       : null,
     forensics: A.forensics.active
-      ? { target: A.forensics.deadName || '', role: w.night.forensicsDeadRole ? ROLES[w.night.forensicsDeadRole] : null }
+      ? { who: nameOf(A.forensics.who), target: A.forensics.deadName || '', role: w.night.forensicsDeadRole ? ROLES[w.night.forensicsDeadRole] : null }
       : null,
-    drunkAffected: [...drunk].map(nameOf).filter(Boolean),
+    // 中立行动
+    thief: A.thief.target
+      ? { who: nameOf(A.thief.who), target: nameOf(A.thief.target), effect: copiedRole ? `获取了死者原本的动作信息` : forgotten.size ? '清除了目标记忆' : thiefHitsWolf ? '干扰了狼人（狼刀失效）' : null }
+      : null,
+    gambler: A.gambler.target
+      ? { who: nameOf(A.gambler.who), target: nameOf(A.gambler.target), claim: CAMP[A.gambler.claim] || A.gambler.claim, correct: result.gamblerCorrect, forgot: result.gamblerForgot, died: result.gamblerDied ? nameOf(result.gamblerDied) : null }
+      : null,
+    // 酒鬼迷醉
+    drunkard: drunkId ? { who: nameOf(drunkId), affected: [...drunk].map(nameOf).filter(Boolean) } : null,
     forgotten: [...forgotten].map(nameOf).filter(Boolean),
-    deaths: nightDeaths.map((d) => nameOf(d.playerId)).filter(Boolean),
+    deaths: uniqueDeaths.map((d) => nameOf(d.playerId)).filter(Boolean),
   });
 
   return result.killed;
@@ -484,7 +498,10 @@ function buildEndNarrative(w, lastExiled) {
   }
   if (lastExiled) {
     const camp = campOf(lastExiled.role);
-    const distinct = camp === 'neutral' ? '那是一位中立者' : '那就是好人中的一员';
+    let distinct;
+    if (camp === 'neutral') distinct = '那是一位中立者';
+    else if (camp === 'evil') distinct = '那是坏人阵营的一员（帮凶或酒鬼），虽非狼人但也可在狼死后接手变狼';
+    else distinct = '那就是好人中的一员';
     return (
       `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人，${distinct}。\n\n` +
       `好人阵营的力量已经耗尽，狼人「${wolfNames}」仍然潜伏在阴影中。狼人获胜。${buildNightReview(w)}`
@@ -504,9 +521,13 @@ function buildAdjudicateNarrative(w, target, isPass) {
     verdict = '这正是狼人，你的判断精准无误。';
   } else {
     const camp = campOf(target.role);
-    verdict = camp === 'neutral'
-      ? '可惜，那不是狼人——那是一位中立者。误杀中立虽不直接削弱好人，但也无助于找出真凶。'
-      : '可惜，那不是狼人……你误伤了一位好人。好人阵营再少一员。';
+    if (camp === 'neutral') {
+      verdict = '可惜，那不是狼人——那是一位中立者。误杀中立虽不直接削弱好人，但也无助于找出真凶。';
+    } else if (camp === 'evil') {
+      verdict = '可惜，那不是狼人——那是坏人阵营的「帮凶/酒鬼」。处刑他也算削弱了坏人阵营，但你没有揪出真正的狼人。';
+    } else {
+      verdict = '可惜，那不是狼人……你误伤了一位好人。好人阵营再少一员。';
+    }
   }
   return (
     `你举起法槌，指向「${target.name}」，下令处刑。\n\n` +
@@ -514,24 +535,44 @@ function buildAdjudicateNarrative(w, target, isPass) {
   );
 }
 
-/** 终局「逐夜行动回顾」：复盘每晚各方行动与结果 */
+/** 终局「逐夜行动回顾」：复盘每晚各方行动与结果（含执行者） */
 function buildNightReview(w) {
   const logs = w.nightLogs || [];
   if (!logs.length) return '';
   const parts = ['\n\n—— 逐夜行动回顾 ——'];
   for (const l of logs) {
     const line = [`【第 ${l.round} 夜】`];
-    if (l.wolf) line.push(l.wolf.blocked ? `狼人袭击「${l.wolf.target}」但被守卫挡下` : `狼人刀杀「${l.wolf.killed || l.wolf.target}」`);
-    if (l.guard) line.push(`守卫保护「${l.guard}」`);
-    if (l.detective) line.push(`侦探探访「${l.detective.target}」（${l.detective.clue}）`);
-    if (l.accomplice) line.push(`帮凶拜访「${l.accomplice}」`);
-    if (l.thief) line.push(`小偷造访「${l.thief.target}」${l.thief.effect ? '，' + l.thief.effect : ''}`);
-    if (l.gambler) {
-      if (l.gambler.forgot) line.push(`赌徒本欲猜测「${l.gambler.target}」但被清除记忆，未能行动`);
-      else line.push(`赌徒猜「${l.gambler.target}」为${l.gambler.claim}（${l.gambler.correct ? '正确' : '错误'}${l.gambler.died ? '，赌徒不幸殒命' : ''}）`);
+    // 狼方
+    if (l.wolf) {
+      const wft = l.wolf.who || '狼人';
+      line.push(l.wolf.killed ? `${wft}（狼）刀杀「${l.wolf.killed}」` : l.wolf.blocked ? `${wft}（狼）袭击「${l.wolf.target}」但被守卫挡下` : `${wft}（狼）未刀任何人`);
     }
-    if (l.forensics && l.forensics.role) line.push(`法医鉴明死难者「${l.forensics.target}」身份为${l.forensics.role}`);
-    if (l.drunkAffected && l.drunkAffected.length) line.push(`酒鬼迷醉：${l.drunkAffected.join('、')}`);
+    if (l.accomplice) line.push(`${l.accomplice.who}（帮凶）拜访「${l.accomplice.target}」`);
+    // 好人
+    if (l.guard) {
+      const g = l.guard;
+      line.push(g.effective && l.wolf && l.wolf.blocked
+        ? `${g.who}（守卫）保护「${g.target}」，成功挡下狼刀`
+        : `${g.who}（守卫）守护「${g.target}」，平安无事`);
+    }
+    if (l.detective) line.push(`${l.detective.who}（侦探）探访「${l.detective.target}」，结论：该人昨夜${l.detective.clue}`);
+    if (l.forensics && l.forensics.role) line.push(`${l.forensics.who}（法医）鉴定上一夜死者「${l.forensics.target}」的身份为${l.forensics.role}`);
+    else if (l.forensics && !l.forensics.role) line.push(`${l.forensics.who}（法医）此前无新尸体可检`);
+    // 中立
+    if (l.thief) {
+      const t = l.thief;
+      const eff = t.effect || '行动未生效';
+      line.push(`${t.who}（小偷）拜访「${t.target}」：${eff}`);
+    }
+    if (l.gambler) {
+      const g = l.gambler;
+      if (g.forgot) line.push(`${g.who}（赌徒）本欲猜测「${g.target}」但被清除记忆，未能行动`);
+      else line.push(`${g.who}（赌徒）猜「${g.target}」为${g.claim}（${g.correct ? '正确' : '错误'}${g.died ? '，赌徒不幸殒命' : '，安然无恙'}）`);
+    }
+    if (l.drunkard && l.drunkard.affected && l.drunkard.affected.length) {
+      line.push(`${l.drunkard.who}（酒鬼）迷醉了${l.drunkard.affected.join('、')}`);
+    }
+    if (l.forgotten && l.forgotten.length) line.push(`被清除记忆：${l.forgotten.join('、')}`);
     if (l.deaths && l.deaths.length) line.push(`本夜逝去：${l.deaths.join('、')}`);
     parts.push(line.join('；'));
   }
@@ -562,6 +603,32 @@ function buildRoleKnowledge(game, p) {
       lines.push(p.cover ? `【首轮规则】你选择伪装：当众声称「我是${ROLES[p.cover]}」，可以编造与其相符的信息。` : `【首轮规则】你选择如实声明真实身份：「我是${ROLES[p.role]}」。`);
     } else {
       lines.push(`【首轮规则】你必须伪装：当众声称「我是${ROLES[declared]}」，绝不暴露真实身份；据此编造可信信息。`);
+    }
+  } else {
+    // 非首轮身份纪律：整局坚持同一声明，杜绝轮间漂移
+    if (NEUTRAL_ROLES.includes(p.role) && p.cover) {
+      lines.push(`【身份纪律】你之前一直对外声称自己是「${ROLES[p.cover]}」，本轮也必须继续这么声称——绝不可中途改口暴露真实身份「${ROLES[p.role]}」。`);
+    } else if (NEUTRAL_ROLES.includes(p.role) && !p.cover) {
+      lines.push(`【身份纪律】你之前一直坦白自己是「${ROLES[p.role]}」，本轮继续如实声明，保持一致。`);
+    } else if (EVIL_ROLES.includes(p.role)) {
+      lines.push(`【身份纪律】你之前一直对外声称自己是「${ROLES[declared]}」，本轮也必须继续这么声称，绝不可改口。`);
+    } else {
+      lines.push(`【身份纪律】你之前一直声明自己是「${ROLES[p.role]}」，本轮继续如实声明，保持一致。`);
+    }
+  }
+
+  // 身份冲突引导：若有人自称与你的真实身份相同 → 一方必假，必须当众质疑
+  // （真守卫 vs 假守卫 / 真法医 vs 假法医 等；你的真实身份 = declared 的阵营对应真相）
+  if (w.round > 1 && (GOOD_ROLES.includes(p.role) || (NEUTRAL_ROLES.includes(p.role) && !p.cover))) {
+    const myRoleName = ROLES[p.role];
+    // 从已发言记录中找自称与你真实身份相同的人（非自己）
+    const rival = w.speeches
+      .filter((s) => s.round === w.round && s.playerId !== p.id)
+      .find((s) => s.speech.includes(myRoleName));
+    if (rival) {
+      lines.push(`【重要·身份冲突】「${rival.name}」在发言中自称是「${myRoleName}」——而你就是真正的${myRoleName}！同一个身份不可能有两人，他【必然是伪装者】。你必须在发言中当众指出这一冲突，直接质疑他一定在撒谎。这是本模式最硬核的推理证据。`);
+    } else {
+      lines.push(`【身份警惕】记住：你才是真正的${myRoleName}。若之后有人自称是${myRoleName}，你必须立刻当众质疑——同一身份不可能有两人。`);
     }
   }
 
@@ -678,7 +745,13 @@ function buildRoleKnowledge(game, p) {
     }
     case 'forensics': {
       if (night.forensicsActive && night.forensicsDeadRole) {
-        lines.push(`你昨夜前往上一案发现场，验明了死者「${night.forensicsDeadName}」的真实身份——${ROLES[night.forensicsDeadRole]}。这是你今天可以公布的铁证。`);
+        const deadCamp = campOf(night.forensicsDeadRole);
+        const campText = deadCamp === 'good' ? '属于好人阵营' : deadCamp === 'neutral' ? '属于中立阵营' : '属于坏人阵营';
+        lines.push(`你昨夜前往上一案发现场，验明了死者「${night.forensicsDeadName}」的真实身份——${ROLES[night.forensicsDeadRole]}，${campText}。这是你今天可以公布的铁证。`);
+        // 中立/坏人：明确阵营归属，防止把中立污名化为"非好人=坏人"
+        if (deadCamp === 'neutral') {
+          lines.push(`【注意】赌徒/小偷属于【中立阵营】，与好人、坏人都不站队。你在发言中应明确说"死者是中立阵营"，【不要】暗示"非好人就是坏人"或"需警惕死者立场相近者"。`);
+        }
       } else {
         lines.push(`昨夜没有可供检验的新尸体。`);
       }
@@ -713,7 +786,7 @@ function buildRoleKnowledge(game, p) {
       const t = findPlayer(w, night.thiefTarget);
       const tName = t ? t.name : '';
       if (night.thiefCopiedRole) {
-        // 访死者：获取死者「原本要进行的动作」信息（不继承行动能力）
+        // 访死者：获取死者「原本要进行的动作」信息（不继承行动能力）——直接给成品句
         const deadRole = night.thiefCopiedRole;
         let info = '';
         if (deadRole === 'guard') {
@@ -740,11 +813,14 @@ function buildRoleKnowledge(game, p) {
         } else {
           info = `「${tName}」是${ROLES[deadRole]}，没有可继承的夜间动作信息`;
         }
-        lines.push(`你昨夜拜访了「${tName}」，他已经死了。你获得了他原本要进行的动作：${info}。`);
+        // 成品句式：小偷以「从死者处得知」陈述，绝不露「我去拜访了X」（那是夜间行踪自曝）
+        lines.push(`你昨夜从死者「${tName}」身上得知了他的秘密：${info}。`);
+        lines.push(`【发言纪律】你可以把这条信息当作"自己发现/听闻"的线索说出来，但【绝不能】承认自己夜间拜访过死者——那会暴露你是小偷。`);
       } else if (night.wolfForgot) {
         lines.push(`你昨夜造访了「${tName}」，但你的手段没能生效。`);
       } else if (tName) {
         lines.push(`你昨夜造访了「${tName}」，并清除了他本夜的记忆（他的技能失效了）。`);
+        lines.push(`【伪装纪律】若你声称是别的身份，别说出"我清除了X记忆"这种小偷专属行为——那会暴露你。可以用"X昨夜行为反常/失忆"侧面表达。`);
       }
       break;
     }
@@ -777,14 +853,14 @@ function buildSpeechPrompt(game, speaker) {
 
   const factLine =
     `【发言风格 — 最高原则】\n` +
-    `1. 只输出有价值信息：按上述素材交代【身份 / 技能结果 / 亲历事件】，2~3 句话，控制在 40~90 字。\n` +
+    `1. 第一人称【完整交代你的信息】：先说「我是${ROLES[speaker.cover || speaker.role]}」，再把你素材里的技能结果/亲历事件如实转述，2~3 句话、40~90 字。禁止只报身份就结束。\n` +
     `2. 杜绝废话：不寒暄、不喊口号、不重复他人、不空泛地"我觉得X可疑"、不请求大家。用陈述句。\n` +
     `3. 诚实角色说真话；坏人按上述【伪装行为】编造合理细节伪装；中立自选。\n` +
     `4. 【绝对禁止】坏人（狼人/帮凶/酒鬼）在发言中提及或暗示自己的真实夜间行动（如"我刀了X"）。只能按伪装身份编造行为。违反此条等于自曝。\n` +
     `5. 【游戏常识·重要】「呆在家中」或「没有外出」不等于「没被袭击」——狼人可以在住所内行凶。不要用「他在家」去反驳「他被刀了」，这是错误的逻辑。\n` +
     `6. 发言中不要重复别人已经说过的话，只补充自己独有的新信息或对他人信息的判断。\n` +
     `7. 【技能真实·铁律】你只能声称行使了【你的身份真正拥有的能力】。文员只能公布角色名单、村民无能力、守卫只能保护、侦探只能获知外出线索、法医只能验尸体、赌徒只能猜阵营、小偷只能清记忆/复制、狼人只能夜晚出刀。严禁凭空声称"查验/占卜/鉴定他人身份"等本游戏不存在的技能。若要诡辩，只能围绕真实能力做伪陈述。\n` +
-    `8. 【信息边界·铁律】只能陈述【你的素材里明确提供的信息】（技能结果 / 亲历事件 / 你的身份与阵营）。不得编造你身份无法观测到的情报，例如守卫不能说「我留意到其他人的动向」，村民不能说「我看到谁半夜出门」。若你确实没有更多有效信息，宁可只说现状，也不要虚构细节凑字数。`;
+    `8. 【信息边界·铁律】只能陈述【你的素材里明确提供的信息】（技能结果 / 亲历事件 / 你的身份与阵营）。不得编造你身份无法观测到的情报，例如守卫不能说「我留意到其他人的动向」，村民不能说「我看到谁半夜出门」。—— 注意：这不是让你少说话！信息越多越好，但必须是素材里有的、且不虚构。禁止用「我是X。」这种一句话敷衍，必须把你真实掌握的信息全部说出来。`;
 
   return {
     system: [
@@ -824,8 +900,20 @@ function suspectFromSpeech(w, voter, speech) {
 
 /** 从发言文本提取"我是X"声明；提取不到返回空 */
 function extractClaim(speech) {
-  const m = String(speech || '').match(/我是(文员|侦探|村民|法医|守卫|赌徒|小偷|狼人|帮凶|酒鬼)/);
-  return m ? m[1] : '';
+  const text = String(speech || '');
+  // 身份词；守卫/小偷等亦可能是动词，用负向前瞻排除"守卫了/守卫过/保护了"等用法
+  const ROLE_RE = '(文员|侦探|村民|法医|守卫(?!了|过|在)|赌徒|小偷|狼人|帮凶|酒鬼)';
+  // 1) "我是身份"（紧贴）
+  const direct = text.match(new RegExp(`我是${ROLE_RE}`));
+  if (direct) return direct[1];
+  // 2) "我是名字，身份"/"我是名字，我是身份"/"我是名字身份"（名字≤8字，含逗号）
+  const withName = text.match(new RegExp(`我是[^。！]{0,8}?${ROLE_RE}`));
+  if (withName && withName[0].indexOf('，') > 2) return withName[1];
+  if (withName) return withName[1];
+  // 3) "我的身份是X" / "身份是X"
+  const viaIdentity = text.match(new RegExp(`身份[^。；，,]{0,4}?${ROLE_RE}`));
+  if (viaIdentity) return viaIdentity[1];
+  return '';
 }
 
 /**
@@ -834,9 +922,33 @@ function extractClaim(speech) {
  */
 function fallbackSpeech(game, speaker) {
   const w = game.deduction;
+  const night = w.night || {};
   const declared = ROLES[speaker.cover || speaker.role];
   const part = [`我是${declared}。`];
-  if (EVIL_ROLES.includes(speaker.role)) {
+
+  if (speaker.role === 'gambler') {
+    // 赌徒兜底：直接读 night 组装完整猜测结果（真赌徒拥有硬信息）
+    const t = findPlayer(w, night.gamblerTarget);
+    if (night.gamblerForgot) {
+      part.push(`昨夜我被人清除了记忆，没能完成猜测。`);
+    } else if (t) {
+      const camp = night.gamblerTargetCamp || '未知';
+      const got = night.gamblerCorrect ? `我探明了他，他是${camp}阵营的。` : `可惜我赌错了，没得到有用信息。`;
+      part.push(`昨夜我暗中查验了「${t.name}」的阵营，${got}`);
+    } else {
+      part.push(`昨夜我没有找到合适的查验对象。`);
+    }
+  } else if (speaker.role === 'thief') {
+    // 小偷兜底：从 night 直接组装"得知死者的秘密"信息；避免泄漏行踪
+    const t = findPlayer(w, night.thiefTarget);
+    if (night.thiefCopiedRole && t && !t.alive) {
+      part.push(`我从死者那边了解到一些情况，但目前还想再核实一下。`);
+    } else if (night.thiefTarget && !night.thiefCopiedRole) {
+      part.push(`昨夜我这边有些情况值得留意，先不多说。`);
+    } else {
+      part.push('昨夜没有特别的发现。');
+    }
+  } else if (EVIL_ROLES.includes(speaker.role)) {
     // 坏人兜底：按伪装身份编造安全话术
     const cover = speaker.cover || 'villager';
     const others = alivePlayers(w).filter((p) => p.id !== speaker.id);
@@ -853,14 +965,22 @@ function fallbackSpeech(game, speaker) {
       part.push('昨夜我大多待在家里，没有特别的发现。');
     }
   } else {
+    // 好人兜底：从知识包提取事件行（以"你昨"开头）；正则放宽到"昨"的任何行为描述
     const k = buildRoleKnowledge(game, speaker);
     for (const line of k) {
-      if (/我昨|我拜访|我守护|我复制|我猜测|我整夜|有人来|我掌握|我前往/.test(line)) {
+      if (/昨夜|昨夜我/.test(line) || /有人来/.test(line) || /我掌握/.test(line) || /我前往/.test(line)) {
         part.push(line.replace(/你的/g, '我的').replace(/你/g, '我'));
       }
     }
   }
-  return part.slice(0, 2).join('').slice(0, MAX_SPEECH);
+
+  // 长度保险：若兜底仍过短，补充一句通用推理/表态句，保证信息量
+  let out = part.slice(0, 2).join('').slice(0, MAX_SPEECH);
+  if (out.length < 20 && alivePlayers(w).length > 1) {
+    const other = alivePlayers(w).find((p) => p.id !== speaker.id);
+    out += (other ? `目前我暂时没有更多实据，需要结合大家的发言推断。` : `目前我暂时没有更多实据，先听听大家的判断。`);
+  }
+  return out.slice(0, MAX_SPEECH);
 }
 
 /** 生成单个 AI 的发言；失败/被迷醉遗忘时回落模板（保证回合不断） */
@@ -884,7 +1004,22 @@ async function generateSpeech(game, speaker) {
       { temperature: 0.8, maxTokens: 320 }
     );
     const obj = parseActionJson(text);
-    const speech = String((obj && obj.speech) || '').trim().slice(0, MAX_SPEECH);
+    let speech = String((obj && obj.speech) || '').trim().slice(0, MAX_SPEECH);
+    // 过短发言（如"我是侦探。"一句话敷衍）直接替换为知识包兜底，确保完整信息
+    if (speech.length < 24) {
+      console.log('[debug] 推理杀发言过短，用知识包兜底替代:', JSON.stringify(speech.slice(0, 30)));
+      speech = fallbackSpeech(game, speaker);
+    }
+    // 坏人自曝拦截：发言中若出现自己的真实坏人身份（狼人/帮凶/酒鬼），强制兜底为伪装话术
+    if (EVIL_ROLES.includes(speaker.role)) {
+      const myEvilName = ROLES[speaker.role];
+      // 只拦截"我是(真实邪恶身份)"这类自称，不拦截"怀疑X是狼人"这类指认
+      const selfReveal = new RegExp(`我是${myEvilName}|我的身份是${myEvilName}|我就是${myEvilName}`);
+      if (selfReveal.test(speech)) {
+        console.log('[debug] 推理杀坏人自曝身份，兜底为伪装话术:', JSON.stringify(speech.slice(0, 30)));
+        speech = fallbackSpeech(game, speaker);
+      }
+    }
     if (!speech) throw new Error('empty speech');
     let suspect = String((obj && obj.suspect) || '').trim();
     const named = suspectFromSpeech(w, speaker, speech);
@@ -1132,5 +1267,5 @@ module.exports = {
   cancelPendingAction: noItems,
   clearPendingActions: () => {},
   // 供单元测试与工具层复用（无 LLM 依赖）
-  __test: { pickSuspect, settleNight, checkWinner, assignRoles, processTurn },
+  __test: { pickSuspect, settleNight, checkWinner, assignRoles, processTurn, extractClaim, fallbackSpeech },
 };

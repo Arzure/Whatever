@@ -494,7 +494,7 @@ Whatever/
 │   │   ├── world.js      #   大世界模式（提示词构造 / delta 应用 / 回合处理）
 │   │   ├── detective.js  #   探案模式（案件驱动：accuse/confront/snapshot 防剧透/matchScene 文字移动）
 │   │   ├── wolf.js       #   狼人杀模式（身份驱动：settleNight/发言引擎/vote 投票）
-│   │   └── deduction.js  #   推理杀模式（法官裁决：settleNight/发言引擎/adjudicate 处刑）
+│   │   └── deduction.js  #   推理杀模式（法官裁决：7人角色/多阶段夜晚管线/发言引擎/adjudicate 处刑）
 │   ├── themes/           # 世界观配置
 │   │   ├── index.js      #   读取 / 规范化 / 纯文本 → Theme 的 AI 解析
 │   │   └── azeroth.json  #   默认世界观模板（艾泽洛姆）
@@ -513,7 +513,7 @@ Whatever/
 │       │   ├── WorldView.vue     # 大世界模式游戏页：能力驱动的动态侧栏 + 对话流
 │       │   ├── DetectiveView.vue # 探案模式游戏页：案件说明/场景/在场人物/物证/线索/指认/举证
 │       │   ├── WolfView.vue      # 狼人杀游戏页：身份/存活/死讯/复盘 + 发言流/投票面板
-│       │   └── DeductionView.vue # 推理杀游戏页：法官状态/在场者/死讯/复盘 + 发言流/裁决面板
+│       │   └── DeductionView.vue # 推理杀游戏页：角色能力卡/自称身份速记/在场者/死讯/逐夜回顾/复盘 + 发言流/裁决面板
 │       ├── main.js
 │       └── style.css
 ├── data/                 # 游戏存档（运行时生成）
