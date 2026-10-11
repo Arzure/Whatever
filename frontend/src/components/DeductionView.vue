@@ -123,9 +123,9 @@ const nightLogs = computed(() => d.value.nightLogs || []);
 function formatNightLog(l) {
   const parts = [];
   if (l.wolf) parts.push(l.wolf.blocked ? `狼人袭击「${l.wolf.target}」→ 被守卫挡下` : `狼人刀杀「${l.wolf.killed || l.wolf.target}」`);
-  if (l.guard) parts.push(`守卫保护「${l.guard}」`);
+  if (l.guard) parts.push(`守卫保护「${l.guard.target}」`);
   if (l.detective) parts.push(`侦探探访「${l.detective.target}」（${l.detective.clue}）`);
-  if (l.accomplice) parts.push(`帮凶拜访「${l.accomplice}」`);
+  if (l.accomplice) parts.push(`帮凶拜访「${l.accomplice.target}」`);
   if (l.thief) parts.push(`小偷造访「${l.thief.target}」${l.thief.effect ? '，' + l.thief.effect : ''}`);
   if (l.gambler) parts.push(`赌徒猜「${l.gambler.target}」为${l.gambler.claim}（${l.gambler.correct ? '正确' : '错误'}${l.gambler.died ? '，赌徒殒命' : ''}）`);
   if (l.forensics && l.forensics.role) parts.push(`法医鉴定「${l.forensics.target}」→ ${l.forensics.role}`);
