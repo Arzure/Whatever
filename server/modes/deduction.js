@@ -1178,7 +1178,8 @@ async function adjudicate(game, targetId) {
   let target = null;
   if (!isPass) {
     target = findPlayer(w, String(targetId || '').trim());
-    if (!target || !target.alive) return { ok: false, message: '无效的处刑目标' };
+    if (!target) return { ok: false, message: '处刑目标不存在，请选择在场玩家' };
+    if (!target.alive) return { ok: false, message: `「${target.name}」已经死亡，无法处刑，请选择存活玩家` };
     target.alive = false;
     w.deaths.push({ round: w.round, playerId: target.id, name: target.name, cause: 'execute', role: target.role, roleBackup: target.role });
   }
