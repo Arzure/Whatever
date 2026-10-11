@@ -27,6 +27,15 @@ function campOfRole(role) {
   if (NEUTRAL_ROLES.includes(role)) return '中立';
   return '好人';
 }
+// 标记专用分类：阵营名直接映射阵营颜色，角色名按所属阵营着色
+function markClass(mark) {
+  if (CAMP_MARKS.includes(mark)) {
+    if (mark === '坏人') return 'role-wolf';
+    if (mark === '中立') return 'role-neutral';
+    return 'role-good';
+  }
+  return roleClass(mark);
+}
 function loadMarks() {
   try {
     marks.value = JSON.parse(localStorage.getItem(MARK_KEY.value) || '{}');
@@ -281,7 +290,7 @@ watch(() => state.history.length, scrollToBottom);
           :class="{ dead: !p.alive }"
         >
           <span class="player-name" title="点击标记你推测的身份" @click="markOpenId = markOpenId === p.id ? '' : p.id">
-            {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="[roleClass(marks[p.id]), d.roles ? (markHit(p) ? 'hit' : 'miss') : '']">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
+            {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="[markClass(marks[p.id]), d.roles ? (markHit(p) ? 'hit' : 'miss') : '']">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
           </span>
           <button
             class="mark-toggle"
@@ -293,20 +302,26 @@ watch(() => state.history.length, scrollToBottom);
         </div>
         <!-- 标记选择面板：点击玩家名展开 -->
         <div v-if="markOpenId" class="mark-panel">
-          <button
-            v-for="c in CAMP_MARKS"
-            :key="c"
-            class="mark-btn"
-            :class="[roleClass(c), { active: marks[markOpenId] === c }]"
-            @click="toggleMark(markOpenId, c)"
-          >{{ c }}</button>
-          <button
-            v-for="r in ALL_ROLES"
-            :key="r"
-            class="mark-btn"
-            :class="[roleClass(r), { active: marks[markOpenId] === r }]"
-            @click="toggleMark(markOpenId, r)"
-          >{{ r }}</button>
+          <div class="mark-row">
+            <span class="mark-row-label">阵营</span>
+            <button
+              v-for="c in CAMP_MARKS"
+              :key="c"
+              class="mark-btn"
+              :class="[markClass(c), { active: marks[markOpenId] === c }]"
+              @click="toggleMark(markOpenId, c)"
+            >{{ c }}</button>
+          </div>
+          <div class="mark-row">
+            <span class="mark-row-label">角色</span>
+            <button
+              v-for="r in ALL_ROLES"
+              :key="r"
+              class="mark-btn"
+              :class="[markClass(r), { active: marks[markOpenId] === r }]"
+              @click="toggleMark(markOpenId, r)"
+            >{{ r }}</button>
+          </div>
           <button class="mark-btn clear" @click="clearMark(markOpenId); markOpenId = ''">清除</button>
         </div>
       </div>
@@ -615,10 +630,21 @@ watch(() => state.history.length, scrollToBottom);
 .player-mark.miss { color: #d9524e; }
 .mark-panel {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
   padding: 6px 0;
   border-top: 1px dashed var(--border);
+}
+.mark-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.mark-row-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 26px;
 }
 .mark-btn {
   padding: 4px 8px;

@@ -1042,6 +1042,13 @@ function buildRoleKnowledge(game, p) {
       break;
     }
     case 'spy': {
+      // 间谍抽到伪装身份时：不注入真实拜访结果（公布间谍技能=声称伪装身份没有的能力=自曝），
+      // 改为按伪装身份编造陈述（与伪装纪律一致）；只有坦白身份的间谍才公布真实结果与撒谎指令。
+      if (p.cover && p.cover !== 'spy') {
+        const coverName = ROLES[p.cover];
+        lines.push(`【伪装行为·发言用】你声称自己是「${coverName}」。据此编造与该身份一致的夜间行为陈述，【不要】提及任何拜访/探查阵营的行为——那不是「${coverName}」的能力，说了等于自曝。`);
+        break;
+      }
       const t = findPlayer(w, night.spyTarget);
       if (t) {
         const camp = campOf(t.role);
