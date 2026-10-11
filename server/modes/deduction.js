@@ -661,7 +661,7 @@ function buildEndNarrative(w, lastExiled) {
   if (lastExiled) {
     const camp = campOf(lastExiled.role);
     let distinct;
-    if (camp === 'neutral') distinct = '那是一位中立者';
+    if (camp === 'neutral') distinct = '那是一位中立者——中立者也会伪装身份、混淆视听';
     else if (camp === 'evil') distinct = '那是坏人阵营的一员（狼人的同伙），虽非狼人但也可在狼死后接手变狼';
     else distinct = '那就是好人中的一员';
     return (
@@ -672,25 +672,25 @@ function buildEndNarrative(w, lastExiled) {
   return `好人阵营已经失去了反击的力量，狼人「${wolfNames}」潜伏在村庄中。狼人获胜。${buildNightReview(w)}`;
 }
 
+/** 处决评价：按目标真实阵营给出准确说辞（单处决/双处决共用） */
+function executeVerdict(target) {
+  if (target.role === 'wolf') return '这正是狼人，你的判断精准无误。';
+  const camp = campOf(target.role);
+  if (camp === 'neutral') {
+    return '那是一位中立者——中立者也会伪装身份、混淆视听，处刑虽未伤及好人，但也未能揪出狼人。';
+  }
+  if (camp === 'evil') {
+    return '那是坏人阵营的狼人同伙。处刑他也算削弱了坏人阵营，但你没有揪出真正的狼人。';
+  }
+  return '你误伤了一位好人。好人阵营再少一员。';
+}
+
 function buildAdjudicateNarrative(w, target, isPass) {
   if (isPass) {
     return `你权衡再三，决定【放弃处刑】——证据还不够充分，贸然出手可能误伤好人。\n\n今天没有人被放逐，直接进入下一夜。`;
   }
   const roleText = ROLES[target.role];
-  const correct = target.role === 'wolf';
-  let verdict;
-  if (correct) {
-    verdict = '这正是狼人，你的判断精准无误。';
-  } else {
-    const camp = campOf(target.role);
-    if (camp === 'neutral') {
-      verdict = '可惜，那不是狼人——那是一位中立者。误杀中立虽不直接削弱好人，但也无助于找出真凶。';
-    } else if (camp === 'evil') {
-      verdict = '可惜，那不是狼人——那是坏人阵营的狼人同伙。处刑他也算削弱了坏人阵营，但你没有揪出真正的狼人。';
-    } else {
-      verdict = '可惜，那不是狼人……你误伤了一位好人。好人阵营再少一员。';
-    }
-  }
+  const verdict = executeVerdict(target);
   return (
     `你举起法槌，指向「${target.name}」，下令处刑。\n\n` +
     `「${target.name}」被带下去，身份牌翻开——【${roleText}】！${verdict}`
@@ -1460,7 +1460,7 @@ async function adjudicate(game, targetId) {
   }
 
   let narrative = targets.length > 1
-    ? `你举起法槌，接连指向「${targets.map((t) => t.name).join('」与「')}」，下令处决两人。\n\n${targets.map((t) => `「${t.name}」被带下去，身份牌翻开——【${ROLES[t.role]}】！${t.role === 'wolf' ? '这正是狼人，你的判断精准无误。' : '可惜，那不是狼人。'}`).join('\n\n')}`
+    ? `你举起法槌，接连指向「${targets.map((t) => t.name).join('」与「')}」，下令处决两人。\n\n${targets.map((t) => `「${t.name}」被带下去，身份牌翻开——【${ROLES[t.role]}】！${executeVerdict(t)}`).join('\n\n')}`
     : buildAdjudicateNarrative(w, targets[0] || null, isPass);
 
   const lastTarget = targets.length ? targets[targets.length - 1] : null;
