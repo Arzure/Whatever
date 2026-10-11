@@ -18,8 +18,22 @@ app.use(express.json({ limit: '64kb' }));
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || 'http://localhost:5173');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Access-Token');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// 访问口令中间件：在 .env 配置 ACCESS_TOKEN 后启用，仅 /api 请求校验 X-Access-Token
+// 未配置口令时（本地开发）不拦截，保持原有行为
+// 注意：挂载在 /api 路径上，静态页面（frontend/dist）不受口令拦截，页面加载后由前端 AccessGate 组件引导输入口令
+app.use('/api', (req, res, next) => {
+  const token = process.env.ACCESS_TOKEN || '';
+  if (!token) return next(); // 未启用口令校验
+  if (req.path === '/health') return next(); // 健康检查放行（中间件挂载在 /api，此处为相对路径）
+  const provided = req.headers['x-access-token'];
+  if (provided !== token) {
+    return res.status(401).json({ error: '访问口令缺失或不正确，请输入正确的访问口令' });
+  }
   next();
 });
 
