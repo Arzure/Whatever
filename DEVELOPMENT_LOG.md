@@ -780,5 +780,46 @@ frontend DeductionView.vue
 | [server/modes/deduction.js](../server/modes/deduction.js) | `fallbackSpeech` 全角色重构（赌徒/小偷/好人/坏人分支 + 长度保险）；`generateSpeech` 过短拦截 + 坏人自曝拦截；`lockActions`/nightLogs 增加 `who` 与去重；`buildAdjudicateNarrative`/`buildEndNarrative` 三阵营文案；法医中立标注；身份冲突引导 |
 | [frontend/src/components/DeductionView.vue](../frontend/src/components/DeductionView.vue) | 逐夜行动回顾面板（显示执行者名字） |
 
+---
+
+## 2026-10-10/11 · 服务器部署、安全加固、移动端适配与推理杀发言质量修复
+
+### 背景与目标
+
+将只在开发模式运行的项目部署为公网可访问的线上服务（手机可玩），并修复部署过程中暴露的系列问题。完整过程详见 [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md)。
+
+### 部署成果
+
+- Caddy v2.11.7 反向代理（80/443，自签证书 HTTPS，default_sni 解决纯 IP 无 SNI 握手问题）；
+- pm2 守护后端进程（开机自启、崩溃拉起）；
+- 防火墙仅放通 22/80/443，3001 不对公网暴露；
+- .env 权限收紧为 600。
+
+### 修复清单
+| # | 问题 | 修复 |
+|---|------|------|
+| 1 | 口令中间件挂载根路径，静态首页被 401 拦截 | `app.use('/api', ...)`；健康检查放行改相对路径 `/health` |
+| 2 | 门禁靠文案关键词识别 401，改文案即失效 | API 封装抛错附带 `err.status`，门禁按状态码判断（展示与逻辑解耦） |
+| 3 | 口令验证前首页请求 401 残留提示（时序竞争） | 门禁 probing 状态（验证前不渲染游戏内容）+ 数据加载对 401 不写入页面错误 |
+| 4 | 口令永久存 localStorage | 改为 { token, savedAt } 结构，24 小时有效期，过期自动清除 |
+| 5 | 推理杀身份冲突误判：文员念名单被当自称守卫 | 冲突检测改用结构化 claims 记录；升级为找出全部自称者（filter） |
+| 6 | 推理杀发言生死混淆/自言自语/人称错乱 | 提示词注入结构化死亡名单 + 生死状态铁律 + 人称纪律铁律 |
+| 7 | 手机端道具栏被 display:none 隐藏（功能缺失） | 改为可折叠面板；5 视图统一 768px 断点、触控目标 ≥44px、输入框 16px 防 iOS 聚焦放大 |
+
+### 实测验证
+
+- 推理杀 5 局完整对局：生死混淆/自言自语/人称错乱 0 复现；多人身份对跳（双守卫/双法医/三侦探）正确互相质疑；胜负判定与处刑流程正常
+- 各角色能力实现核对（狼/守卫/侦探/法医/文员/村民/赌徒/小偷/酒鬼/帮凶）：全部正确，守卫可自保（候选池含自己）
+
+### 涉及代码文件
+| 文件 | 改动 |
+|------|------|
+| [server/index.js](../server/index.js) | 口令中间件限定 /api、健康检查路径修正、401 文案优化 |
+| [server/modes/deduction.js](../server/modes/deduction.js) | 身份冲突检测改 claims + filter；发言提示词注入死亡名单与两条铁律 |
+| [frontend/src/api.js](../frontend/src/api.js) | 抛错附带状态码；口令存储 24 小时有效期 |
+| [frontend/src/components/AccessGate.vue](../frontend/src/components/AccessGate.vue) | 新增门禁组件（状态码判断、probing、验证后清错重载） |
+| [frontend/src/composables/useGame.js](../frontend/src/composables/useGame.js) | 401 不写入页面错误状态 |
+| [frontend/src/components/](../frontend/src/components/) | 5 个视图移动端适配（HomeView/WorldView/WolfView/DeductionView/DetectiveView） |
+
 
 
