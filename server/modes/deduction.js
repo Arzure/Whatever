@@ -1436,6 +1436,21 @@ async function generateSpeech(game, speaker) {
       console.log('[debug] 推理杀伪装村民泄露出门行为，兜底:', JSON.stringify(speech.slice(0, 30)));
       speech = `我是村民。昨夜我整夜在家，无人来访。`;
     }
+    // 真实行为泄露拦截（通用）：带伪装者说出真实身份的专属行为词 → 等于自曝，兜底为伪装话术
+    if (speaker.cover && speaker.cover !== speaker.role) {
+      const revealWords = {
+        thief: /清除.{0,3}记忆|清了.{0,3}记忆|复制了?.{0,6}(动作|信息|技能)/,
+        wolf: /我(昨夜|昨晚)?(刀杀|刀了|袭击了|杀了)/,
+        clown: /扭曲了?.{0,3}记忆/,
+        warlock: /链接了?.{0,4}(命运|两人)/,
+        drunkard: /迷醉了/,
+      };
+      const re = revealWords[speaker.role];
+      if (re && re.test(speech)) {
+        console.log('[debug] 推理杀伪装者泄露真实身份专属行为，兜底:', JSON.stringify(speech.slice(0, 30)));
+        speech = fallbackSpeech(game, speaker);
+      }
+    }
     if (!speech) throw new Error('empty speech');
     let suspect = String((obj && obj.suspect) || '').trim();
     const named = suspectFromSpeech(w, speaker, speech);
