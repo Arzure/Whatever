@@ -269,11 +269,13 @@ app.post('/api/games/:id/adjudicate', async (req, res) => {
   const over = overState(mode, game);
   if (over.over) return res.status(409).json({ error: over.message, gameOver: true });
 
-  // targetId 为空表示放弃处刑
+  // targetId 为空表示放弃处刑；targetIds 数组支持多目标处决（十人进阶局最多两人）
   const targetId = String(req.body?.targetId || '').trim();
+  let targetIds = Array.isArray(req.body?.targetIds) ? req.body.targetIds.map((x) => String(x || '').trim()).filter(Boolean) : [];
+  if (!targetIds.length && targetId) targetIds = [targetId];
 
   try {
-    const result = await mode.adjudicate(game, targetId);
+    const result = await mode.adjudicate(game, targetIds.length > 1 ? targetIds : (targetIds[0] || ''));
     if (!result.ok) return res.status(400).json({ error: result.message });
     storage.saveGame(game.id, game);
     res.json(result.payload);

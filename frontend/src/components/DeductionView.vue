@@ -159,7 +159,26 @@ function formatNightLog(l) {
   return parts.join('；');
 }
 
+const isAdvanced = computed(() => d.value.board === 'advanced');
+const execPicks = ref([]); // 十人局：勾选的处决目标（最多 2 人）
+function togglePick(id) {
+  const i = execPicks.value.indexOf(id);
+  if (i >= 0) execPicks.value.splice(i, 1);
+  else if (execPicks.value.length < 2) execPicks.value.push(id);
+}
 function doExecute(targetId) {
+  if (isAdvanced.value) {
+    if (!execPicks.value.length) return;
+    const names = execPicks.value
+      .map((id) => (d.value.players || []).find((x) => x.id === id)?.name)
+      .filter(Boolean)
+      .join('」与「');
+    const sure = window.confirm(`确定处刑「${names}」吗？处刑会公开其真实身份牌，若误伤好人将损失好人。`);
+    if (!sure) return;
+    adjudicateTarget(execPicks.value.slice());
+    execPicks.value = [];
+    return;
+  }
   const p = (d.value.players || []).find((x) => x.id === targetId);
   const sure = window.confirm(`确定处刑「${p?.name || ''}」吗？处刑会公开其真实身份牌，若误伤好人将损失一名好人。`);
   if (!sure) return;
@@ -338,12 +357,16 @@ watch(() => state.history.length, scrollToBottom);
             v-for="p in (d.players || []).filter((x) => x.alive)"
             :key="p.id"
             class="execute-btn"
-            :disabled="disabled"
-            @click="doExecute(p.id)"
+            :class="{ picked: isAdvanced && execPicks.includes(p.id) }"
+            :disabled="disabled || (isAdvanced && !execPicks.includes(p.id) && execPicks.length >= 2)"
+            @click="isAdvanced ? togglePick(p.id) : doExecute(p.id)"
           >
-            ⚔️ 处刑 {{ p.name }}
+            {{ isAdvanced ? (execPicks.includes(p.id) ? '✅ 已选 ' : '☐ 勾选 ') : '⚔️ 处刑 ' }}{{ p.name }}
           </button>
         </div>
+        <button v-if="isAdvanced" class="pass-btn" :disabled="disabled || !execPicks.length" @click="doExecute()">
+          ⚔️ 处决选中的 {{ execPicks.length }} 人
+        </button>
         <button class="pass-btn" :disabled="disabled" @click="doPass">🛡️ 放弃处刑（进入下一夜）</button>
       </div>
 
@@ -727,6 +750,11 @@ watch(() => state.history.length, scrollToBottom);
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+.execute-btn.picked {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(217, 82, 78, 0.12);
 }
 .execute-btn {
   padding: 8px 14px;

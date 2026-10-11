@@ -81,6 +81,9 @@ export const api = {
     request(`/games/${id}/vote`, { method: 'POST', body: JSON.stringify({ targetId }) }),
   // 推理杀法官裁决（targetId 为空=放弃处刑）
   adjudicate: (id, targetId) =>
-    request(`/games/${id}/adjudicate`, { method: 'POST', body: JSON.stringify({ targetId }) }),
+    request(`/games/${id}/adjudicate`, {
+      method: 'POST',
+      body: JSON.stringify(Array.isArray(targetId) ? { targetIds: targetId } : { targetId }),
+    }),
   itemOp: (id, op, body) => request(`/games/${id}/${op}`, { method: 'POST', body: JSON.stringify(body) }),
 };

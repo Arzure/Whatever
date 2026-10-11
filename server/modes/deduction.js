@@ -1438,23 +1438,37 @@ async function adjudicate(game, targetId) {
   if (w.phase === 'win' || w.phase === 'lose') return { ok: false, message: '游戏已经结束' };
   if (w.phase !== 'adjudicate') return { ok: false, message: w.phase === 'day' ? '白天发言还没结束' : '当前不能裁决' };
 
-  const isPass = !targetId;
-  let target = null;
-  if (!isPass) {
-    target = findPlayer(w, String(targetId || '').trim());
-    if (!target) return { ok: false, message: '处刑目标不存在，请选择在场玩家' };
-    if (!target.alive) return { ok: false, message: `「${target.name}」已经死亡，无法处刑，请选择存活玩家` };
-    target.alive = false;
-    w.deaths.push({ round: w.round, playerId: target.id, name: target.name, cause: 'execute', role: target.role, roleBackup: target.role });
+  // 多目标处决：十人进阶局最多处决两人；七人标准局仍限一人
+  const multi = Array.isArray(targetId);
+  const maxExec = w.board === 'advanced' ? 2 : 1;
+  const ids = (multi ? targetId : [targetId]).map((x) => String(x || '').trim()).filter(Boolean);
+  if (ids.length > maxExec) return { ok: false, message: `本局最多同时处决 ${maxExec} 人` };
+  if (new Set(ids).size !== ids.length) return { ok: false, message: '处决目标重复，请选择不同的玩家' };
+
+  const isPass = !ids.length;
+  const targets = [];
+  for (const id of ids) {
+    const t = findPlayer(w, id);
+    if (!t) return { ok: false, message: '处刑目标不存在，请选择在场玩家' };
+    if (!t.alive) return { ok: false, message: `「${t.name}」已经死亡，无法处刑，请选择存活玩家` };
+    targets.push(t);
+  }
+  // 统一落盘（先校验全部目标，再逐个处决，避免部分生效）
+  for (const t of targets) {
+    t.alive = false;
+    w.deaths.push({ round: w.round, playerId: t.id, name: t.name, cause: 'execute', role: t.role, roleBackup: t.role });
   }
 
-  let narrative = buildAdjudicateNarrative(w, target, isPass);
+  let narrative = targets.length > 1
+    ? `你举起法槌，接连指向「${targets.map((t) => t.name).join('」与「')}」，下令处决两人。\n\n${targets.map((t) => `「${t.name}」被带下去，身份牌翻开——【${ROLES[t.role]}】！${t.role === 'wolf' ? '这正是狼人，你的判断精准无误。' : '可惜，那不是狼人。'}`).join('\n\n')}`
+    : buildAdjudicateNarrative(w, targets[0] || null, isPass);
 
+  const lastTarget = targets.length ? targets[targets.length - 1] : null;
   const winner = checkWinner(w);
   if (winner) {
     w.phase = winner === 'good' ? 'win' : 'lose';
     w.winner = winner;
-    narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
+    narrative += `\n\n${buildEndNarrative(w, lastTarget)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
       .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${p.turnedRound || '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
@@ -1470,7 +1484,7 @@ async function adjudicate(game, targetId) {
   if (winnerAfterNight) {
     w.phase = winnerAfterNight === 'good' ? 'win' : 'lose';
     w.winner = winnerAfterNight;
-    narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
+    narrative += `\n\n${buildEndNarrative(w, lastTarget)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
       .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${p.turnedRound || '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
