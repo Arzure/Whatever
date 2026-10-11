@@ -6,6 +6,43 @@ const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject(
 const messagesEl = ref(null);
 const showRoles = ref(false);
 
+// —— 玩家标记（推测身份笔记）：仅存本地浏览器、按游戏隔离，不上传服务器、不影响游戏逻辑 ——
+const ALL_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '赌徒', '小偷', '狼人', '帮凶', '酒鬼'];
+const marks = ref({});
+const markOpenId = ref('');
+const MARK_KEY = computed(() => `rpg_marks_${state.gameId || ''}`);
+function loadMarks() {
+  try {
+    marks.value = JSON.parse(localStorage.getItem(MARK_KEY.value) || '{}');
+  } catch {
+    marks.value = {};
+  }
+}
+function saveMarks() {
+  try {
+    localStorage.setItem(MARK_KEY.value, JSON.stringify(marks.value));
+  } catch {
+    /* ignore */
+  }
+}
+function toggleMark(pid, role) {
+  if (marks.value[pid] === role) delete marks.value[pid];
+  else marks.value[pid] = role;
+  saveMarks();
+}
+function clearMark(pid) {
+  delete marks.value[pid];
+  saveMarks();
+}
+// 终局对比：标记与真实身份（含变身前原身份）任一匹配即命中
+function markHit(p) {
+  const roles = d.value.roles;
+  if (!roles || !marks.value[p.id]) return false;
+  const real = roles.find((r) => r.name === p.name);
+  return !!real && (real.role === marks.value[p.id] || (real.roleBackup && real.roleBackup === marks.value[p.id]));
+}
+watch(() => state.gameId, loadMarks, { immediate: true });
+
 const d = computed(() => state.deduction || {});
 const phase = computed(() => d.value.phase || 'day');
 const disabled = computed(() => state.loading || state.gameOver);
@@ -35,7 +72,7 @@ const ROLE_DECK = [
     group: '中立阵营',
     roles: [
       { name: '赌徒', desc: '不出门。每夜猜测一人是「好人/中立/坏人」：猜对则获得其阵营信息；猜错立即死亡。' },
-      { name: '小偷', desc: '每夜出门拜访一人。若目标本夜死亡则复制其技能（可透露相关信息）；若目标存活则清除其本夜记忆（对方技能无效，发言只剩「忘记了」）；拜访到狼人会让狼人本夜刀无效。' },
+      { name: '小偷', desc: '每夜出门拜访一人。若目标本夜死亡则获得其原本行动的情报（如守卫守了谁、侦探探到什么），不继承行动能力；若目标存活则清除其本夜记忆（对方技能无效，发言只剩「忘记了」）；拜访到狼人会让狼人本夜刀无效（狼人记忆不受影响）。' },
     ],
   },
   {
@@ -180,8 +217,21 @@ watch(() => state.history.length, scrollToBottom);
           class="player-row"
           :class="{ dead: !p.alive }"
         >
-          <span class="player-name">{{ p.name }}</span>
+          <span class="player-name" title="点击标记你推测的身份" @click="markOpenId = markOpenId === p.id ? '' : p.id">
+            {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="d.roles ? (markHit(p) ? 'hit' : 'miss') : ''">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
+          </span>
           <span class="player-status">{{ p.alive ? '存活' : '出局' }}</span>
+        </div>
+        <!-- 标记选择面板：点击玩家名展开 -->
+        <div v-if="markOpenId" class="mark-panel">
+          <button
+            v-for="r in ALL_ROLES"
+            :key="r"
+            class="mark-btn"
+            :class="{ active: marks[markOpenId] === r }"
+            @click="toggleMark(markOpenId, r)"
+          >{{ r }}</button>
+          <button class="mark-btn clear" @click="clearMark(markOpenId); markOpenId = ''">清除</button>
         </div>
       </div>
 
@@ -455,6 +505,35 @@ watch(() => state.history.length, scrollToBottom);
 }
 .player-row.dead { opacity: 0.45; text-decoration: line-through; }
 .player-status { font-size: 12px; color: var(--text-dim); }
+.player-name { cursor: pointer; }
+.player-name:hover { color: var(--accent-2); }
+.player-mark {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.player-mark.hit { color: #3fb950; }
+.player-mark.miss { color: #d9524e; }
+.mark-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--border);
+}
+.mark-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.mark-btn.active {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+.mark-btn.clear { color: var(--text-dim); }
 
 .deaths {
   border-top: 1px dashed var(--border);

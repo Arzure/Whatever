@@ -147,6 +147,7 @@ function processTurn(w) {
   const cand = w.players.filter((p) => (p.role === 'accomplice' || p.role === 'drunkard') && p.alive);
   const next = cand.find((p) => p.role === 'accomplice') || cand[0];
   if (!next) return;
+  next.roleBackup = next.role; // 保存原本身份，供终局复盘显示（帮凶/酒鬼 → 狼人）
   next.role = 'wolf';
   w.turned = { playerId: next.id, round: w.round };
   // 变身者沿用自己开局分配的原伪装身份（cover），与先前发言完全一致，不重新分配
@@ -1058,7 +1059,15 @@ function snapshotDeduction(game) {
       cause: d.cause, // night（不亮身份） | execute（亮身份）
       role: d.cause === 'execute' ? ROLES[d.role] : '',
     })),
-    roles: over ? w.players.map((p) => ({ name: p.name, role: ROLES[p.role] })) : null,
+    roles: over
+      ? w.players.map((p) => ({
+          name: p.name,
+          role: ROLES[p.role],
+          // 变身者附带原本身份与变身轮次，复盘体现完整身份轨迹
+          roleBackup: p.roleBackup ? ROLES[p.roleBackup] : '',
+          turnedRound: p.roleBackup && w.turned && w.turned.playerId === p.id ? w.turned.round : 0,
+        }))
+      : null,
     aliveCount: alivePlayers(w).length,
     canAdjudicate: w.phase === 'adjudicate',
     // 文员是否已公布名单（首轮文员真实发言后置 true；用于前端提示名单已公布）
@@ -1191,7 +1200,7 @@ async function adjudicate(game, targetId) {
     w.phase = winner === 'good' ? 'win' : 'lose';
     w.winner = winner;
     narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
-      .map((p) => `  ${p.name}：${ROLES[p.role]}`)
+      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${w.turned && w.turned.playerId === p.id ? w.turned.round : '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
     game.updatedAt = Date.now();
@@ -1207,7 +1216,7 @@ async function adjudicate(game, targetId) {
     w.phase = winnerAfterNight === 'good' ? 'win' : 'lose';
     w.winner = winnerAfterNight;
     narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
-      .map((p) => `  ${p.name}：${ROLES[p.role]}`)
+      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${w.turned && w.turned.playerId === p.id ? w.turned.round : '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
     game.updatedAt = Date.now();
