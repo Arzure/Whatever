@@ -992,8 +992,46 @@ function buildRoleKnowledge(game, p) {
           } else {
             info = '赌徒原本没有进行猜测';
           }
+        } else if (deadRole === 'watcher') {
+          const wt = findPlayer(w, night.watcherTarget);
+          info = wt && night.watcherCamp
+            ? `观者原本观测了「${wt.name}」的气运，探得其阵营是${night.watcherCamp}`
+            : '观者原本没有观测到合适的目标';
+        } else if (deadRole === 'walker') {
+          const wk = findPlayer(w, night.walkerTarget);
+          info = wk
+            ? `行者原本拜访了「${wk.name}」，探明其真实身份是${ROLES[wk.role]}`
+            : '行者原本没有拜访到合适的目标';
+        } else if (deadRole === 'spy') {
+          const sp = findPlayer(w, night.spyTarget);
+          info = sp
+            ? `间谍原本拜访了「${sp.name}」，探得其属于${CAMP[campOf(sp.role)]}阵营`
+            : '间谍原本没有拜访到合适的目标';
+        } else if (deadRole === 'postman') {
+          const pm = findPlayer(w, night.postmanTarget);
+          info = pm
+            ? (night.postmanSaved
+              ? `邮差原本给「${pm.name}」送信时察觉到杀机——他本夜正是狼人的目标，狼人扑了个空`
+              : `邮差原本给「${pm.name}」送了一封信，一路平安`)
+            : '邮差原本没有送出信件';
+        } else if (deadRole === 'quack') {
+          const saves = (night.quackSaves || []).map(nameOf).filter(Boolean);
+          const poisons = (night.quackPoisons || []).map(nameOf).filter(Boolean);
+          info = saves.length || poisons.length
+            ? `庸医原本给来客递了药${saves.length ? `，救下了${saves.join('、')}` : ''}${poisons.length ? `${saves.length ? '，' : ''}药死了${poisons.join('、')}` : ''}`
+            : '庸医昨夜原本无人来访';
+        } else if (deadRole === 'warlock') {
+          const links = (night.warlockLinks || []).map(nameOf).filter(Boolean);
+          info = links.length === 2
+            ? `术士原本作法链接了「${links[0]}」与「${links[1]}」的命运`
+            : '术士原本没有完成链接';
+        } else if (deadRole === 'clown') {
+          const cl = findPlayer(w, night.clownTarget);
+          info = cl
+            ? `小丑原本扭曲了「${cl.name}」的记忆`
+            : '小丑原本没有找到合适的目标';
         } else {
-          info = `「${tName}」是${ROLES[deadRole]}，没有可继承的夜间动作信息`;
+          info = '他昨夜只是寻常度日，没有特别的行动';
         }
         // 成品句式：小偷以「从死者处得知」陈述，绝不露「我去拜访了X」（那是夜间行踪自曝）
         lines.push(`你昨夜从死者「${tName}」身上得知了他的秘密：${info}。`);
