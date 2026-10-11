@@ -4,7 +4,7 @@ import { ref, computed, onMounted, inject } from 'vue';
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave } = inject('game');
 
 const playerName = ref('');
-const modeId = ref('world');
+const modeId = ref('deduction');
 const themeId = ref('');
 const customTheme = ref(null); // 由纯文本导入生成的世界观
 const importText = ref('');

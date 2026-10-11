@@ -12,10 +12,10 @@ const deduction = require('./deduction');
  * - 开局需调用 LLM 的模式导出 needsLLM: true。
  */
 const MODES = {
-  [world.modeId]: world,
+  [deduction.modeId]: deduction,
   [detective.modeId]: detective,
   [wolf.modeId]: wolf,
-  [deduction.modeId]: deduction,
+  [world.modeId]: world,
 };
 
 const DEFAULT_MODE = world.modeId;
