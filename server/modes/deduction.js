@@ -1288,6 +1288,24 @@ async function generateSpeech(game, speaker) {
         speech = fallbackSpeech(game, speaker);
       }
     }
+    // 间谍发言校验：坦白间谍公布的阵营必须与素材一致（诚实=真实阵营；撒谎=指定假阵营），
+    // 被小丑扭曲的间谍除外（扭曲指令本身要求说反）。不一致时用确定性句子兜底。
+    if (speaker.role === 'spy' && !speaker.cover) {
+      const night = w.night || {};
+      const twisted = (night.twistedIds || []).includes(speaker.id);
+      if (!twisted) {
+        const t = findPlayer(w, night.spyTarget);
+        if (t) {
+          const expectCamp = night.spyLie
+            ? (campOf(t.role) === 'evil' ? '好人' : '坏人')
+            : CAMP[campOf(t.role)];
+          if (!speech.includes(t.name) || !speech.includes(expectCamp)) {
+            console.log('[debug] 推理杀间谍发言与素材矛盾，兜底为确定性句子:', JSON.stringify(speech.slice(0, 30)));
+            speech = `我是间谍。昨夜我拜访了「${t.name}」，探得他属于【${expectCamp}】阵营。`;
+          }
+        }
+      }
+    }
     if (!speech) throw new Error('empty speech');
     let suspect = String((obj && obj.suspect) || '').trim();
     const named = suspectFromSpeech(w, speaker, speech);
