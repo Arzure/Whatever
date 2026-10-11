@@ -672,6 +672,41 @@ function buildEndNarrative(w, lastExiled) {
   return `好人阵营已经失去了反击的力量，狼人「${wolfNames}」潜伏在村庄中。狼人获胜。${buildNightReview(w)}`;
 }
 
+/**
+ * 伪装素材（新角色身份）：为伪装成观者/邮差/庸医/行者/间谍/术士/小丑的坏人/中立
+ * 生成确定性的单目标编造话术，杜绝 LLM 自由发挥虚构多重技能。
+ * 旧身份（村民/侦探/守卫/法医）的话术在调用处原样保留，七人局不受影响。
+ */
+function buildCoverMaterial(w, p, declared) {
+  const fake = alivePlayers(w).find((x) => x.id !== p.id);
+  const fakeName = fake ? fake.name : '某人';
+  const fakeCamp = fake ? CAMP[campOf(fake.role)] : '好人';
+  switch (declared) {
+    case 'watcher':
+      return `如「我昨夜观测了${fakeName}的气运，其阵营是${fakeCamp}」（观者每夜只能观测一人，只能编造这一条观测结果，严禁声称观测多人）。`;
+    case 'postman':
+      return `如「我昨夜给${fakeName}送了一封信，一路平安」（邮差每夜只能送一人，只能编造这一条送信经历）。`;
+    case 'quack':
+      return `如「我昨夜在家中给来访的${fakeName}递了一碗药，无事发生」（庸医不出门，只能编造给一位来客给药的经历）。`;
+    case 'walker':
+      return `如「我昨夜拜访了${fakeName}，探明其身份，暂不公布」（行者每夜只能拜访一人，只能编造这一条拜访结果）。`;
+    case 'spy':
+      return `如「我昨夜拜访了${fakeName}，探得其阵营是${fakeCamp}」（间谍每夜只能拜访一人，只能编造这一条拜访结果）。`;
+    case 'warlock':
+      return `如「我昨夜在家中作法，链接了两人的命运，暂不公布对象」（术士不出门，只能编造这一条链接陈述，严禁说出具体对象——那会与真实链接重合暴露）。`;
+    case 'clown':
+      return `如「我昨夜出门走了一圈，没有特别的发现」（小丑绝不能声称扭曲了谁的记忆——那是自曝）。`;
+    case 'gambler':
+      return `如「我昨夜猜了${fakeName}的阵营，结果是${fakeCamp}」（赌徒每夜只能猜一人，只能编造这一条猜测结果，严禁声称猜了多人）。`;
+    case 'thief':
+      return `如「我昨夜出门转了转，没有特别的发现」（小偷绝不能声称清除/复制了谁的记忆——那是自曝）。`;
+    case 'clerk':
+      return `公布本局角色名册：${w.rolePoolName.join('、')}（你只知道名单，不知道谁对应谁；首轮应当公布名单）。`;
+    default:
+      return `编造一条与你声称身份一致的日常陈述。`;
+  }
+}
+
 /** 处决评价：按目标真实阵营给出准确说辞（单处决/双处决共用） */
 function executeVerdict(target) {
   if (target.role === 'wolf') return '这正是狼人，你的判断精准无误。';
@@ -833,7 +868,7 @@ function buildRoleKnowledge(game, p) {
     } else if (declared === 'forensics') {
       lines.push(`如「昨夜没有可供检验的尸体」或「我还在等待案情」。`);
     } else {
-      lines.push(`编造一条与你声称身份一致的日常陈述。`);
+      lines.push(buildCoverMaterial(w, p, declared));
     }
   } else if (p.role === 'accomplice') {
     // 帮凶也需按伪装身份编造夜间行为（同狼人素材逻辑）
@@ -850,7 +885,7 @@ function buildRoleKnowledge(game, p) {
     } else if (declared === 'forensics') {
       lines.push(`如「昨夜没有可供检验的新尸体」。`);
     } else {
-      lines.push(`编造一条与你声称身份一致的日常陈述。`);
+      lines.push(buildCoverMaterial(w, p, declared));
     }
   } else if (p.role === 'drunkard') {
     // 酒鬼不出门无技能，但同样需要按伪装身份做首轮声明素材
@@ -867,7 +902,7 @@ function buildRoleKnowledge(game, p) {
     } else if (declared === 'forensics') {
       lines.push(`如「昨夜没有可供检验的新尸体」。`);
     } else {
-      lines.push(`编造一条与你声称身份一致的日常陈述。`);
+      lines.push(buildCoverMaterial(w, p, declared));
     }
   }
 
@@ -1343,6 +1378,24 @@ async function generateSpeech(game, speaker) {
           }
         }
       }
+    }
+    // 伪装一致性拦截：坏人/中立带伪装时，自称身份必须与伪装身份一致（LLM 偏离伪装 → 兜底）
+    if ((EVIL_ROLES.includes(speaker.role) || NEUTRAL_ROLES.includes(speaker.role)) && speaker.cover) {
+      const claimed = extractClaim(speech);
+      if (claimed && claimed !== ROLES[speaker.cover]) {
+        console.log('[debug] 推理杀自称偏离伪装身份，兜底:', JSON.stringify(speech.slice(0, 30)));
+        speech = fallbackSpeech(game, speaker);
+      }
+    }
+    // 人称错乱拦截：发言中用自己的名字称呼/向自己发问（如「XX，我也观测了你」）→ 兜底
+    if (speech.includes(`，${speaker.name}`) || new RegExp(`^${speaker.name}，`).test(speech.trim())) {
+      console.log('[debug] 推理杀人称错乱（用自己名字发问），兜底:', JSON.stringify(speech.slice(0, 30)));
+      speech = fallbackSpeech(game, speaker);
+    }
+    // 伪装村民行为泄露拦截：声称村民却说出出门行为（造访/拜访/送信等）→ 兜底为整夜在家
+    if (speaker.cover === 'villager' && /我(昨夜|昨晚)(去|到|造访|拜访|探访|送信|观测)/.test(speech)) {
+      console.log('[debug] 推理杀伪装村民泄露出门行为，兜底:', JSON.stringify(speech.slice(0, 30)));
+      speech = `我是村民。昨夜我整夜在家，无人来访。`;
     }
     if (!speech) throw new Error('empty speech');
     let suspect = String((obj && obj.suspect) || '').trim();
