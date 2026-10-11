@@ -917,10 +917,7 @@ function buildRoleKnowledge(game, p) {
     return lines;
   }
 
-  // 小丑扭曲：被扭曲者今日必须撒谎（颠倒关键信息，身份声明保持不变）
-  if ((night.twistedIds || []).includes(p.id)) {
-    lines.push(`【本日指令·记忆被扭曲】你昨夜的记忆被人扭曲了。今日发言时，你必须把你素材中的【关键结论说反】——例如把『某人在家』说成『某人外出』、把『平安无事』说成『有异常动静』、把你探到的阵营说反。但你的身份声明（我是X）保持不变，且不得提及『记忆被扭曲/有人篡改我记忆』——你并不知道自己被扭曲了，你坚信自己说的就是真的。`);
-  }
+  // 小丑扭曲：发言由代码确定性生成（buildTwistedSpeech），知识包不再注入扭曲指令——LLM 会把指令原样念出，已实测
 
   // 中性/其他角色的伪装一致性提示：若声称身份≠真实身份，禁止提及真实中立夜间活动
   if (NEUTRAL_ROLES.includes(p.role) && p.cover && p.cover !== p.role) {
@@ -1324,6 +1321,44 @@ function fallbackSpeech(game, speaker) {
   return out.slice(0, MAX_SPEECH);
 }
 
+/**
+ * 小丑扭曲·确定性说反发言（不经 LLM）：
+ * LLM 靠指令撒谎不可靠（实测会把扭曲指令原样念出），改为代码级反转——
+ * 从被扭曲者的真实知识包提取技能结果行，把关键结论反转（在家↔外出、平安↔异常、阵营对调），
+ * 身份声明保持不变，被扭曲者坚信自己说的是真的。
+ */
+function buildTwistedSpeech(game, speaker) {
+  const declared = ROLES[speaker.cover || speaker.role];
+  const k = buildRoleKnowledge(game, speaker);
+  let line = '';
+  for (const l of k) {
+    if (/昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测/.test(l) && !/身份|纪律|指令|铁律|重要|警惕|绝不|禁止|名册|同伙|注意|掌握/.test(l)) {
+      line = l;
+      break;
+    }
+  }
+  if (!line) {
+    return `我是${declared}。昨夜我总觉得有些异常动静，但说不清具体是什么，心里很不踏实。`;
+  }
+  let t = line.replace(/你的/g, '我的').replace(/你/g, '我');
+  t = t
+    .replace(/没有外出活动（一直待在住所）|没有外出活动/g, '【占位外出】')
+    .replace(/曾外出活动/g, '【占位在家】')
+    .replace(/【占位外出】/g, '曾外出活动')
+    .replace(/【占位在家】/g, '没有外出活动（一直待在住所）');
+  t = t
+    .replace(/平安无事|风平浪静|无事发生|没有异常动静|整夜平稳/g, '【占位平安】')
+    .replace(/【占位平安】/g, '有些异常动静');
+  t = t
+    .replace(/好人/g, '【占位好】')
+    .replace(/坏人/g, '【占位坏】')
+    .replace(/中立/g, '【占位中】')
+    .replace(/【占位好】/g, '坏人')
+    .replace(/【占位坏】/g, '好人')
+    .replace(/【占位中】/g, '好人');
+  return `我是${declared}。${t}`.slice(0, MAX_SPEECH);
+}
+
 /** 生成单个 AI 的发言；失败/被迷醉遗忘时回落模板（保证回合不断） */
 async function generateSpeech(game, speaker) {
   const w = game.deduction;
@@ -1335,6 +1370,10 @@ async function generateSpeech(game, speaker) {
       ? `我是文员。本局存在的角色有：${clerkPool}。昨夜我被人${w.night && (w.night.drunkIds || []).includes(speaker.id) ? '迷醉不清' : '清除了记忆'}，具体经过不记得了。`
       : '我……抱歉，我完全不记得昨夜发生了什么。';
     return { speech, suspect: '', affected: true };
+  }
+  // 小丑扭曲：确定性说反发言（不经 LLM——LLM 会把扭曲指令原样念出，已实测）
+  if (w.night && (w.night.twistedIds || []).includes(speaker.id)) {
+    return { speech: buildTwistedSpeech(game, speaker), suspect: '' };
   }
   try {
     const text = await chat(
