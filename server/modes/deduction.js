@@ -22,24 +22,41 @@ const MAX_HISTORY = 80;
 const GAME_SIZE = 7;
 
 const ROLES = {
-  // 好人
+  // 好人（标准局）
   clerk: '文员',
   detective: '侦探',
   villager: '村民',
   forensics: '法医',
   guard: '守卫',
-  // 中立
+  // 中立（标准局）
   gambler: '赌徒',
   thief: '小偷',
-  // 坏人
+  // 坏人（标准局）
   wolf: '狼人',
   accomplice: '帮凶',
   drunkard: '酒鬼',
+  // 好人（十人进阶局）
+  watcher: '观者',
+  postman: '邮差',
+  walker: '行者',
+  // 中立（十人进阶局）
+  quack: '庸医',
+  spy: '间谍',
+  // 坏人（十人进阶局）
+  clown: '小丑',
+  warlock: '术士',
 };
 
-const GOOD_ROLES = ['clerk', 'detective', 'villager', 'forensics', 'guard'];
-const NEUTRAL_ROLES = ['gambler', 'thief'];
-const EVIL_ROLES = ['wolf', 'accomplice', 'drunkard'];
+// 标准局角色池（7 人局，保持原玩法不变）
+const GOOD_BASE = ['clerk', 'detective', 'villager', 'forensics', 'guard'];
+const NEUTRAL_BASE = ['gambler', 'thief'];
+const EVIL_BASE = ['wolf', 'accomplice', 'drunkard'];
+// 全量角色池（阵营判定/伪装分配/自曝拦截等通用逻辑使用；新角色仅进入十人进阶局）
+const GOOD_ROLES = [...GOOD_BASE, 'watcher', 'postman', 'walker'];
+const NEUTRAL_ROLES = [...NEUTRAL_BASE, 'quack', 'spy'];
+const EVIL_ROLES = [...EVIL_BASE, 'clown', 'warlock'];
+// 变身继承顺序：狼死 → 帮凶 → 酒鬼 → 小丑 → 术士
+const TURN_ORDER = ['accomplice', 'drunkard', 'clown', 'warlock'];
 const CAMP = {
   good: '好人',
   neutral: '中立',
@@ -48,6 +65,7 @@ const CAMP = {
 const ROLES_NAMES = { // 中文名 ——（对应英文 key）
   '文员': 'clerk', '侦探': 'detective', '村民': 'villager', '法医': 'forensics', '守卫': 'guard',
   '赌徒': 'gambler', '小偷': 'thief', '狼人': 'wolf', '帮凶': 'accomplice', '酒鬼': 'drunkard',
+  '观者': 'watcher', '邮差': 'postman', '行者': 'walker', '庸医': 'quack', '间谍': 'spy', '小丑': 'clown', '术士': 'warlock',
 };
 const campOf = (role) => (GOOD_ROLES.includes(role) ? 'good' : NEUTRAL_ROLES.includes(role) ? 'neutral' : 'evil');
 
@@ -82,12 +100,23 @@ function trimHistory(game) {
  * - 中立：赌徒/小偷 二选一
  * - 坏人：狼人 + （帮凶/酒鬼 二选一）
  */
-function assignRoles() {
-  const names = shuffle(AI_NAMES).slice(0, GAME_SIZE);
-  const goods = shuffle(GOOD_ROLES).slice(0, 4);
-  const neutral = [shuffle(NEUTRAL_ROLES)[0]];
-  // 坏人：必含 1 狼，另一为帮凶/酒鬼
-  const evil = ['wolf', shuffle(['accomplice', 'drunkard'])[0]];
+function assignRoles(board = 'standard') {
+  const size = board === 'advanced' ? 10 : GAME_SIZE;
+  const names = shuffle(AI_NAMES).slice(0, size);
+  let goods;
+  let neutral;
+  let evil;
+  if (board === 'advanced') {
+    // 十人进阶局：好人 5（8 选 5 不重复）+ 中立 2（4 选 2）+ 坏人 3（必含 1 狼，另 2 从帮凶/酒鬼/小丑/术士选 2）
+    goods = shuffle(GOOD_ROLES).slice(0, 5);
+    neutral = shuffle(NEUTRAL_ROLES).slice(0, 2);
+    evil = ['wolf', ...shuffle(['accomplice', 'drunkard', 'clown', 'warlock']).slice(0, 2)];
+  } else {
+    // 七人标准局：原玩法完全不变
+    goods = shuffle(GOOD_BASE).slice(0, 4);
+    neutral = [shuffle(NEUTRAL_BASE)[0]];
+    evil = ['wolf', shuffle(['accomplice', 'drunkard'])[0]];
+  }
   const roles = shuffle([...goods, ...neutral, ...evil]);
   const players = names.map((n, i) => ({
     id: `p${i + 1}`,
@@ -144,11 +173,12 @@ function rolePoolOf(players) {
 function processTurn(w) {
   const wolf = w.players.find((p) => p.role === 'wolf' && p.alive);
   if (wolf) return;
-  const cand = w.players.filter((p) => (p.role === 'accomplice' || p.role === 'drunkard') && p.alive);
-  const next = cand.find((p) => p.role === 'accomplice') || cand[0];
+  const cand = w.players.filter((p) => TURN_ORDER.includes(p.role) && p.alive);
+  const next = TURN_ORDER.map((r) => cand.find((p) => p.role === r)).find(Boolean);
   if (!next) return;
   next.roleBackup = next.role; // 保存原本身份，供终局复盘显示（帮凶/酒鬼 → 狼人）
   next.role = 'wolf';
+  next.turnedRound = w.round; // 各自记录变身轮次（链式变身时每人独立保存）
   w.turned = { playerId: next.id, round: w.round };
   // 变身者沿用自己开局分配的原伪装身份（cover），与先前发言完全一致，不重新分配
   // （帮凶/酒鬼在 assignCovers 阶段必已获得 cover，此处无需也不应重发）
@@ -162,7 +192,7 @@ function processTurn(w) {
  * }}
  */
 function lockActions(w) {
-  const A = { wolf: { who: null, target: null }, guard: { who: null, target: null }, detective: { who: null, target: null }, accomplice: { who: null, target: null }, thief: { who: null, target: null }, gambler: { who: null, target: null, claim: null }, forensics: { active: false, deadPlayerId: null, deadName: null } };
+  const A = { wolf: { who: null, target: null }, guard: { who: null, target: null }, detective: { who: null, target: null }, accomplice: { who: null, target: null }, thief: { who: null, target: null }, gambler: { who: null, target: null, claim: null }, forensics: { active: false, deadPlayerId: null, deadName: null }, watcher: { who: null, target: null }, postman: { who: null, target: null }, walker: { who: null, target: null }, spy: { who: null, target: null }, clown: { who: null, target: null }, warlock: { who: null, links: [] }, quackVisited: [] };
   const alive = alivePlayers(w);
 
   // 上一夜死者（法医本夜去现场取材的对象）；仅当法医存活且第二夜起生效
@@ -217,6 +247,41 @@ function lockActions(w) {
       else A.gambler.claim = shuffle(['good', 'neutral', 'evil'])[0];
     }
   }
+
+  // —— 十人进阶局角色（标准局不存在这些角色，以下自然不触发） ——
+  // 观者：观测一人（观测不是拜访——不触发被拜访提示/迷醉/给药）
+  const watcher = w.players.find((p) => p.role === 'watcher' && p.alive);
+  if (watcher) {
+    A.watcher.who = watcher.id;
+    const pool = alive.filter((x) => x.id !== watcher.id);
+    A.watcher.target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
+  }
+
+  // 邮差 / 行者 / 间谍：各拜访一人
+  for (const role of ['postman', 'walker', 'spy']) {
+    const p = w.players.find((x) => x.role === role && x.alive);
+    if (p) {
+      A[role].who = p.id;
+      const pool = alive.filter((x) => x.id !== p.id);
+      A[role].target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
+    }
+  }
+
+  // 小丑：拜访一人（只拜访好人/中立；排除文员——角色名单是越常信息无法扭曲；排除庸医——拜访庸医等于服毒自杀）
+  const clown = w.players.find((p) => p.role === 'clown' && p.alive);
+  if (clown) {
+    A.clown.who = clown.id;
+    const pool = alive.filter((x) => x.id !== clown.id && !EVIL_ROLES.includes(x.role) && x.role !== 'clerk' && x.role !== 'quack');
+    A.clown.target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
+  }
+
+  // 术士：链接两人命运（只链接好人/中立，两人互不相同）
+  const warlock = w.players.find((p) => p.role === 'warlock' && p.alive);
+  if (warlock) {
+    A.warlock.who = warlock.id;
+    const pool = shuffle(alive.filter((x) => !EVIL_ROLES.includes(x.role)));
+    if (pool.length >= 2) A.warlock.links = [pool[0].id, pool[1].id];
+  }
   return A;
 }
 
@@ -251,12 +316,16 @@ function settleNight(game) {
 
   const drunkard = w.players.find((p) => p.role === 'drunkard' && p.alive);
 
-  // 拜访事件表（阶段 2 素材）：detective/accomplice/thief/guard 的拜访。狼刀不算、法医去现场不算。
+  // 拜访事件表（阶段 2 素材）：detective/accomplice/thief/guard + 进阶局 postman/walker/spy/clown 的拜访。狼刀不算、法医去现场不算、观者观测不算、术士链接不算。
   const visits = [
     { v: A.detective.target, r: 'detective' },
     { v: A.accomplice.target, r: 'accomplice' },
     { v: A.thief.target, r: 'thief' },
     { v: A.guard.target, r: 'guard' },
+    { v: A.postman.target, r: 'postman' },
+    { v: A.walker.target, r: 'walker' },
+    { v: A.spy.target, r: 'spy' },
+    { v: A.clown.target, r: 'clown' },
   ].filter((x) => x.v);
   const visitedBy = {}; // targetId -> [visitorRole...]
   for (const x of visits) if (x.v) (visitedBy[x.v] = visitedBy[x.v] || []).push(x.r);
@@ -264,7 +333,7 @@ function settleNight(game) {
   // 本夜「出门过」的人（侦探线索、被拜访信息用）：
   // 狼/侦探/帮凶/小偷/守卫 存活即出动（迷醉/遗忘只影响技能，人已出门）；法医第二夜起（有尸体）出门。
   const leavers = [];
-  for (const rid of ['wolf', 'detective', 'accomplice', 'thief', 'guard']) {
+  for (const rid of ['wolf', 'detective', 'accomplice', 'thief', 'guard', 'postman', 'walker', 'spy', 'clown']) {
     const p = w.players.find((x) => x.role === rid && x.alive);
     if (p) leavers.push(p.id);
   }
@@ -294,13 +363,80 @@ function settleNight(game) {
     result = executeNightActions(w, A, drunk, forgotten, thiefHitsWolf);
   }
 
-  // —— 阶段 7：死亡判定 + 落盘（先落盘，供阶段8小偷复制判断）——
+  // —— 阶段 7：死亡判定（含十人进阶局新角色；标准局无新角色自然跳过）——
   const nightDeaths = [];
   if (result.killed) nightDeaths.push({ playerId: result.killed.id, cause: 'wolf' });
   if (result.gamblerDied) nightDeaths.push({ playerId: result.gamblerDied, cause: 'gambler' });
 
-  // 直接落盘死亡（本轮夜间死者）
-  for (const d of nightDeaths) {
+  // 邮差修正：狼目标是邮差且其拜访对象为好人 → 狼人空刀，邮差得知自己是狼目标
+  let postmanSaved = false;
+  const postmanP = w.players.find((p) => p.role === 'postman' && p.alive);
+  if (postmanP && result.killed && result.killed.id === postmanP.id && A.postman.target) {
+    const pt = findPlayer(w, A.postman.target);
+    if (pt && campOf(pt.role) === 'good') {
+      result.killed = null;
+      nightDeaths.length = 0;
+      if (result.gamblerDied) nightDeaths.push({ playerId: result.gamblerDied, cause: 'gambler' });
+      postmanSaved = true;
+    }
+  }
+
+  // 行者同归：拜访对象为坏人 → 双双死亡（守卫不可挡，只挡狼刀）
+  const walkerP = w.players.find((p) => p.role === 'walker' && p.alive);
+  let walkerKill = null;
+  if (walkerP && !drunk.has(walkerP.id) && !forgotten.has(walkerP.id) && A.walker.target) {
+    const wt = findPlayer(w, A.walker.target);
+    if (wt && EVIL_ROLES.includes(wt.role)) {
+      walkerKill = { target: wt.id, walker: walkerP.id };
+      nightDeaths.push({ playerId: wt.id, cause: 'walker' });
+      nightDeaths.push({ playerId: walkerP.id, cause: 'walker' });
+    }
+  }
+
+  // 庸医判定：拜访者本夜将死 → 救下（免疫后续连锁）；否则拜访者被毒杀
+  const quackP = w.players.find((p) => p.role === 'quack' && p.alive);
+  const quackSaves = [];
+  const quackPoisons = [];
+  const savedByQuack = new Set();
+  if (quackP && !drunk.has(quackP.id) && !forgotten.has(quackP.id)) {
+    const willDie = new Set(nightDeaths.map((d) => d.playerId));
+    for (const role of ['detective', 'accomplice', 'thief', 'guard', 'postman', 'walker', 'spy', 'clown']) {
+      if (A[role].target === quackP.id && A[role].who) {
+        const visitor = findPlayer(w, A[role].who);
+        if (!visitor || !visitor.alive) continue;
+        if (willDie.has(visitor.id)) {
+          savedByQuack.add(visitor.id);
+          quackSaves.push(visitor.id);
+        } else {
+          nightDeaths.push({ playerId: visitor.id, cause: 'quack' });
+          quackPoisons.push(visitor.id);
+        }
+      }
+    }
+  }
+
+  // 术士连锁：被链接两人任一死亡 → 另一人同死（被庸医救下者免疫；只结算一轮）
+  const warlockP = w.players.find((p) => p.role === 'warlock' && p.alive);
+  const warlockChain = [];
+  if (warlockP && !drunk.has(warlockP.id) && !forgotten.has(warlockP.id) && A.warlock.links.length === 2) {
+    const deadNow = new Set(nightDeaths.map((d) => d.playerId).filter((id) => !savedByQuack.has(id)));
+    for (const id of A.warlock.links) {
+      const other = A.warlock.links.find((x) => x !== id);
+      if (deadNow.has(id) && !deadNow.has(other) && !savedByQuack.has(other)) {
+        const op = findPlayer(w, other);
+        if (op && op.alive) {
+          nightDeaths.push({ playerId: other, cause: 'warlock' });
+          warlockChain.push(other);
+          deadNow.add(other);
+        }
+      }
+    }
+  }
+
+  // 落盘死亡（去重；被庸医救下者除外）
+  const uniqueNightDeaths = [...new Map(nightDeaths.map((d) => [d.playerId, d])).values()];
+  for (const d of uniqueNightDeaths) {
+    if (savedByQuack.has(d.playerId)) continue;
     const p = findPlayer(w, d.playerId);
     if (!p || !p.alive) continue;
     p.alive = false;
@@ -358,12 +494,29 @@ function settleNight(game) {
     forgottenIds: [...forgotten],
     // 变身
     turnedPlayerId: w.turned ? w.turned.playerId : null,
+    // 小丑扭曲（被扭曲者明日撒谎；被遗忘者记忆已清空，『忘记了』优先）
+    twistedIds: (A.clown.target && w.players.find((p) => p.role === 'clown' && p.alive) && !drunk.has(A.clown.who) && !forgotten.has(A.clown.who) && !forgotten.has(A.clown.target)) ? [A.clown.target] : [],
+    // —— 十人进阶局角色 ——
+    watcherTarget: A.watcher.target,
+    watcherCamp: A.watcher.target ? CAMP[campOf(findPlayer(w, A.watcher.target).role)] : null,
+    postmanTarget: A.postman.target,
+    postmanSaved,
+    walkerTarget: A.walker.target,
+    walkerKillTarget: walkerKill ? walkerKill.target : null,
+    spyTarget: A.spy.target,
+    spyLie: A.spy.target ? campOf(findPlayer(w, A.spy.target).role) !== 'good' : false,
+    clownTarget: A.clown.target,
+    warlockLinks: A.warlock.links.slice(),
+    warlockChain,
+    quackSaves,
+    quackPoisons,
+    quackVisitors: quackP ? visits.filter((x) => x.v === quackP.id).map((x) => roleToId(w, x.r)).filter((id) => id && findPlayer(w, id).alive) : [],
   };
 
   // —— 逐夜行动日志（供终局「逐夜行动回顾」；用 A.*.who 记录执行者，兼容当夜死亡者）——
   const nameOf = (id) => { const p = findPlayer(w, id); return p ? p.name : ''; };
   // 死亡名单去重（同一个人可能同时死于狼刀与赌徒猜错）
-  const uniqueDeaths = [...new Map(nightDeaths.map((d) => [d.playerId, d])).values()];
+  const uniqueDeaths = [...new Map(nightDeaths.filter((d) => !savedByQuack.has(d.playerId)).map((d) => [d.playerId, d])).values()];
   w.nightLogs.push({
     round: w.round,
     // 狼方行动
@@ -393,6 +546,14 @@ function settleNight(game) {
     // 酒鬼迷醉
     drunkard: drunkId ? { who: nameOf(drunkId), affected: [...drunk].map(nameOf).filter(Boolean) } : null,
     forgotten: [...forgotten].map(nameOf).filter(Boolean),
+    // —— 十人进阶局角色 ——
+    watcher: A.watcher.target ? { who: nameOf(A.watcher.who), target: nameOf(A.watcher.target), camp: CAMP[campOf(findPlayer(w, A.watcher.target).role)] } : null,
+    postman: A.postman.target ? { who: nameOf(A.postman.who), target: nameOf(A.postman.target), saved: postmanSaved } : null,
+    walker: A.walker.target ? { who: nameOf(A.walker.who), target: nameOf(A.walker.target), kill: walkerKill ? nameOf(walkerKill.target) : null } : null,
+    spy: A.spy.target ? { who: nameOf(A.spy.who), target: nameOf(A.spy.target), lie: campOf(findPlayer(w, A.spy.target).role) !== 'good' } : null,
+    clown: A.clown.target ? { who: nameOf(A.clown.who), target: nameOf(A.clown.target) } : null,
+    warlock: A.warlock.links.length === 2 ? { who: nameOf(A.warlock.who), links: A.warlock.links.map(nameOf), chain: warlockChain.map(nameOf) } : null,
+    quack: quackP ? { who: nameOf(quackP.id), saves: quackSaves.map(nameOf), poisons: quackPoisons.map(nameOf) } : null,
     deaths: uniqueDeaths.map((d) => nameOf(d.playerId)).filter(Boolean),
   });
 
@@ -461,7 +622,7 @@ function checkWinner(w) {
   const aliveWolf = w.players.some((p) => p.role === 'wolf' && p.alive);
   if (!aliveWolf) {
     // 狼死但坏人同伴还存活 → 会变身，游戏继续
-    const aliveBad = w.players.some((p) => (p.role === 'accomplice' || p.role === 'drunkard') && p.alive);
+    const aliveBad = w.players.some((p) => TURN_ORDER.includes(p.role) && p.alive);
     if (!aliveBad) return 'good';
     return null;
   }
@@ -501,7 +662,7 @@ function buildEndNarrative(w, lastExiled) {
     const camp = campOf(lastExiled.role);
     let distinct;
     if (camp === 'neutral') distinct = '那是一位中立者';
-    else if (camp === 'evil') distinct = '那是坏人阵营的一员（帮凶或酒鬼），虽非狼人但也可在狼死后接手变狼';
+    else if (camp === 'evil') distinct = '那是坏人阵营的一员（狼人的同伙），虽非狼人但也可在狼死后接手变狼';
     else distinct = '那就是好人中的一员';
     return (
       `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人，${distinct}。\n\n` +
@@ -525,7 +686,7 @@ function buildAdjudicateNarrative(w, target, isPass) {
     if (camp === 'neutral') {
       verdict = '可惜，那不是狼人——那是一位中立者。误杀中立虽不直接削弱好人，但也无助于找出真凶。';
     } else if (camp === 'evil') {
-      verdict = '可惜，那不是狼人——那是坏人阵营的「帮凶/酒鬼」。处刑他也算削弱了坏人阵营，但你没有揪出真正的狼人。';
+      verdict = '可惜，那不是狼人——那是坏人阵营的狼人同伙。处刑他也算削弱了坏人阵营，但你没有揪出真正的狼人。';
     } else {
       verdict = '可惜，那不是狼人……你误伤了一位好人。好人阵营再少一员。';
     }
@@ -572,6 +733,18 @@ function buildNightReview(w) {
     }
     if (l.drunkard && l.drunkard.affected && l.drunkard.affected.length) {
       line.push(`${l.drunkard.who}（酒鬼）迷醉了${l.drunkard.affected.join('、')}`);
+    }
+    // 十人进阶局角色
+    if (l.watcher) line.push(`${l.watcher.who}（观者）观测「${l.watcher.target}」，阵营为${l.watcher.camp}`);
+    if (l.postman) line.push(l.postman.saved ? `${l.postman.who}（邮差）送信给「${l.postman.target}」时察觉杀机——狼人空刀` : `${l.postman.who}（邮差）给「${l.postman.target}」送信，无事发生`);
+    if (l.walker) line.push(l.walker.kill ? `${l.walker.who}（行者）拜访「${l.walker.target}」——对方是坏人，同归于尽` : `${l.walker.who}（行者）拜访「${l.walker.target}」，探明其身份`);
+    if (l.spy) line.push(`${l.spy.who}（间谍）拜访「${l.spy.target}」，明日将${l.spy.lie ? '撒谎' : '如实发言'}`);
+    if (l.clown) line.push(`${l.clown.who}（小丑）扭曲了「${l.clown.target}」的记忆`);
+    if (l.warlock) line.push(`${l.warlock.who}（术士）链接了「${l.warlock.links[0]}」与「${l.warlock.links[1]}」的命运${l.warlock.chain && l.warlock.chain.length ? `，连锁带走了${l.warlock.chain.join('、')}` : ''}`);
+    if (l.quack) {
+      const q = l.quack;
+      if (q.saves && q.saves.length) line.push(`${q.who}（庸医）救下了${q.saves.join('、')}`);
+      if (q.poisons && q.poisons.length) line.push(`${q.who}（庸医）的药毒杀了${q.poisons.join('、')}`);
     }
     if (l.forgotten && l.forgotten.length) line.push(`被清除记忆：${l.forgotten.join('、')}`);
     if (l.deaths && l.deaths.length) line.push(`本夜逝去：${l.deaths.join('、')}`);
@@ -644,8 +817,8 @@ function buildRoleKnowledge(game, p) {
     const target = findPlayer(w, night.killedByWolf);
     // 狼人知道自己的真实行动，但提示词约束绝不能在发言中承认
     lines.push(`【内部情报·绝不外泄】你昨夜${target ? `刀杀了「${target.name}」` : '未能得手'}。这是你的真实行动，但【绝对不能】在发言中提及或暗示你刀了谁。`);
-    const partner = w.players.find((q) => (q.role === 'accomplice' || q.role === 'drunkard') && q.alive);
-    lines.push(partner ? `你的同伙是「${partner.name}」（阵营坏人，尚未暴露）。【绝不外泄】` : `你的同伙已不在。`);
+    const partners = w.players.filter((q) => EVIL_ROLES.includes(q.role) && q.role !== 'wolf' && q.alive);
+    lines.push(partners.length ? `你的同伙是${partners.map((q) => `「${q.name}」`).join('、')}（阵营坏人，尚未暴露）。【绝不外泄】` : `你的同伙已不在。`);
     // 狼人伪装身份的夜间行为素材
     const coverName = ROLES[declared];
     lines.push(`【伪装行为·发言用】你声称自己是「${coverName}」。据此编造与该身份一致的夜间行为陈述：`);
@@ -707,6 +880,11 @@ function buildRoleKnowledge(game, p) {
       lines.push(`【本夜状态】你昨夜${drunk ? '被酒鬼迷醉' : '被小偷清除记忆'}——技能无效，且你不记得昨夜发生了什么事。你的发言只能用一句话表达：「我……抱歉，我完全不记得昨夜做了什么。」`);
     }
     return lines;
+  }
+
+  // 小丑扭曲：被扭曲者今日必须撒谎（颠倒关键信息，身份声明保持不变）
+  if ((night.twistedIds || []).includes(p.id)) {
+    lines.push(`【本日指令·记忆被扭曲】你昨夜的记忆被人扭曲了。今日发言时，你必须把你素材中的【关键结论说反】——例如把『某人在家』说成『某人外出』、把『平安无事』说成『有异常动静』、把你探到的阵营说反。但你的身份声明（我是X）保持不变，且不得提及『记忆被扭曲/有人篡改我记忆』——你并不知道自己被扭曲了，你坚信自己说的就是真的。`);
   }
 
   // 中性/其他角色的伪装一致性提示：若声称身份≠真实身份，禁止提及真实中立夜间活动
@@ -833,6 +1011,80 @@ function buildRoleKnowledge(game, p) {
       lines.push(wolf ? `你清楚狼人是「${wolf.name}」。你可以为他掩护或转移注意力。` : `狼人已死，你随时可能接手狼人之位。`);
       break;
     }
+    // —— 十人进阶局角色 ——
+    case 'watcher': {
+      const t = findPlayer(w, night.watcherTarget);
+      if (t && night.watcherCamp) {
+        lines.push(`你昨夜在家中观测了「${t.name}」的气运，得知其阵营是【${night.watcherCamp}】——但你无法得知其具体身份。这是你今天可以公布的信息。`);
+      } else {
+        lines.push(`你昨夜没有观测到合适的目标。`);
+      }
+      break;
+    }
+    case 'postman': {
+      const t = findPlayer(w, night.postmanTarget);
+      if (night.postmanSaved) {
+        lines.push(`你昨夜给「${t ? t.name : ''}」送信时察觉到浓重杀机——你本夜正是狼人的目标！但你的信件让狼人扑了个空，狼人空刀而归。你活了下来，并且【确切知道】自己昨夜是狼人的刀下目标。这是你今天可以公布的重大信息。`);
+      } else if (t) {
+        lines.push(`你昨夜给「${t.name}」送了一封信，一路平安，无事发生。`);
+      } else {
+        lines.push(`你昨夜没有送出信件。`);
+      }
+      break;
+    }
+    case 'walker': {
+      const t = findPlayer(w, night.walkerTarget);
+      if (t && !EVIL_ROLES.includes(t.role)) {
+        lines.push(`你昨夜拜访了「${t.name}」，探明了他的真实身份——【${ROLES[t.role]}】。这是你今天可以公布的信息（公布与否由你判断利弊）。`);
+      } else {
+        lines.push(`你昨夜没有拜访到合适的目标。`);
+      }
+      break;
+    }
+    case 'spy': {
+      const t = findPlayer(w, night.spyTarget);
+      if (t) {
+        const camp = campOf(t.role);
+        const campText = CAMP[camp];
+        if (night.spyLie) {
+          const fakeCamp = camp === 'evil' ? '好人' : '坏人';
+          lines.push(`你昨夜拜访了「${t.name}」，探得他属于【${campText}】阵营。但【本日指令·间谍的谎言】你今日必须撒谎：公布拜访结果时，把「${t.name}」的阵营谎报为【${fakeCamp}】。你坚信谎言不会被当场戳穿——但若有人掌握相反的铁证，你将陷入被动。`);
+        } else {
+          lines.push(`你昨夜拜访了「${t.name}」，探得他属于【${campText}】阵营。你今日如实公布这一结果即可。`);
+        }
+      } else {
+        lines.push(`你昨夜没有拜访到合适的目标。`);
+      }
+      break;
+    }
+    case 'quack': {
+      const visitors = (night.quackVisitors || []).map((id) => { const q = findPlayer(w, id); return q ? q.name : ''; }).filter(Boolean);
+      if (visitors.length) {
+        lines.push(`你昨夜在家中接待了访客：${visitors.join('、')}。你给每位来客都递了一碗药。`);
+        if ((night.quackSaves || []).length) lines.push(`其中有人本夜将遭不测，被你的药从鬼门关拉了回来。`);
+        if ((night.quackPoisons || []).length) lines.push(`也有人体质不合，服下药后毒发身亡——这是意外，你行医只为自保。`);
+      } else {
+        lines.push(`你昨夜整夜在家，无人来访。`);
+      }
+      break;
+    }
+    case 'clown': {
+      const wolf = w.players.find((q) => q.role === 'wolf' && q.alive);
+      const t = findPlayer(w, night.clownTarget);
+      lines.push(wolf ? `你清楚狼人是「${wolf.name}」。你可以为他掩护或转移注意力。` : `狼人已死，你随时可能接手狼人之位。`);
+      if (t) lines.push(`你昨夜扭曲了「${t.name}」的记忆——他今日的发言会颠倒关键信息，为你们制造混乱。【绝不外泄】这是你的真实行动。`);
+      break;
+    }
+    case 'warlock': {
+      const wolf = w.players.find((q) => q.role === 'wolf' && q.alive);
+      lines.push(wolf ? `你清楚狼人是「${wolf.name}」。你可以为他掩护或转移注意力。` : `狼人已死，你随时可能接手狼人之位。`);
+      if ((night.warlockLinks || []).length === 2) {
+        const names = night.warlockLinks.map((id) => { const q = findPlayer(w, id); return q ? q.name : ''; }).filter(Boolean);
+        lines.push(`你昨夜在家中作法，链接了「${names[0]}」与「${names[1]}」的命运——两人中若有一人今夜死亡，另一人也活不成。【绝不外泄】这是你的真实行动。`);
+        if ((night.warlockChain || []).length) lines.push(`你的链接已经生效，带走了额外的牺牲者。`);
+      }
+      break;
+    }
   }
   return lines;
 }
@@ -863,14 +1115,14 @@ function buildSpeechPrompt(game, speaker) {
     `4. 【绝对禁止】坏人（狼人/帮凶/酒鬼）在发言中提及或暗示自己的真实夜间行动（如"我刀了X"）。只能按伪装身份编造行为。违反此条等于自曝。\n` +
     `5. 【游戏常识·重要】「呆在家中」或「没有外出」不等于「没被袭击」——狼人可以在住所内行凶。不要用「他在家」去反驳「他被刀了」，这是错误的逻辑。\n` +
     `6. 发言中不要重复别人已经说过的话，只补充自己独有的新信息或对他人信息的判断。\n` +
-    `7. 【技能真实·铁律】你只能声称行使了【你的身份真正拥有的能力】。文员只能公布角色名单、村民无能力、守卫只能保护、侦探只能获知外出线索、法医只能验尸体、赌徒只能猜阵营、小偷只能清记忆/复制、狼人只能夜晚出刀。严禁凭空声称"查验/占卜/鉴定他人身份"等本游戏不存在的技能。若要诡辩，只能围绕真实能力做伪陈述。\n` +
+    `7. 【技能真实·铁律】你只能声称行使了【你的身份真正拥有的能力】。文员只能公布角色名单、村民无能力、守卫只能保护、侦探只能获知外出线索、法医只能验尸体、赌徒只能猜阵营、小偷只能清记忆/复制、狼人只能夜晚出刀；观者只能观测阵营、邮差只能送信、行者只能探明身份、庸医只能给药、间谍只能探阵营、小丑只能扭曲记忆、术士只能链接命运。严禁凭空声称本游戏不存在的技能。若要诡辩，只能围绕真实能力做伪陈述。\n` +
     `8. 【信息边界·铁律】只能陈述【你的素材里明确提供的信息】（技能结果 / 亲历事件 / 你的身份与阵营）。不得编造你身份无法观测到的情报，例如守卫不能说「我留意到其他人的动向」，村民不能说「我看到谁半夜出门」。—— 注意：这不是让你少说话！信息越多越好，但必须是素材里有的、且不虚构。禁止用「我是X。」这种一句话敷衍，必须把你真实掌握的信息全部说出来。\n` +
     `9. 【生死状态·铁律】严格区分存活者与死者：死者已出局，绝不能说存活者「已死/被袭击身亡/不在了」；也绝不能把死者当作仍在场的人讨论或向其发问。发言前先对照下方的存活名单与死者名单。\n` +
     `10. 【人称纪律·铁律】你始终用第一人称「我」称呼自己，绝不用自己的名字称呼自己（如「XX，你的判断？」是对自己发问，禁止）；提及他人用其名字。`;
 
   return {
     system: [
-      `你是狼人杀类游戏「推理杀」中的玩家「${speaker.name}」，正在参加一局 ${GAME_SIZE} 人局。法官正在旁观并会裁决。`,
+      `你是狼人杀类游戏「推理杀」中的玩家「${speaker.name}」，正在参加一局 ${w.players.length} 人局。法官正在旁观并会裁决。`,
       knowledge,
       factLine,
       `存活玩家（仅这些人还在场）：${aliveList}。`,
@@ -911,7 +1163,7 @@ function suspectFromSpeech(w, voter, speech) {
 function extractClaim(speech) {
   const text = String(speech || '');
   // 身份词；守卫/小偷等亦可能是动词，用负向前瞻排除"守卫了/守卫过/保护了"等用法
-  const ROLE_RE = '(文员|侦探|村民|法医|守卫(?!了|过|在)|赌徒|小偷|狼人|帮凶|酒鬼)';
+  const ROLE_RE = '(文员|侦探|村民|法医|守卫(?!了|过|在)|赌徒|小偷|狼人|帮凶|酒鬼|观者|邮差|行者|庸医|间谍|小丑|术士)';
   // 1) "我是身份"（紧贴）
   const direct = text.match(new RegExp(`我是${ROLE_RE}`));
   if (direct) return direct[1];
@@ -1050,6 +1302,7 @@ function snapshotDeduction(game) {
     phase: w.phase,
     round: w.round,
     winner: w.winner,
+    board: w.board || 'standard',
     // 注意：不再直接把完整角色名册交给前端（那是文员的职责/信息价值）。
     players: w.players.map((p) => ({ id: p.id, name: p.name, alive: p.alive, isPlayer: false })),
     claims: (w.claims || []).map((c) => ({ playerId: c.playerId, name: c.name, claimed: c.claimed })), // 纯发言提取的自称身份
@@ -1065,7 +1318,7 @@ function snapshotDeduction(game) {
           role: ROLES[p.role],
           // 变身者附带原本身份与变身轮次，复盘体现完整身份轨迹
           roleBackup: p.roleBackup ? ROLES[p.roleBackup] : '',
-          turnedRound: p.roleBackup && w.turned && w.turned.playerId === p.id ? w.turned.round : 0,
+          turnedRound: p.turnedRound || 0,
         }))
       : null,
     aliveCount: alivePlayers(w).length,
@@ -1105,10 +1358,12 @@ function resultPayload(game, extra) {
 
 /** 开局：分配身份 + 第一夜结算，返回"天亮了"叙事（无需 LLM） */
 function newGame(playerName, opts = {}) {
+  const board = opts.board === 'advanced' ? 'advanced' : 'standard';
   const w = {
     phase: 'day',
     round: 1,
-    players: assignRoles(),
+    board,
+    players: assignRoles(board),
     speeches: [],
     suspect: {},
     deaths: [], // { round, playerId, name, cause, role, roleBackup }——role 为内部真实身份，快照隐藏
@@ -1200,7 +1455,7 @@ async function adjudicate(game, targetId) {
     w.phase = winner === 'good' ? 'win' : 'lose';
     w.winner = winner;
     narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
-      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${w.turned && w.turned.playerId === p.id ? w.turned.round : '?'}夜变身狼人）` : ROLES[p.role]}`)
+      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${p.turnedRound || '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
     game.updatedAt = Date.now();
@@ -1216,7 +1471,7 @@ async function adjudicate(game, targetId) {
     w.phase = winnerAfterNight === 'good' ? 'win' : 'lose';
     w.winner = winnerAfterNight;
     narrative += `\n\n${buildEndNarrative(w, target)}\n\n—— 游戏结束 ——\n\n【身份复盘】\n${w.players
-      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${w.turned && w.turned.playerId === p.id ? w.turned.round : '?'}夜变身狼人）` : ROLES[p.role]}`)
+      .map((p) => `  ${p.name}：${p.roleBackup ? `${ROLES[p.roleBackup]}（第${p.turnedRound || '?'}夜变身狼人）` : ROLES[p.role]}`)
       .join('\n')}`;
     game.history.push({ role: 'assistant', content: narrative, choices: [] });
     game.updatedAt = Date.now();

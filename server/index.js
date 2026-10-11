@@ -144,10 +144,12 @@ app.post('/api/games', async (req, res) => {
     if (!isConfigured()) return llmMissing(res);
   }
 
+  // 推理杀板子：standard（七人标准，缺省）| advanced（十人进阶）
+  const board = String(req.body?.board || '').trim();
   let game;
   try {
     // newGame 可能是异步的（探案模式需调用 LLM 生成案件）
-    game = await mode.newGame(name, { theme, genre });
+    game = await mode.newGame(name, { theme, genre, board });
   } catch (err) {
     // 需要调用 LLM 的开局失败属于上游错误，其余归为参数错误
     return mode.needsLLM

@@ -82,7 +82,7 @@ export function useGame() {
   }
 
   // ---------- 开始 / 读档 ----------
-  async function startGame({ playerName, mode, theme, genre }) {
+  async function startGame({ playerName, mode, theme, genre, board }) {
     if (!playerName) {
       state.error = '请输入你的冒险者名字';
       return;
@@ -90,7 +90,7 @@ export function useGame() {
     state.error = '';
     state.loading = true;
     try {
-      const data = await api.createGame({ playerName, mode, theme, genre });
+      const data = await api.createGame({ playerName, mode, theme, genre, board });
       enterGame(data);
     } catch (e) {
       state.error = e.message;

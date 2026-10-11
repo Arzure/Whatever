@@ -10,6 +10,12 @@ const customTheme = ref(null); // 由纯文本导入生成的世界观
 const importText = ref('');
 const importing = ref(false);
 const genreId = ref(''); // 探案模式：案件题材
+const boardId = ref('standard'); // 推理杀：板子（standard 七人标准 | advanced 十人进阶）
+const needBoard = computed(() => modeId.value === 'deduction');
+const BOARDS = [
+  { id: 'standard', name: '七人标准', intro: '4 好人 + 1 中立 + 2 坏人，经典配置' },
+  { id: 'advanced', name: '十人进阶', intro: '5 好人 + 2 中立 + 3 坏人，新增观者/邮差/行者/庸医/间谍/小丑/术士' },
+];
 
 const currentMode = computed(() => state.modes.find((m) => m.id === modeId.value) || null);
 const needTheme = computed(() => !!currentMode.value?.needsTheme);
@@ -35,6 +41,10 @@ function pickGenre(id) {
   genreId.value = id;
   state.error = '';
 }
+function pickBoard(id) {
+  boardId.value = id;
+  state.error = '';
+}
 
 async function doImport() {
   if (!importText.value.trim() || importing.value) return;
@@ -56,6 +66,7 @@ function start() {
     mode: modeId.value,
     theme: customTheme.value || themeId.value,
     genre: genreId.value,
+    board: needBoard.value ? boardId.value : '',
   });
 }
 
@@ -88,6 +99,22 @@ const canStart = computed(() => {
         </div>
       </section>
 
+      <!-- 板子（推理杀模式） -->
+      <section v-if="needBoard" class="block">
+        <h2>选择板子</h2>
+        <div class="theme-list">
+          <button
+            v-for="b in BOARDS"
+            :key="b.id"
+            class="theme-card"
+            :class="{ active: boardId === b.id }"
+            @click="pickBoard(b.id)"
+          >
+            <span class="theme-name">{{ b.name }}</span>
+            <span class="theme-intro">{{ b.intro }}</span>
+          </button>
+        </div>
+      </section>
       <!-- 案件题材（探案模式） -->
       <section v-if="needGenre" class="block">
         <h2>选择案件题材</h2>

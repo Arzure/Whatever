@@ -7,12 +7,14 @@ const messagesEl = ref(null);
 const showRoles = ref(false);
 
 // —— 玩家标记（推测身份笔记）：仅存本地浏览器、按游戏隔离，不上传服务器、不影响游戏逻辑 ——
-const ALL_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '赌徒', '小偷', '狼人', '帮凶', '酒鬼'];
+const BASE_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '赌徒', '小偷', '狼人', '帮凶', '酒鬼'];
+const ADV_ROLES = [...BASE_ROLES, '观者', '邮差', '行者', '庸医', '间谍', '小丑', '术士'];
 const marks = ref({});
 const markOpenId = ref('');
 const MARK_KEY = computed(() => `rpg_marks_${state.gameId || ''}`);
-const NEUTRAL_ROLES = ['赌徒', '小偷'];
-const EVIL_ROLES = ['狼人', '帮凶', '酒鬼'];
+const NEUTRAL_ROLES = ['赌徒', '小偷', '庸医', '间谍'];
+const EVIL_ROLES = ['狼人', '帮凶', '酒鬼', '小丑', '术士'];
+const ALL_ROLES = computed(() => (d.value.board === 'advanced' ? ADV_ROLES : BASE_ROLES));
 function roleClass(role) {
   if (EVIL_ROLES.includes(role)) return 'role-wolf';
   if (NEUTRAL_ROLES.includes(role)) return 'role-neutral';
@@ -64,6 +66,7 @@ const PHASE_TEXT = {
 };
 
 // 角色能力说明（基于当前实现，法官可见的规则卡）
+const ADV_NEW_ROLES = ['观者', '邮差', '行者', '庸医', '间谍', '小丑', '术士'];
 const ROLE_DECK = [
   {
     group: '好人阵营',
@@ -73,6 +76,9 @@ const ROLE_DECK = [
       { name: '村民', desc: '不出门、无技能。若有其他角色来拜访，会知道「有人来过」（被小偷清除记忆则只说忘记了）。' },
       { name: '法医', desc: '第一夜不出门。从第二夜起出门前往上一案发现场，并在下个白天公布死者真实身份。' },
       { name: '守卫', desc: '每夜出门拜访一人进行保护。若该人被狼袭击则狼刀被挡下（平安夜）。可自保；不能连续两夜保护同一人。' },
+      { name: '观者', desc: '不出门。每夜观测一人，得知其阵营（好人/中立/坏人），但无法得知具体身份。' },
+      { name: '邮差', desc: '出门。每夜拜访一人送信：若自身本夜不是狼人目标，技能无任何作用；若自身是狼人目标——拜访对象为好人则狼人空刀且邮差得知自己是目标，拜访对象为坏人/中立则正常被刀。' },
+      { name: '行者', desc: '出门。每夜拜访一人：若对方是好人或中立，则知晓其具体身份；若对方是坏人，则与其同归于尽。' },
     ],
   },
   {
@@ -80,6 +86,8 @@ const ROLE_DECK = [
     roles: [
       { name: '赌徒', desc: '不出门。每夜猜测一人是「好人/中立/坏人」：猜对则获得其阵营信息；猜错立即死亡。' },
       { name: '小偷', desc: '每夜出门拜访一人。若目标本夜死亡则获得其原本行动的情报（如守卫守了谁、侦探探到什么），不继承行动能力；若目标存活则清除其本夜记忆（对方技能无效，发言只剩「忘记了」）；拜访到狼人会让狼人本夜刀无效（狼人记忆不受影响）。' },
+      { name: '庸医', desc: '不出门。每夜若有拜访者则给药：拜访者本夜将要死去则免于死亡，否则拜访者死亡。' },
+      { name: '间谍', desc: '出门。每夜拜访一人：若对方是好人，明日如实发言；若对方是坏人或中立，明日撒谎。' },
     ],
   },
   {
@@ -88,6 +96,8 @@ const ROLE_DECK = [
       { name: '狼人', desc: '每夜出门刀杀一人，可杀任何人（即使对方在家）。首夜不能刀文员。死后由仍存活的坏人阵营继承狼人身份。' },
       { name: '帮凶', desc: '每夜出门拜访一人（可扰乱视线）。知道狼人是谁，可为其掩护或栽赃他人。狼人死后接任狼人。' },
       { name: '酒鬼', desc: '不出门，待在家中喝酒。拜访他的人会被迷醉（本夜技能无效，发言只剩「忘记了」）。狼人死后接任狼人。' },
+      { name: '小丑', desc: '出门。每夜拜访一人（仅好人/中立），扭曲其记忆，使其明日发言颠倒关键信息。狼人死后接任狼人。' },
+      { name: '术士', desc: '不出门。每夜链接两人命运（仅好人/中立）：被链接的两人中若有人今夜死亡，另一人同时死亡。狼人死后接任狼人。' },
     ],
   },
 ];
@@ -120,6 +130,11 @@ function isConflict(name) {
 // 终局逐夜行动回顾
 const nightLogs = computed(() => d.value.nightLogs || []);
 
+const deckGroups = computed(() =>
+  ROLE_DECK
+    .map((g) => ({ ...g, roles: g.roles.filter((r) => d.value.board === 'advanced' || !ADV_NEW_ROLES.includes(r.name)) }))
+    .filter((g) => g.roles.length)
+);
 function formatNightLog(l) {
   const parts = [];
   if (l.wolf) parts.push(l.wolf.blocked ? `狼人袭击「${l.wolf.target}」→ 被守卫挡下` : `狼人刀杀「${l.wolf.killed || l.wolf.target}」`);
@@ -130,6 +145,16 @@ function formatNightLog(l) {
   if (l.gambler) parts.push(`赌徒猜「${l.gambler.target}」为${l.gambler.claim}（${l.gambler.correct ? '正确' : '错误'}${l.gambler.died ? '，赌徒殒命' : ''}）`);
   if (l.forensics && l.forensics.role) parts.push(`法医鉴定「${l.forensics.target}」→ ${l.forensics.role}`);
   if (l.drunkAffected && l.drunkAffected.length) parts.push(`酒鬼迷醉：${l.drunkAffected.join('、')}`);
+  if (l.watcher) parts.push(`观者观测「${l.watcher.target}」→ ${l.watcher.camp}阵营`);
+  if (l.postman) parts.push(l.postman.saved ? `邮差送信给「${l.postman.target}」时察觉杀机——狼人空刀` : `邮差给「${l.postman.target}」送信，无事发生`);
+  if (l.walker) parts.push(l.walker.kill ? `行者拜访「${l.walker.target}」——对方是坏人，同归于尽` : `行者拜访「${l.walker.target}」，探明其身份`);
+  if (l.spy) parts.push(`间谍拜访「${l.spy.target}」，明日将${l.spy.lie ? '撒谎' : '如实发言'}`);
+  if (l.clown) parts.push(`小丑扭曲了「${l.clown.target}」的记忆`);
+  if (l.warlock) parts.push(`术士链接了「${l.warlock.links[0]}」与「${l.warlock.links[1]}」的命运${l.warlock.chain && l.warlock.chain.length ? `，连锁带走了${l.warlock.chain.join('、')}` : ''}`);
+  if (l.quack) {
+    if (l.quack.saves && l.quack.saves.length) parts.push(`庸医救下了${l.quack.saves.join('、')}`);
+    if (l.quack.poisons && l.quack.poisons.length) parts.push(`庸医的药毒杀了${l.quack.poisons.join('、')}`);
+  }
   if (l.deaths && l.deaths.length) parts.push(`本夜逝去：${l.deaths.join('、')}`);
   return parts.join('；');
 }
@@ -183,7 +208,7 @@ watch(() => state.history.length, scrollToBottom);
           📖 角色能力说明 {{ showRoles ? '▲' : '▼' }}
         </button>
         <div v-if="showRoles" class="deck-body">
-          <div v-for="g in ROLE_DECK" :key="g.group" class="deck-group">
+          <div v-for="g in deckGroups" :key="g.group" class="deck-group">
             <div class="deck-group-label">{{ g.group }}</div>
             <div
               v-for="r in g.roles"
