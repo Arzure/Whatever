@@ -11,6 +11,13 @@ const ALL_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '赌徒', '
 const marks = ref({});
 const markOpenId = ref('');
 const MARK_KEY = computed(() => `rpg_marks_${state.gameId || ''}`);
+const NEUTRAL_ROLES = ['赌徒', '小偷'];
+const EVIL_ROLES = ['狼人', '帮凶', '酒鬼'];
+function roleClass(role) {
+  if (EVIL_ROLES.includes(role)) return 'role-wolf';
+  if (NEUTRAL_ROLES.includes(role)) return 'role-neutral';
+  return 'role-good';
+}
 function loadMarks() {
   try {
     marks.value = JSON.parse(localStorage.getItem(MARK_KEY.value) || '{}');
@@ -62,7 +69,7 @@ const ROLE_DECK = [
     group: '好人阵营',
     roles: [
       { name: '文员', desc: '不出门。开局即知道「本局存在的角色名单」，并在发言中公布（不含对应关系）。后续无夜晚技能。' },
-      { name: '侦探', desc: '每夜出门探访一人，获得线索：「目标曾外出活动 / 没有外出活动」。注意：「没有外出」不等于安全——狼人可以在住所内行凶。' },
+      { name: '侦探', desc: '每夜出门探访一人，获得线索：「目标曾外出活动 / 没有外出活动」。' },
       { name: '村民', desc: '不出门、无技能。若有其他角色来拜访，会知道「有人来过」（被小偷清除记忆则只说忘记了）。' },
       { name: '法医', desc: '第一夜不出门。从第二夜起出门前往上一案发现场，并在下个白天公布死者真实身份。' },
       { name: '守卫', desc: '每夜出门拜访一人进行保护。若该人被狼袭击则狼刀被挡下（平安夜）。可自保；不能连续两夜保护同一人。' },
@@ -78,7 +85,7 @@ const ROLE_DECK = [
   {
     group: '坏人阵营',
     roles: [
-      { name: '狼人', desc: '每夜出门刀杀一人，可杀任何人（即使对方在家）。首夜不能刀文员。死后由帮凶或酒鬼继承狼人身份。发言时必须伪装成好人身份，绝不能承认刀人。' },
+      { name: '狼人', desc: '每夜出门刀杀一人，可杀任何人（即使对方在家）。首夜不能刀文员。死后由仍存活的坏人阵营继承狼人身份。' },
       { name: '帮凶', desc: '每夜出门拜访一人（可扰乱视线）。知道狼人是谁，可为其掩护或栽赃他人。狼人死后接任狼人。' },
       { name: '酒鬼', desc: '不出门，待在家中喝酒。拜访他的人会被迷醉（本夜技能无效，发言只剩「忘记了」）。狼人死后接任狼人。' },
     ],
@@ -220,6 +227,12 @@ watch(() => state.history.length, scrollToBottom);
           <span class="player-name" title="点击标记你推测的身份" @click="markOpenId = markOpenId === p.id ? '' : p.id">
             {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="d.roles ? (markHit(p) ? 'hit' : 'miss') : ''">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
           </span>
+          <button
+            class="mark-toggle"
+            :class="{ active: markOpenId === p.id, marked: !!marks[p.id] }"
+            :title="marks[p.id] ? '修改「' + p.name + '」的标记' : '标记「' + p.name + '」推测的身份'"
+            @click="markOpenId = markOpenId === p.id ? '' : p.id"
+          >🏷 {{ marks[p.id] ? '已标记' : '标记' }}</button>
           <span class="player-status">{{ p.alive ? '存活' : '出局' }}</span>
         </div>
         <!-- 标记选择面板：点击玩家名展开 -->
@@ -242,7 +255,7 @@ watch(() => state.history.length, scrollToBottom);
           <span class="death-round">第{{ dd.round }}天</span>
           <span class="death-name">{{ dd.name }}</span>
           <span class="death-cause">{{ dd.cause === 'execute' ? '被处刑' : '夜里遇害' }}</span>
-          <b v-if="dd.role" :class="dd.role === '狼人' ? 'role-wolf' : 'role-good'">{{ dd.role }}</b>
+          <b v-if="dd.role" :class="roleClass(dd.role)">{{ dd.role }}</b>
         </div>
       </div>
 
@@ -251,7 +264,7 @@ watch(() => state.history.length, scrollToBottom);
         <h3>身份复盘</h3>
         <div v-for="(r, i) in d.roles" :key="i" class="reveal-row">
           <span>{{ r.name }}</span>
-          <b :class="r.role === '狼人' ? 'role-wolf' : 'role-good'">{{ r.role }}</b>
+          <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}<span v-if="r.roleBackup" class="reveal-turned">（第{{ r.turnedRound || '?' }}夜变身狼人）</span></b>
         </div>
       </div>
 
@@ -507,6 +520,20 @@ watch(() => state.history.length, scrollToBottom);
 .player-status { font-size: 12px; color: var(--text-dim); }
 .player-name { cursor: pointer; }
 .player-name:hover { color: var(--accent-2); }
+.mark-toggle {
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.mark-toggle:hover { color: var(--accent-2); border-color: var(--accent); }
+.mark-toggle.active { color: var(--accent); border-color: var(--accent); }
+.mark-toggle.marked { color: var(--accent); }
 .player-mark {
   margin-left: 6px;
   font-size: 12px;
@@ -550,7 +577,9 @@ watch(() => state.history.length, scrollToBottom);
 .death-name { color: var(--text); }
 .death-cause { color: var(--text-dim); font-size: 12px; }
 .role-wolf { color: var(--danger); font-weight: 600; font-size: 12px; }
+.role-neutral { color: #58a6ff; font-weight: 600; font-size: 12px; }
 .role-good { color: #8d8; font-weight: 600; font-size: 12px; }
+.reveal-turned { font-size: 11px; color: var(--text-dim); font-weight: 400; }
 
 .reveal {
   border-top: 1px dashed var(--border);
