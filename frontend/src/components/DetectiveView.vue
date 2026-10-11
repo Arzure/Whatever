@@ -1101,7 +1101,7 @@ watch(phase, (p) => {
   text-align: center;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 768px) {
   .game {
     grid-template-columns: 1fr;
   }

@@ -413,4 +413,34 @@ const canStart = computed(() => {
   font-style: normal;
   color: var(--accent-2);
 }
+/* 移动端适配：收紧间距、触控目标 ≥44px、输入框 16px 防 iOS 聚焦自动放大 */
+@media (max-width: 768px) {
+  .home-card {
+    padding: 20px 16px;
+    margin: 16px auto;
+    width: min(520px, 94vw);
+  }
+  .title {
+    font-size: 26px;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    margin: 8px 0 18px;
+  }
+  .block {
+    margin-bottom: 16px;
+  }
+  .mode-card {
+    padding: 12px 16px;
+    min-height: 44px;
+  }
+  .theme-card {
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+  .home-card input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
 </style>

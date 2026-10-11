@@ -7,6 +7,8 @@ const { submitAction, backToHome, restart, useItem, discardItem, equipItem, uneq
 
 const input = ref('');
 const messagesEl = ref(null);
+// 手机端背包折叠状态（默认收起，点按展开；桌面端始终展开）
+const invOpen = ref(false);
 
 // 由世界观 capabilities 驱动界面（是否战斗、启用哪些数值、有哪些装备槽）
 const caps = computed(() => state.theme?.capabilities || { statSchema: ['hp'], slots: [], itemCategories: ['item'], hasCombat: true });
@@ -110,8 +112,8 @@ watch(() => state.history.length, scrollToBottom);
       </div>
 
       <!-- 背包 -->
-      <div v-if="hasItem" class="inventory">
-        <h3>背包</h3>
+      <div v-if="hasItem" class="inventory" :class="{ open: invOpen }">
+        <h3 @click="invOpen = !invOpen">背包 <span class="inv-toggle">{{ invOpen ? '收起' : '展开' }}</span></h3>
         <ul>
           <li v-for="item in state.player.inventory" :key="item" class="inv-item">
             <span>{{ item }}</span>
@@ -569,8 +571,12 @@ watch(() => state.history.length, scrollToBottom);
   margin-top: 12px;
   text-align: center;
 }
+/* 背包折叠开关：仅手机端显示 */
+.inv-toggle {
+  display: none;
+}
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .game {
     grid-template-columns: 1fr;
   }
@@ -580,8 +586,28 @@ watch(() => state.history.length, scrollToBottom);
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
+  /* 背包：折叠面板（点按展开），功能完整保留，不再隐藏 */
   .inventory {
+    flex: 1 1 100%;
+    border-top: 1px solid var(--border);
+  }
+  .inventory h3 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .inv-toggle {
+    display: inline;
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .inventory ul {
     display: none;
+  }
+  .inventory.open ul {
+    display: block;
   }
   .battle-flag {
     margin-top: 0;

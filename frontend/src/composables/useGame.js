@@ -55,7 +55,8 @@ export function useGame() {
     try {
       state.saves = await api.listSaves();
     } catch (e) {
-      state.error = e.message;
+      // 401（口令未验证/过期）不写入页面错误：由门禁组件负责引导输入口令
+      if (e.status !== 401) state.error = e.message;
     }
   }
 
@@ -70,7 +71,8 @@ export function useGame() {
       state.themes = themes;
       state.genres = genres;
     } catch (e) {
-      state.error = e.message;
+      // 401（口令未验证/过期）不写入页面错误：由门禁组件负责引导输入口令
+      if (e.status !== 401) state.error = e.message;
     }
   }
 

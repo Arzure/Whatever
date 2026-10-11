@@ -407,4 +407,26 @@ watch(() => state.history.length, scrollToBottom);
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* 移动端适配：侧栏改顶部通栏，触控目标 ≥44px */
+@media (max-width: 768px) {
+  .game {
+    flex-direction: column;
+  }
+  .side-panel {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .wolf-players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .player-row {
+    flex: 1 1 45%;
+  }
+  .btn {
+    min-height: 44px;
+  }
+}
 </style>

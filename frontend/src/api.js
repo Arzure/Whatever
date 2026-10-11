@@ -1,12 +1,60 @@
 /** 后端 API 薄封装：统一处理 JSON、错误信息与请求头。 */
 
+const TOKEN_KEY = 'rpg_access_token';
+// 口令有效期：24 小时（毫秒）。过期后自动清除，需重新输入
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 读取本地保存的访问口令（无则空串）。
+ * 存储结构：{ token, savedAt }。超过 24 小时自动清除并返回空串。
+ * 旧格式（纯字符串，无时间戳）视为已过期，同样清除，确保升级后重新验证。
+ */
+export function getAccessToken() {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return '';
+    let record;
+    try {
+      record = JSON.parse(raw);
+    } catch {
+      record = null;
+    }
+    // 结构不合法或已过期：清除并要求重新输入
+    if (!record || typeof record.token !== 'string' || Date.now() - record.savedAt > TOKEN_TTL_MS) {
+      localStorage.removeItem(TOKEN_KEY);
+      return '';
+    }
+    return record.token;
+  } catch {
+    return '';
+  }
+}
+
+/** 保存访问口令到本地（带时间戳，24 小时内免输入） */
+export function setAccessToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, savedAt: Date.now() }));
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function request(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const token = getAccessToken();
+  if (token) headers['X-Access-Token'] = token;
   const res = await fetch(`/api${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...opts,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `请求失败 (${res.status})`);
+  if (!res.ok) {
+    // 抛错时附带 HTTP 状态码，供调用方（如口令门禁）按状态码判断，而非依赖文案关键词
+    const err = new Error(data.error || `请求失败 (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
