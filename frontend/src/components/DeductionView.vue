@@ -20,6 +20,13 @@ function roleClass(role) {
   if (NEUTRAL_ROLES.includes(role)) return 'role-neutral';
   return 'role-good';
 }
+// 阵营标记选项（不确定具体角色时，可只标记阵营）
+const CAMP_MARKS = ['好人', '中立', '坏人'];
+function campOfRole(role) {
+  if (EVIL_ROLES.includes(role)) return '坏人';
+  if (NEUTRAL_ROLES.includes(role)) return '中立';
+  return '好人';
+}
 function loadMarks() {
   try {
     marks.value = JSON.parse(localStorage.getItem(MARK_KEY.value) || '{}');
@@ -43,12 +50,17 @@ function clearMark(pid) {
   delete marks.value[pid];
   saveMarks();
 }
-// 终局对比：标记与真实身份（含变身前原身份）任一匹配即命中
+// 终局对比：角色标记与真实身份（含变身前原身份）任一匹配即命中；阵营标记与真实阵营匹配即命中
 function markHit(p) {
   const roles = d.value.roles;
-  if (!roles || !marks.value[p.id]) return false;
+  const mark = marks.value[p.id];
+  if (!roles || !mark) return false;
   const real = roles.find((r) => r.name === p.name);
-  return !!real && (real.role === marks.value[p.id] || (real.roleBackup && real.roleBackup === marks.value[p.id]));
+  if (!real) return false;
+  if (CAMP_MARKS.includes(mark)) {
+    return campOfRole(real.role) === mark || (real.roleBackup && campOfRole(real.roleBackup) === mark);
+  }
+  return real.role === mark || (real.roleBackup && real.roleBackup === mark);
 }
 watch(() => state.gameId, loadMarks, { immediate: true });
 
@@ -269,7 +281,7 @@ watch(() => state.history.length, scrollToBottom);
           :class="{ dead: !p.alive }"
         >
           <span class="player-name" title="点击标记你推测的身份" @click="markOpenId = markOpenId === p.id ? '' : p.id">
-            {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="d.roles ? (markHit(p) ? 'hit' : 'miss') : ''">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
+            {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="[roleClass(marks[p.id]), d.roles ? (markHit(p) ? 'hit' : 'miss') : '']">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
           </span>
           <button
             class="mark-toggle"
@@ -282,10 +294,17 @@ watch(() => state.history.length, scrollToBottom);
         <!-- 标记选择面板：点击玩家名展开 -->
         <div v-if="markOpenId" class="mark-panel">
           <button
+            v-for="c in CAMP_MARKS"
+            :key="c"
+            class="mark-btn"
+            :class="[roleClass(c), { active: marks[markOpenId] === c }]"
+            @click="toggleMark(markOpenId, c)"
+          >{{ c }}</button>
+          <button
             v-for="r in ALL_ROLES"
             :key="r"
             class="mark-btn"
-            :class="{ active: marks[markOpenId] === r }"
+            :class="[roleClass(r), { active: marks[markOpenId] === r }]"
             @click="toggleMark(markOpenId, r)"
           >{{ r }}</button>
           <button class="mark-btn clear" @click="clearMark(markOpenId); markOpenId = ''">清除</button>
@@ -587,6 +606,11 @@ watch(() => state.history.length, scrollToBottom);
   font-size: 12px;
   color: var(--accent);
 }
+.player-mark.role-good { color: #8d8; }
+.player-mark.role-neutral { color: #58a6ff; }
+.player-mark.role-wolf { color: var(--danger); }
+.player-mark.hit { color: #3fb950 !important; }
+.player-mark.miss { color: #d9524e !important; }
 .player-mark.hit { color: #3fb950; }
 .player-mark.miss { color: #d9524e; }
 .mark-panel {
