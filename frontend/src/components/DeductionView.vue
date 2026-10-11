@@ -14,7 +14,12 @@ const markOpenId = ref('');
 const MARK_KEY = computed(() => `rpg_marks_${state.gameId || ''}`);
 const NEUTRAL_ROLES = ['赌徒', '小偷', '庸医', '间谍'];
 const EVIL_ROLES = ['狼人', '帮凶', '酒鬼', '小丑', '术士'];
-const ALL_ROLES = computed(() => (d.value.board === 'advanced' ? ADV_ROLES : BASE_ROLES));
+const CAMP_ORDER = { 好人: 0, 中立: 1, 坏人: 2 };
+// 角色标记按阵营归类排列：好人 → 中立 → 坏人，同类阵营放在一起
+const ALL_ROLES = computed(() => {
+  const roles = d.value.board === 'advanced' ? ADV_ROLES : BASE_ROLES;
+  return [...roles].sort((a, b) => CAMP_ORDER[campOfRole(a)] - CAMP_ORDER[campOfRole(b)]);
+});
 function roleClass(role) {
   if (EVIL_ROLES.includes(role)) return 'role-wolf';
   if (NEUTRAL_ROLES.includes(role)) return 'role-neutral';
