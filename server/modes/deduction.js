@@ -976,8 +976,8 @@ function buildRoleKnowledge(game, p) {
     case 'villager': {
       const visitors = night.visitedBy[p.id] || [];
       if (visitors.length) {
-        const vs = visitors.map((r) => ROLES[r]);
-        lines.push(`昨夜有人来访过你：${vs.join('、')}。除此之外你整夜在家。`);
+        // 村民只知道「有人来过」，绝不能知道来者是谁/是什么身份——那会直接暴露来访者（如小丑）
+        lines.push(`昨夜${visitors.length > 1 ? '有几个人先后来访过你' : '有人来访过你'}，天黑看不清来者是谁、是什么身份。除此之外你整夜在家。`);
       } else {
         lines.push(`你昨夜整夜在家，无人来访。`);
       }
