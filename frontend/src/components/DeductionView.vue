@@ -7,6 +7,108 @@ const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject(
 const messagesEl = ref(null);
 const showRoles = ref(false);
 
+// —— 阅读重点强化：发言者着色 + 关键词标记 + 按天分组 ——
+// 每位玩家固定颜色（按玩家序号取色，全流一致）
+const PLAYER_COLORS = ['#58a6ff', '#f0883e', '#3fb950', '#db61a2', '#d29922', '#a371f7', '#39c5cf', '#ff7b72', '#7ee787', '#ffa657'];
+function playerColor(name) {
+  const idx = (d.value.players || []).findIndex((p) => p.name === name);
+  return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : '#e6edf3';
+}
+// 关键词标记：把发言文本解析为富文本片段（身份声明加粗 / 线索强调 / 质疑警示）
+const CLAIM_RE = /我是(文员|侦探|村民|法医|守卫|赌徒|小偷|狼人|帮凶|酒鬼|观者|邮差|行者|庸医|间谍|小丑|术士)/g;
+const CLUE_RE = /(曾外出活动|没有外出活动|呆在家中|整夜在家|验明了?死者[^。]{0,12}的真实身份|阵营是[^。]{0,6}|探得[^。]{0,8}阵营|探明[^。]{0,10}身份|守护了|保护了|送了一封信|递了一碗药|猜了[^。]{0,8}的阵营)/g;
+const DOUBT_RE = /(撒谎|伪装|假冒|对不上|冲突|矛盾|不可能有两人|不可能两人|身份对跳|质疑|留意)/g;
+function parseSpeech(text) {
+  const segments = [];
+  let last = 0;
+  const marks = [];
+  let m;
+  CLAIM_RE.lastIndex = 0;
+  while ((m = CLAIM_RE.exec(text)) !== null) marks.push({ s: m.index, e: m.index + m[0].length, cls: 'mk-claim' });
+  CLUE_RE.lastIndex = 0;
+  while ((m = CLUE_RE.exec(text)) !== null) marks.push({ s: m.index, e: m.index + m[0].length, cls: 'mk-clue' });
+  DOUBT_RE.lastIndex = 0;
+  while ((m = DOUBT_RE.exec(text)) !== null) marks.push({ s: m.index, e: m.index + m[0].length, cls: 'mk-doubt' });
+  marks.sort((a, b) => a.s - b.s);
+  for (const mk of marks) {
+    if (mk.s < last) continue; // 重叠标记跳过（前面的优先）
+    if (mk.s > last) segments.push({ text: text.slice(last, mk.s) });
+    segments.push({ text: text.slice(mk.s, mk.e), cls: mk.cls });
+    last = mk.e;
+  }
+  if (last < text.length) segments.push({ text: text.slice(last) });
+  return segments;
+}
+// 发言者名字：解析「名字」：前缀
+function parseSpeaker(text) {
+  const m = text.match(/^「([^」]+)」：/);
+  return m ? { name: m[1], rest: text.slice(m[0].length) } : null;
+}
+// 按天分组：把历史记录拆成『天』的数组（发言叙事按天分隔，其他记录归入当天）
+const dayGroups = computed(() => {
+  const groups = [];
+  let cur = null;
+  for (const msg of state.history || []) {
+    const content = String(msg.content || '');
+    const dm = content.match(/^—— 第 (\d+) 天 ——/);
+    if (dm) {
+      cur = { day: Number(dm[1]), msgs: [] };
+      groups.push(cur);
+      cur.msgs.push(msg);
+      continue;
+    }
+    if (content.startsWith('天亮了')) {
+      if (!cur) { cur = { day: groups.length + 1, msgs: [] }; groups.push(cur); }
+      cur.msgs.push(msg);
+      continue;
+    }
+    if (cur) cur.msgs.push(msg);
+    else { cur = { day: 1, msgs: [] }; groups.push(cur); cur.msgs.push(msg); }
+  }
+  return groups;
+});
+// 历史天默认折叠（未展开且非最近一天），最近一天始终展开；点击标题切换
+const expandedDays = ref(new Set());
+function expandDay(day) { expandedDays.value = new Set([...expandedDays.value, day]); }
+function toggleDay(day) {
+  const s = new Set(expandedDays.value);
+  if (s.has(day)) s.delete(day); else s.add(day);
+  expandedDays.value = s;
+}
+// 死讯折叠：默认只显示最近两条，点击展开全部
+const showAllDeaths = ref(false);
+
+// —— 矛盾自动标注：检测发言中的身份对跳（同一身份被多人声明） ——
+// 返回该发言者声明身份的对跳对手名单（无对跳返回空数组）
+function claimConflictsOf(name) {
+  const claims = d.value.claims || [];
+  const mine = claims.find((c) => c.name === name);
+  if (!mine) return [];
+  return claims.filter((c) => c.playerId !== mine.playerId && c.claimed === mine.claimed).map((c) => c.name);
+}
+
+// —— 回到底部悬浮按钮 ——
+const showBackBottom = ref(false);
+function onMessagesScroll() {
+  const el = messagesEl.value;
+  if (!el) return;
+  showBackBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight > el.clientHeight;
+}
+function scrollToLatest() {
+  const el = messagesEl.value;
+  if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+}
+
+// —— 移动端底部抽屉：覆盖式面板，页面不滚动、阅读位置保持不变 ——
+const drawer = ref(''); // '' | players | claims | roles
+function openDrawer(name) {
+  drawer.value = name;
+  if (name === 'roles') showRoles.value = true; // 角色说明抽屉默认展开能力卡
+}
+function closeDrawer() {
+  drawer.value = '';
+}
+
 // —— 玩家标记（推测身份笔记）：仅存本地浏览器、按游戏隔离，不上传服务器、不影响游戏逻辑 ——
 const BASE_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '赌徒', '小偷', '狼人', '帮凶', '酒鬼'];
 const ADV_ROLES = [...BASE_ROLES, '观者', '邮差', '行者', '庸医', '间谍', '小丑', '术士'];
@@ -244,7 +346,7 @@ watch(() => state.history.length, scrollToBottom);
 </script>
 
 <template>
-  <div class="game">
+  <div class="game" :class="{ 'drawer-open': drawer }">
     <!-- 左侧：法官状态 + 存活玩家 + 死讯 -->
     <aside class="side-panel">
       <div class="panel-head">
@@ -264,7 +366,7 @@ watch(() => state.history.length, scrollToBottom);
       </div>
 
       <!-- 角色卡（可展开） -->
-      <div class="roledeck">
+      <div id="sec-roles" class="roledeck">
         <button class="deck-toggle" @click="showRoles = !showRoles">
           📖 角色能力说明 {{ showRoles ? '▲' : '▼' }}
         </button>
@@ -288,7 +390,7 @@ watch(() => state.history.length, scrollToBottom);
       </div>
 
       <!-- 自称身份速记 -->
-      <div v-if="(d.claims || []).length" class="claims">
+      <div v-if="(d.claims || []).length" id="sec-claims" class="claims">
         <h3>自称身份</h3>
         <div v-for="c in d.claims" :key="c.playerId" class="claim-row" :class="{ conflict: isConflict(c.name) }">
           <span class="claim-name">{{ c.name }}</span>
@@ -302,7 +404,7 @@ watch(() => state.history.length, scrollToBottom);
       </div>
 
       <!-- 玩家列表 -->
-      <div class="players">
+      <div id="sec-players" class="players">
         <h3>在场者</h3>
         <div
           v-for="p in d.players || []"
@@ -347,14 +449,26 @@ watch(() => state.history.length, scrollToBottom);
         </div>
       </div>
 
-      <!-- 死讯 -->
+      <!-- 死讯（默认折叠，显示最近两条） -->
       <div v-if="(d.deaths || []).length" class="deaths">
-        <h3>死讯记录</h3>
-        <div v-for="(dd, i) in d.deaths" :key="i" class="death-row">
-          <span class="death-round">第{{ dd.round }}天</span>
-          <span class="death-name">{{ dd.name }}</span>
-          <span class="death-cause">{{ dd.cause === 'execute' ? '被处刑' : '夜里遇害' }}</span>
-          <b v-if="dd.role" :class="roleClass(dd.role)">{{ dd.role }}</b>
+        <button class="day-toggle" @click="showAllDeaths = !showAllDeaths">
+          ⚰️ 死讯记录 <span class="day-count">（共 {{ d.deaths.length }} 条）</span> {{ showAllDeaths ? '▲' : '▼' }}
+        </button>
+        <div v-if="showAllDeaths" class="death-list">
+          <div v-for="(dd, i) in d.deaths" :key="i" class="death-row">
+            <span class="death-round">第{{ dd.round }}天</span>
+            <span class="death-name">{{ dd.name }}</span>
+            <span class="death-cause">{{ dd.cause === 'execute' ? '被处刑' : '夜里遇害' }}</span>
+            <b v-if="dd.role" :class="roleClass(dd.role)">{{ dd.role }}</b>
+          </div>
+        </div>
+        <div v-else class="death-list">
+          <div v-for="(dd, i) in d.deaths.slice(-2)" :key="i" class="death-row">
+            <span class="death-round">第{{ dd.round }}天</span>
+            <span class="death-name">{{ dd.name }}</span>
+            <span class="death-cause">{{ dd.cause === 'execute' ? '被处刑' : '夜里遇害' }}</span>
+            <b v-if="dd.role" :class="roleClass(dd.role)">{{ dd.role }}</b>
+          </div>
         </div>
       </div>
 
@@ -379,15 +493,130 @@ watch(() => state.history.length, scrollToBottom);
       <button v-if="state.gameOver" class="btn primary full" @click="restart">再开一局</button>
     </aside>
 
+    <!-- 回到底部悬浮按钮：滚动距底部超一屏时浮现 -->
+    <button v-if="showBackBottom" class="back-bottom" @click="scrollToLatest">↓ 最新</button>
+
+    <!-- 移动端：吸顶摘要条（天数/存活/阶段，随时可见） -->
+    <div class="mobile-summary">
+      <span>第 {{ d.round || 1 }} 天</span>
+      <span>存活 {{ d.aliveCount || 0 }}/{{ (d.players || []).length }}</span>
+      <span class="ms-phase">{{ PHASE_TEXT[phase] || phase }}</span>
+    </div>
+
+    <!-- 移动端：底部悬浮工具栏（打开覆盖式抽屉，页面不滚动） -->
+    <nav class="mobile-dock">
+      <button :class="{ on: drawer === 'players' }" @click="openDrawer('players')">👥 在场者</button>
+      <button :class="{ on: drawer === 'claims' }" @click="openDrawer('claims')">🗣 自称身份</button>
+      <button :class="{ on: drawer === 'roles' }" @click="openDrawer('roles')">📖 角色说明</button>
+    </nav>
+
+    <!-- 移动端：底部抽屉（覆盖层，关闭后阅读位置不变） -->
+    <div v-if="drawer" class="drawer-mask" @click="closeDrawer"></div>
+    <div v-if="drawer" class="drawer-panel">
+      <div class="drawer-head">
+        <h3>{{ drawer === 'players' ? '在场者' : drawer === 'claims' ? '自称身份' : '角色能力说明' }}</h3>
+        <button class="drawer-close" @click="closeDrawer">收起 ▼</button>
+      </div>
+      <div class="drawer-body">
+        <!-- 在场者（含标记功能） -->
+        <template v-if="drawer === 'players'">
+          <div
+            v-for="p in d.players || []"
+            :key="p.id"
+            class="player-row"
+            :class="{ dead: !p.alive }"
+          >
+            <span class="player-name" title="点击标记你推测的身份" @click="markOpenId = markOpenId === p.id ? '' : p.id">
+              {{ p.name }}<span v-if="marks[p.id]" class="player-mark" :class="[markClass(marks[p.id]), d.roles ? (markHit(p) ? 'hit' : 'miss') : '']">{{ marks[p.id] }}{{ d.roles ? (markHit(p) ? ' ✓' : ' ✗') : '' }}</span>
+            </span>
+            <button
+              class="mark-toggle"
+              :class="{ active: markOpenId === p.id, marked: !!marks[p.id] }"
+              @click="markOpenId = markOpenId === p.id ? '' : p.id"
+            >🏷 {{ marks[p.id] ? '已标记' : '标记' }}</button>
+            <span class="player-status">{{ p.alive ? '存活' : '出局' }}</span>
+          </div>
+          <div v-if="markOpenId" class="mark-panel">
+            <div class="mark-row">
+              <span class="mark-row-label">阵营</span>
+              <button
+                v-for="c in CAMP_MARKS"
+                :key="c"
+                class="mark-btn"
+                :class="[markClass(c), { active: marks[markOpenId] === c }]"
+                @click="toggleMark(markOpenId, c)"
+              >{{ c }}</button>
+            </div>
+            <div class="mark-row">
+              <span class="mark-row-label">角色</span>
+              <button
+                v-for="r in ALL_ROLES"
+                :key="r"
+                class="mark-btn"
+                :class="[markClass(r), { active: marks[markOpenId] === r }]"
+                @click="toggleMark(markOpenId, r)"
+              >{{ r }}</button>
+            </div>
+            <button class="mark-btn clear" @click="clearMark(markOpenId); markOpenId = ''">清除</button>
+          </div>
+        </template>
+        <!-- 自称身份 -->
+        <template v-else-if="drawer === 'claims'">
+          <div v-for="c in d.claims || []" :key="c.playerId" class="claim-row" :class="{ conflict: isConflict(c.name) }">
+            <span class="claim-name">{{ c.name }}</span>
+            <b class="claim-role">{{ c.claimed || '未声明' }}</b>
+          </div>
+          <div v-if="Object.keys(claimConflicts).length" class="conflict-hint">
+            <span v-for="(names, role) in claimConflicts" :key="role" class="conflict-tag">
+              {{ role }}：{{ names.join(' vs ') }}
+            </span>
+          </div>
+          <p v-if="!(d.claims || []).length" class="drawer-empty">暂无人声明身份</p>
+        </template>
+        <!-- 角色能力说明 -->
+        <template v-else>
+          <div v-for="g in deckGroups" :key="g.group" class="deck-group">
+            <div class="deck-group-label">{{ g.group }}</div>
+            <div
+              v-for="r in g.roles"
+              :key="r.name"
+              class="deck-role"
+              :class="{ inalive: hasRole(r.name) }"
+            >
+              <div class="deck-role-head">
+                <b>{{ r.name }}</b>
+                <span v-if="hasRole(r.name)" class="in-tag">本局</span>
+              </div>
+              <p class="deck-desc">{{ r.desc }}</p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- 主区：发言流 + 裁决面板 -->
     <main class="main-panel">
-      <div class="messages" ref="messagesEl">
-        <div
-          v-for="(msg, i) in state.history"
-          :key="i"
-          class="msg assistant"
-        >
-          <div class="msg-content">{{ msg.content }}</div>
+      <div class="messages" ref="messagesEl" @scroll="onMessagesScroll">
+        <div v-for="g in dayGroups" :key="g.day" class="day-group">
+          <button class="day-toggle" @click="toggleDay(g.day)">
+            📅 第 {{ g.day }} 天 <span class="day-count">（{{ g.msgs.length }} 条）</span> {{ expandedDays.has(g.day) || g.day === (dayGroups[dayGroups.length - 1] && dayGroups[dayGroups.length - 1].day) ? '▼' : '▸' }}
+          </button>
+          <div v-if="expandedDays.has(g.day) || g.day === (dayGroups[dayGroups.length - 1] && dayGroups[dayGroups.length - 1].day)">
+            <div
+              v-for="(msg, i) in g.msgs"
+              :key="g.day + '-' + i"
+              class="msg assistant"
+            >
+              <div class="msg-content">
+                <template v-if="parseSpeaker(msg.content)">
+                  <span class="speaker" :style="{ color: playerColor(parseSpeaker(msg.content).name) }">「{{ parseSpeaker(msg.content).name }}」：</span><template v-for="(seg, j) in parseSpeech(parseSpeaker(msg.content).rest)" :key="j"><span v-if="seg.cls" :class="seg.cls">{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template><span v-if="claimConflictsOf(parseSpeaker(msg.content).name).length" class="conflict-flag" :title="'与 ' + claimConflictsOf(parseSpeaker(msg.content).name).join('、') + ' 身份对跳'">⚠ 对跳</span>
+                </template>
+                <template v-else>
+                  <template v-for="(seg, j) in parseSpeech(msg.content)" :key="j"><span v-if="seg.cls" :class="seg.cls">{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template>
+                </template>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-if="state.loading" class="msg assistant">
           <div class="msg-content loading-text">大家正在发言…</div>
@@ -401,7 +630,7 @@ watch(() => state.history.length, scrollToBottom);
         <button class="btn listen-btn" :disabled="disabled" @click="listenSpeeches">
           {{ state.loading ? '正在听取发言…' : '🗣️ 听取所有存活者发言' }}
         </button>
-        <p class="listen-hint">法官无需发言，点击按钮即可听取在场所有人的陈述。</p>
+        <p class="listen-hint">{{ state.loading ? '大家正在依次陈述，约需 10~20 秒，请稍候…' : '法官无需发言，点击按钮即可听取在场所有人的陈述。' }}</p>
       </div>
 
       <!-- 裁决面板 -->
@@ -757,11 +986,85 @@ watch(() => state.history.length, scrollToBottom);
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 14px;
-  line-height: 1.7;
+  line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
   background: var(--panel-2);
   border: 1px solid var(--border);
+}
+
+/* —— 回到底部悬浮按钮 —— */
+.back-bottom {
+  position: fixed;
+  right: 18px;
+  bottom: 84px;
+  z-index: 35;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(22, 27, 34, 0.95);
+  color: var(--accent-2);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  min-height: 40px;
+}
+.back-bottom:hover {
+  border-color: var(--accent);
+}
+
+/* —— 阅读重点强化：发言者着色 / 关键词标记 / 天分组 —— */
+.speaker {
+  font-weight: 700;
+}
+.mk-claim {
+  font-weight: 700;
+  color: var(--accent-2);
+}
+.mk-clue {
+  color: #58a6ff;
+}
+.mk-doubt {
+  color: #f0883e;
+}
+.day-group {
+  margin-bottom: 6px;
+}
+.day-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 6px;
+  min-height: 40px;
+}
+.day-toggle:hover {
+  border-color: var(--accent);
+}
+.day-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+.conflict-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid #f0883e;
+  color: #f0883e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: help;
+  vertical-align: 1px;
 }
 .loading-text {
   color: var(--text-dim);
@@ -894,8 +1197,131 @@ watch(() => state.history.length, scrollToBottom);
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* 移动端快捷导航：吸顶摘要 + 底部工具栏 + 抽屉（桌面端隐藏） */
+.mobile-summary,
+.mobile-dock,
+.drawer-mask,
+.drawer-panel {
+  display: none;
+}
+
 /* 移动端适配：侧栏改顶部通栏，触控目标 ≥44px */
 @media (max-width: 768px) {
+  .mobile-summary {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    background: rgba(22, 27, 34, 0.95);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .ms-phase {
+    color: var(--accent-2);
+  }
+  .mobile-dock {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: rgba(22, 27, 34, 0.97);
+    border-top: 1px solid var(--border);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .mobile-dock button {
+    flex: 1;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    margin: 0 4px;
+  }
+  .mobile-dock button:active,
+  .mobile-dock button.on {
+    border-color: var(--accent);
+    color: var(--accent-2);
+  }
+  /* 底部抽屉：覆盖式面板，页面不滚动，关闭后阅读位置不变 */
+  .drawer-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .drawer-panel {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    max-height: 62vh;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
+    animation: drawer-up 0.22s ease-out;
+  }
+  @keyframes drawer-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .drawer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .drawer-head h3 {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .drawer-close {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 32px;
+  }
+  .drawer-body {
+    overflow-y: auto;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+  .drawer-empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+    margin: 20px 0;
+  }
+  /* 移动端主界面精简：与抽屉重复的区块（角色说明/自称身份/在场者）不再显示，发言流成为主体 */
+  .roledeck,
+  .claims,
+  .players {
+    display: none;
+  }
+  /* 底部工具栏不遮挡主区内容 */
+  .main-panel {
+    padding-bottom: 72px;
+  }
   .game {
     flex-direction: column;
   }
