@@ -15,7 +15,10 @@ const PORT = process.env.PORT || 3001;
 
 app.use(express.json({ limit: '64kb' }));
 
-// 极简 CORS（开发环境 Vite 在 5173 端口）
+// CORS：Access-Control-Allow-Origin 取 FRONTEND_ORIGIN（默认 localhost:5173）。
+// 注意：开发模式下前端走 Vite 代理（浏览器只与 5173 同源通信，/api 由 Vite 转发到 3001），
+// 浏览器层面不跨域、不触发 CORS，此配置并非开发模式必需。
+// 它仅在「前端绕过代理、浏览器直连 3001」的场景下生效（如本地调试脚本直连后端）。
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || 'http://localhost:5173');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');

@@ -83,10 +83,7 @@ export function useGame() {
 
   // ---------- 开始 / 读档 ----------
   async function startGame({ playerName, mode, theme, genre, board }) {
-    if (!playerName) {
-      state.error = '请输入你的冒险者名字';
-      return;
-    }
+    // 名称可选：留空时由服务端使用各模式默认名（法官/村民甲/无名侦探/无名冒险者）
     state.error = '';
     state.loading = true;
     try {
