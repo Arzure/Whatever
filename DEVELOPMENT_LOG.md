@@ -863,5 +863,39 @@ frontend DeductionView.vue
 | [README.md](../README.md) | 推理杀章节标记说明补充角色按阵营分组排列 |
 | [TECH_DOC.md](../TECH_DOC.md) | 推理杀前端说明补充角色标记按阵营归类 |
 
+## 2026-10-12 · 玩家账号体系与存档隔离（SQLite + JWT）
+### 背景与目标
+此前所有玩家共享全局存档空间：凭访问口令即可读写删任意存档，存在越权风险；推理杀的推测身份标记仅存浏览器本地，换设备即丢失。目标：一次性建成正式账号体系——每个登录玩家拥有自己的存档空间，互不可见；标记云端同步。
+### 改动清单
+| # | 改动 | 说明 |
+|---|------|------|
+| 1 | 存储层切换 SQLite | 新增 better-sqlite3 依赖；users（id/username/password_hash/created_at，用户名唯一索引）与 saves（id/user_id/mode/data/created_at/updated_at，user_id+updated_at 索引）两表；WAL 模式；原 listSaves/saveGame/loadGame/deleteGame 接口签名兼容，新增 userId 归属参数与 countSaves/getSaveOwner |
+| 2 | 认证模块（无第三方依赖） | JWT 以 HMAC-SHA256 自实现（Node 内置 crypto）；密钥自动生成写入 .env；有效期 7 天；密码 scrypt 加盐哈希（salt:hash 格式，timingSafeEqual 比对）；登录失败限速：5 次失败锁定 10 分钟 |
+| 3 | 账号接口 | POST /api/auth/register（用户名 2-16 位字母数字下划线中文、密码 6-64 位校验，注册即登录）、POST /api/auth/login、GET /api/auth/me |
+| 4 | 存档归属校验 | /api/saves 仅返回本人存档；新建对局写入归属并限 20 个/人；findGame 统一校验归属，他人存档返回 404（不暴露存在性）；删除仅限本人；未登录返回 401 |
+| 5 | 标记云端同步 | 新增 GET/POST /api/games/:id/marks（随存档保存，复用归属校验，值仅限 20 字符内字符串）；前端加载时本地缓存先渲染、云端拉取覆盖，修改后本地+云端双写，云端失败不影响本地使用 |
+| 6 | 前端登录页 | 新增 LoginView（登录/注册切换、回车提交、错误提示）；App.vue 接入：口令门禁通过后未登录显示登录页，登录后顶部栏显示用户名与退出登录；本地令牌启动时向后端校验有效性，过期自动清除 |
+| 7 | CORS 头补充 | 允许 Authorization 头跨域 |
+### 实测验证
+- 注册/重复注册拦截/登录/错误密码 401/令牌过期清除：全部通过
+- 隔离验证：玩家 A 创建对局后，玩家 B 存档列表为空、直接访问 A 的存档返回 404、未登录访问返回 401
+- 对局流程：登录态创建推理杀对局、听取发言推进、删除存档：全部正常
+- 标记同步：保存 {p1:狼人, p2:好人} 后读取一致
+- 前端构建上线：页面加载新产物，登录页正常展示
+### 遗留说明
+- data/ 下尚有一个切换存储前的旧 JSON 存档（mv4g7jhp-7yxx.json，2026-10-12 07:22 创建），新系统不读取，待确认后迁移或清理
+- 忘记密码暂无自助找回渠道，需管理员在数据库侧重置
+### 涉及代码文件
+| 文件 | 改动 |
+|------|------|
+| [server/storage.js](../server/storage.js) | 重写为 SQLite 存储层（users/saves 表 + 密码哈希） |
+| [server/auth.js](../server/auth.js) | 新增认证模块（JWT + 登录限速） |
+| [server/index.js](../server/index.js) | 账号接口 + 存档归属校验 + 标记接口 |
+| [frontend/src/api.js](../frontend/src/api.js) | 登录令牌存取与自动携带 + 账号/标记接口封装 |
+| [frontend/src/components/LoginView.vue](../frontend/src/components/LoginView.vue) | 新增登录/注册页 |
+| [frontend/src/App.vue](../frontend/src/App.vue) | 接入登录流程与用户栏 |
+| [frontend/src/components/DeductionView.vue](../frontend/src/components/DeductionView.vue) | 标记云端同步 |
+| [server/package.json](../server/package.json) | 新增 better-sqlite3 依赖 |
+
 
 

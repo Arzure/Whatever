@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
+import { api } from '../api';
 
 const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject('game');
 
@@ -42,10 +43,21 @@ function markClass(mark) {
   return roleClass(mark);
 }
 function loadMarks() {
+  // 先用本地缓存立即渲染，再从云端拉取最新（跨设备同步）
   try {
     marks.value = JSON.parse(localStorage.getItem(MARK_KEY.value) || '{}');
   } catch {
     marks.value = {};
+  }
+  if (state.gameId) {
+    api.getMarks(state.gameId)
+      .then((r) => {
+        if (r.marks && Object.keys(r.marks).length) {
+          marks.value = r.marks;
+          try { localStorage.setItem(MARK_KEY.value, JSON.stringify(marks.value)); } catch { /* ignore */ }
+        }
+      })
+      .catch(() => { /* 云端不可用时保持本地缓存 */ });
   }
 }
 function saveMarks() {
@@ -53,6 +65,10 @@ function saveMarks() {
     localStorage.setItem(MARK_KEY.value, JSON.stringify(marks.value));
   } catch {
     /* ignore */
+  }
+  // 云端同步（失败不影响本地使用）
+  if (state.gameId) {
+    api.saveMarks(state.gameId, marks.value).catch(() => { /* ignore */ });
   }
 }
 function toggleMark(pid, role) {

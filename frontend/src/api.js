@@ -1,6 +1,8 @@
 /** 后端 API 薄封装：统一处理 JSON、错误信息与请求头。 */
 
 const TOKEN_KEY = 'rpg_access_token';
+const AUTH_KEY = 'rpg_auth_token';
+const AUTH_USER_KEY = 'rpg_auth_user';
 // 口令有效期：24 小时（毫秒）。过期后自动清除，需重新输入
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -40,10 +42,40 @@ export function setAccessToken(token) {
   }
 }
 
+/** 读取登录令牌（无则空串） */
+export function getAuthToken() {
+  try { return localStorage.getItem(AUTH_KEY) || ''; } catch { return ''; }
+}
+
+/** 保存/清除登录令牌与用户信息 */
+export function setAuth(token, user) {
+  try {
+    if (token) {
+      localStorage.setItem(AUTH_KEY, token);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user || null));
+    } else {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 读取本地缓存的用户信息（无则 null） */
+export function getAuthUser() {
+  try {
+    const raw = localStorage.getItem(AUTH_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 async function request(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const token = getAccessToken();
   if (token) headers['X-Access-Token'] = token;
+  const authToken = getAuthToken();
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
   const res = await fetch(`/api${path}`, {
     headers,
     ...opts,
@@ -60,6 +92,12 @@ async function request(path, opts = {}) {
 
 export const api = {
   health: () => request('/health'),
+  // —— 账号体系 ——
+  register: (username, password) =>
+    request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  login: (username, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  me: () => request('/auth/me'),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),
@@ -86,4 +124,8 @@ export const api = {
       body: JSON.stringify(Array.isArray(targetId) ? { targetIds: targetId } : { targetId }),
     }),
   itemOp: (id, op, body) => request(`/games/${id}/${op}`, { method: 'POST', body: JSON.stringify(body) }),
+  // —— 推理杀推测身份标记（云端同步） ——
+  getMarks: (id) => request(`/games/${id}/marks`),
+  saveMarks: (id, marks) =>
+    request(`/games/${id}/marks`, { method: 'POST', body: JSON.stringify({ marks }) }),
 };

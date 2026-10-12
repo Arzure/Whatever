@@ -1,24 +1,93 @@
-const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const Database = require('better-sqlite3');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DB_PATH = path.join(__dirname, '..', 'data', 'game.db');
+const fs = require('fs');
+const DATA_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-function ensureDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+
+// —— 表结构 ——
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS saves (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'world',
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
+`);
+
+// —— 密码哈希（scrypt，格式：salt:hash） ——
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  const [salt, hash] = String(stored).split(':');
+  if (!salt || !hash) return false;
+  const check = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
 }
 
-function savePath(id) {
-  return path.join(DATA_DIR, `${id}.json`);
+// —— 用户 ——
+function createUser(username, password) {
+  const id = 'u_' + crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run(id, username, hashPassword(password), now);
+  return { id, username, createdAt: now };
+}
+function findUserByName(username) {
+  return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+}
+function getUserById(id) {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 
-/** 存档文件：{ id, mode, theme, createdAt, updatedAt, player, history } */
-function listSaves() {
-  ensureDir();
-  const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith('.json'));
+// —— 存档（接口与旧版保持兼容，新增 userId 归属） ——
+function saveGame(id, game, userId) {
+  const now = Date.now();
+  const existing = db.prepare('SELECT created_at FROM saves WHERE id = ?').get(id);
+  const createdAt = existing ? existing.created_at : (game.createdAt || now);
+  const row = JSON.stringify({ ...game, createdAt, updatedAt: now });
+  if (existing) {
+    db.prepare('UPDATE saves SET data = ?, mode = ?, updated_at = ? WHERE id = ?').run(row, game.mode || 'world', now, id);
+  } else {
+    db.prepare('INSERT INTO saves (id, user_id, mode, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, userId, game.mode || 'world', row, createdAt, now);
+  }
+}
+function loadGame(id) {
+  const row = db.prepare('SELECT data FROM saves WHERE id = ?').get(id);
+  if (!row) return null;
+  try { return JSON.parse(row.data); } catch (e) { return null; }
+}
+function getSaveOwner(id) {
+  const row = db.prepare('SELECT user_id FROM saves WHERE id = ?').get(id);
+  return row ? row.user_id : null;
+}
+function deleteGame(id) {
+  db.prepare('DELETE FROM saves WHERE id = ?').run(id);
+}
+function listSaves(userId) {
+  const rows = userId
+    ? db.prepare('SELECT data FROM saves WHERE user_id = ? ORDER BY updated_at DESC').all(userId)
+    : db.prepare('SELECT data FROM saves ORDER BY updated_at DESC').all();
   const saves = [];
-  for (const f of files) {
+  for (const r of rows) {
     try {
-      const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), 'utf-8'));
+      const data = JSON.parse(r.data);
       saves.push({
         id: data.id,
         createdAt: data.createdAt,
@@ -30,31 +99,27 @@ function listSaves() {
         caseTitle: data.case?.title || '',
       });
     } catch (e) {
-      // 忽略损坏的存档文件
+      // 忽略损坏的存档
     }
   }
-  saves.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return saves;
 }
-
-function saveGame(id, game) {
-  ensureDir();
-  fs.writeFileSync(savePath(id), JSON.stringify(game, null, 2), 'utf-8');
+function countSaves(userId) {
+  const row = db.prepare('SELECT COUNT(*) AS c FROM saves WHERE user_id = ?').get(userId);
+  return row ? row.c : 0;
 }
 
-function loadGame(id) {
-  const p = savePath(id);
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch (e) {
-    return null;
-  }
-}
-
-function deleteGame(id) {
-  const p = savePath(id);
-  if (fs.existsSync(p)) fs.unlinkSync(p);
-}
-
-module.exports = { listSaves, saveGame, loadGame, deleteGame };
+module.exports = {
+  db,
+  hashPassword,
+  verifyPassword,
+  createUser,
+  findUserByName,
+  getUserById,
+  saveGame,
+  loadGame,
+  getSaveOwner,
+  deleteGame,
+  listSaves,
+  countSaves,
+};

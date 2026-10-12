@@ -3,6 +3,7 @@ const path = require('path');
 const { loadEnv } = require('./config');
 const { isConfigured, llmConfig } = require('./llm');
 const storage = require('./storage');
+const { authenticate, userFromRequest } = require('./auth');
 const themes = require('./themes');
 const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
@@ -18,7 +19,7 @@ app.use(express.json({ limit: '64kb' }));
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || 'http://localhost:5173');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Access-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Access-Token, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -39,6 +40,17 @@ app.use('/api', (req, res, next) => {
 
 /** 加载存档并解析其模式；失败时已写出响应，返回 null */
 function findGame(req, res) {
+  const user = userFromRequest(req);
+  if (!user) {
+    res.status(401).json({ error: '请先登录' });
+    return null;
+  }
+  const owner = storage.getSaveOwner(req.params.id);
+  if (owner && owner !== user.id) {
+    // 他人存档统一按不存在处理，不暴露存在性
+    res.status(404).json({ error: '存档不存在' });
+    return null;
+  }
   const game = storage.loadGame(req.params.id);
   if (!game) {
     res.status(404).json({ error: '存档不存在' });
@@ -81,6 +93,40 @@ function llmMissing(res) {
   });
 }
 
+// —— 账号体系 ——
+// 注册（成功即视为登录，返回令牌）
+app.post('/api/auth/register', (req, res) => {
+  const username = String(req.body?.username || '').trim();
+  const password = String(req.body?.password || '');
+  if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{2,16}$/.test(username)) {
+    return res.status(400).json({ error: '用户名需为 2-16 位字母、数字、下划线或中文' });
+  }
+  if (password.length < 6 || password.length > 64) {
+    return res.status(400).json({ error: '密码长度需为 6-64 位' });
+  }
+  if (storage.findUserByName(username)) {
+    return res.status(400).json({ error: '该用户名已被注册' });
+  }
+  storage.createUser(username, password);
+  res.status(201).json(authenticate(username, password));
+});
+
+// 登录
+app.post('/api/auth/login', (req, res) => {
+  const username = String(req.body?.username || '').trim();
+  const password = String(req.body?.password || '');
+  const result = authenticate(username, password);
+  if (result.error) return res.status(401).json({ error: result.error });
+  res.json(result);
+});
+
+// 当前用户信息（校验令牌有效性）
+app.get('/api/auth/me', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+  res.json({ user });
+});
+
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, llm: isConfigured() });
@@ -116,9 +162,11 @@ app.post('/api/themes/parse', async (req, res) => {
   }
 });
 
-// 存档列表
+// 存档列表（仅返回当前登录用户自己的存档）
 app.get('/api/saves', (req, res) => {
-  res.json(storage.listSaves());
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  res.json(storage.listSaves(user.id));
 });
 
 // 新建游戏
@@ -156,7 +204,12 @@ app.post('/api/games', async (req, res) => {
       ? res.status(502).json({ error: `开局失败：${err.message}` })
       : res.status(400).json({ error: err.message });
   }
-  storage.saveGame(game.id, game);
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  if (storage.countSaves(user.id) >= 20) {
+    return res.status(400).json({ error: '存档数量已达上限（20 个），请先清理部分存档' });
+  }
+  storage.saveGame(game.id, game, user.id);
   res.status(201).json(snapshot(game));
 });
 
@@ -285,6 +338,33 @@ app.post('/api/games/:id/adjudicate', async (req, res) => {
   }
 });
 
+// —— 推理杀推测身份标记（云端同步，随存档保存） ——
+// 读取标记
+app.get('/api/games/:id/marks', (req, res) => {
+  const found = findGame(req, res);
+  if (!found) return;
+  res.json({ marks: found.game.marks || {} });
+});
+
+// 保存标记（整体覆盖）
+app.post('/api/games/:id/marks', (req, res) => {
+  const found = findGame(req, res);
+  if (!found) return;
+  const marks = req.body?.marks;
+  if (!marks || typeof marks !== 'object' || Array.isArray(marks)) {
+    return res.status(400).json({ error: '标记数据格式不正确' });
+  }
+  // 只保留字符串值，防止任意结构注入存档
+  const clean = {};
+  for (const [k, v] of Object.entries(marks)) {
+    if (typeof v === 'string' && v.length <= 20) clean[k] = v;
+  }
+  found.game.marks = clean;
+  found.game.updatedAt = Date.now();
+  storage.saveGame(found.game.id, found.game);
+  res.json({ ok: true });
+});
+
 // 存档（手动保存，返回当前快照）
 app.post('/api/games/:id/save', (req, res) => {
   const found = findGame(req, res);
@@ -294,8 +374,12 @@ app.post('/api/games/:id/save', (req, res) => {
   res.json({ ok: true });
 });
 
-// 删除存档
+// 删除存档（仅限本人）
 app.delete('/api/games/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const owner = storage.getSaveOwner(req.params.id);
+  if (owner && owner !== user.id) return res.status(404).json({ error: '存档不存在' });
   storage.deleteGame(req.params.id);
   res.json({ ok: true });
 });
