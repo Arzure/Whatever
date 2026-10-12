@@ -442,7 +442,8 @@ function settleNight(game) {
     const p = findPlayer(w, d.playerId);
     if (!p || !p.alive) continue;
     p.alive = false;
-    w.deaths.push({ round: w.round, playerId: p.id, name: p.name, cause: 'night', role: p.role, roleBackup: p.role });
+    // 变身者死亡时优先保留原本身份（roleBackup），与终局复盘的身份轨迹一致
+    w.deaths.push({ round: w.round, playerId: p.id, name: p.name, cause: 'night', role: p.role, roleBackup: p.roleBackup || p.role });
   }
 
   // —— 阶段 8：小偷复制修正（依据最终死亡名单——目标已死亡者被复制）——
@@ -680,9 +681,23 @@ function buildEndNarrative(w, lastExiled) {
  * 旧身份（村民/侦探/守卫/法医）的话术在调用处原样保留，七人局不受影响。
  */
 function buildCoverMaterial(w, p, declared) {
-  const fake = alivePlayers(w).find((x) => x.id !== p.id);
-  const fakeName = fake ? fake.name : '某人';
-  const fakeCamp = fake ? CAMP[campOf(fake.role)] : '好人';
+  // 目标随机选择（避免每夜固定同一人导致发言重复）；带记忆沿用已编造目标，保证多夜说法一致
+  if (!p.fakeIntel) p.fakeIntel = {};
+  const candidates = alivePlayers(w).filter((x) => x.id !== p.id);
+  const remembered = Object.keys(p.fakeIntel).filter((n) => candidates.some((c) => c.name === n));
+  let fakeName;
+  if (remembered.length && Math.random() < 0.6) {
+    fakeName = remembered[Math.floor(Math.random() * remembered.length)]; // 60% 沿用旧目标（说法一致）
+  } else {
+    fakeName = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)].name : '某人';
+  }
+  // 阵营编造 + 一致性记忆：同一目标沿用首次编造的阵营，绝不使用真实阵营，也避免多夜自相矛盾
+  let fakeCamp = p.fakeIntel[fakeName];
+  if (!fakeCamp) {
+    const CAMPS = ['好人', '中立', '坏人'];
+    fakeCamp = CAMPS[Math.floor(Math.random() * CAMPS.length)];
+    p.fakeIntel[fakeName] = fakeCamp;
+  }
   switch (declared) {
     case 'watcher':
       return `如「我昨夜观测了${fakeName}的气运，其阵营是${fakeCamp}」（观者每夜只能观测一人，只能编造这一条观测结果，严禁声称观测多人）。`;
@@ -711,8 +726,19 @@ function buildCoverMaterial(w, p, declared) {
       return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
     case 'detective':
       return `如「我昨夜暗中探访了${fakeName}，他没有外出活动」（侦探每夜只能探访一人，只能编造这一条线索）。`;
-    case 'forensics':
+    case 'forensics': {
+      // 第 2 夜起法医必然能验上一案发现场死者：伪装话术必须随轮次适配，否则与公开事实直接冲突（一眼识破）
+      // 注意：只能验【上一夜】的死者——当夜（本轮）死者天亮才被发现，法医夜里不可能验到，必须排除
+      if (w.round >= 2) {
+        const prevDead = [...(w.deaths || [])].reverse().find((d) => d.cause === 'night' && d.round < w.round);
+        if (prevDead) {
+          const pool = w.rolePoolName || [];
+          const fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
+          return `如「昨夜我前往案发现场，验明了死者「${prevDead.name}」的真实身份是${fakeRole}」（编造的身份，切勿与已公开信息矛盾）。`;
+        }
+      }
       return `如「昨夜没有可供检验的新尸体」（法医只能检验上一案发现场的死者，首夜无尸体可验）。`;
+    }
     case 'villager':
       return `如「我昨夜整夜在家，无人来访」（村民不出门无技能）。`;
     default:
@@ -964,11 +990,19 @@ function buildRoleKnowledge(game, p) {
             ];
         lines.push(`【昨夜经历】${variants[Math.floor(Math.random() * variants.length)]}`);
       } else {
-        const variants = [
-          `你昨夜守护了「${name}」，整夜平安无事，没有任何袭击。`,
-          `你昨夜在「${name}」住所外守了一夜，没有异常动静。`,
-          `你昨夜保护了「${name}」，直到天亮都风平浪静。`,
-        ];
+        // 表述限定在守护对象身上：不说「整夜平安/没人挨到刀」这类全局判断——他人被刀是公开死讯，全局平安会与事实矛盾
+        const selfGuard = t && t.id === p.id;
+        const variants = selfGuard
+          ? [
+              `你昨夜守在自己家中，整夜没有遭到任何袭击。`,
+              `你昨夜自守门户，直到天亮都平安无事。`,
+              `你昨夜守着自己，没有任何异常动静。`,
+            ]
+          : [
+              `你昨夜守护了「${name}」，他整夜安然无恙，没有遭到袭击。`,
+              `你昨夜在「${name}」住所外守了一夜，他那边没有异常动静。`,
+              `你昨夜保护了「${name}」，直到天亮他都平安。`,
+            ];
         lines.push(`【昨夜经历】${variants[Math.floor(Math.random() * variants.length)]}`);
       }
       lines.push(`【重要】你整夜只守在「${name}」这一处，只掌握守护目标的情况。你没有走访、没有监视其他人，因此【不得】声称自己「留意到其他某人的动向」或知道他人夜里做了什么——你没看到。若有人质疑你，就如实说明自己只守护了「${name}」。`);
@@ -1232,6 +1266,11 @@ function buildSpeechSkeleton(game, speaker) {
     if (/必须撒谎|谎报|仅你知晓/.test(line)) continue;
     // 伪装者：跳过真实身份的技能结果行（【昨夜经历】等），只保留【伪装行为】素材
     if (disguised && !/^【伪装行为/.test(line) && /昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|有人来|前往/.test(line)) continue;
+    // 小偷（即使坦白身份）：清除记忆的具体对象绝不进入骨架——公开夜间行动等于替法官解谜，用模糊表述代替
+    if (speaker.role === 'thief' && /清除|记忆|复制/.test(line) && !/^【伪装行为/.test(line)) {
+      facts.push('昨夜我出门办了点自己的事，细节不便多说。');
+      continue;
+    }
     // 示例句（如「我昨夜…」）：直接提取引号内内容作为事实
     const demo = line.match(/如「([^」]+)」/);
     if (demo) {
@@ -1271,10 +1310,21 @@ function validateSpeechFacts(game, speaker, speech) {
       return `未知名称「${inner}」`;
     }
   }
-  const RULE_WORDS = /(中毒|自毙|毒死|误验|验错|同归于尽|连锁|空刀|立即死|就会死|会死亡|住所内行凶|不代表安全|不等于安全)/;
+  const RULE_WORDS = /(中毒|自毙|毒死|误验|验错|同归于尽|连锁|空刀|立即死|就会死|会死亡|住所内行凶|不代表[^。]{0,6}安全|不等于[^。]{0,6}安全|在家动手|在家行凶|颠倒关键信息|扭曲[^。]{0,4}记忆|被扭曲)/;
   if (RULE_WORDS.test(text)) {
     const skeletonText = buildSpeechSkeleton(game, speaker).join('');
     if (!RULE_WORDS.test(skeletonText)) return '编造规则机制';
+  }
+  // 虚构他人声明校验：发言中「X自称Y / X跳Y」的引用必须与实际身份声明记录（claims）一致
+  const claimRef = text.match(/([\u4e00-\u9fa5]{2,3})(自称|跳了?|也说是|说是)(文员|侦探|村民|法医|守卫|赌徒|小偷|狼人|帮凶|酒鬼|观者|邮差|行者|庸医|间谍|小丑|术士)/g) || [];
+  for (const ref of claimRef) {
+    const m = ref.match(/([\u4e00-\u9fa5]{2,3})(?:自称|跳了?|也说是|说是)(文员|侦探|村民|法医|守卫|赌徒|小偷|狼人|帮凶|酒鬼|观者|邮差|行者|庸医|间谍|小丑|术士)/);
+    if (!m) continue;
+    const [, refName, refRole] = m;
+    const target = w.players.find((p) => p.name === refName);
+    if (!target) continue;
+    const actual = (w.claims || []).find((c) => c.playerId === target.id);
+    if (!actual || actual.claimed !== refRole) return `虚构${refName}的声明`;
   }
   return '';
 }
@@ -1308,7 +1358,8 @@ function buildSpeechPrompt(game, speaker) {
     `3. 【背景参考·不得复述】各角色真实技能（仅供你理解他人发言，绝不在发言中复述）：${skillDesc}。\n` +
     `4. 杜绝废话：不寒暄、不喊口号、不重复他人已说的话。用陈述句。\n` +
     `5. 【生死状态·铁律】严格区分存活者与死者：死者已出局，绝不能说存活者「已死/被袭击身亡/不在了」；也绝不能把死者当作仍在场的人讨论或向其发问。发言前先对照下方的存活名单与死者名单。\n` +
-    `6. 【人称纪律·铁律】你始终用第一人称「我」称呼自己，绝不用自己的名字称呼自己；提及他人用其名字。`;
+    `6. 【人称纪律·铁律】你始终用第一人称「我」称呼自己，绝不用自己的名字称呼自己；提及他人用其名字。\n` +
+    `7. 【回应边界·铁律】你只能陈述骨架中的事实。不得自行添加对他人发言的回应、否认或评价（如「我不认」「他说的不对」）——你无法验证他人说法的真伪，除非骨架中明确提供了与之冲突的信息（如身份对跳），否则不要对他人的陈述表态。`;
 
   return {
     system: [
@@ -1411,9 +1462,18 @@ function fallbackSpeech(game, speaker) {
     } else if (cover === 'guard') {
       part.push(fake ? `昨夜我保护了${fake}，无事发生。` : '昨夜我守了一夜，无事发生。');
     } else if (cover === 'forensics') {
-      part.push('昨夜没有可供检验的尸体。');
+      // 法医兜底复用伪装素材（第 2 夜起自动适配为编造验尸结果）
+      const mat = buildCoverMaterial(w, speaker, 'forensics');
+      const demo = mat.match(/如「([^」]+)」/);
+      part.push(demo ? demo[1] : '昨夜没有可供检验的尸体。');
+    } else if (cover === 'clerk') {
+      // 文员兜底：与首轮声明一致（文员不出门无夜间行动），不制造前后矛盾
+      part.push('昨夜我在家整理角色名册档案，没有夜间行动。');
     } else {
-      part.push('昨夜我大多待在家里，没有特别的发现。');
+      // 其余伪装身份：从伪装素材提取示例句——夜间主动型角色（间谍/行者/邮差等）绝不能说「整夜在家」（与声称身份矛盾）
+      const mat = buildCoverMaterial(w, speaker, cover);
+      const demo = mat.match(/如「([^」]+)」/);
+      part.push(demo ? demo[1] : '昨夜我有些自己的安排，暂不多说。');
     }
   } else {
     // 好人/带伪装中立兜底：从知识包提取事件行；清洗【】标记、括号说明与规则解释子句，避免照抄素材
@@ -1422,8 +1482,15 @@ function fallbackSpeech(game, speaker) {
     const k = buildRoleKnowledge(game, speaker);
     for (const line of k) {
       if (disguisedFallback && !/^【伪装行为/.test(line)) continue;
-      if (/昨夜|昨夜我/.test(line) || /有人来/.test(line) || /我掌握/.test(line) || /我前往/.test(line)) {
+      // 伪装素材行：只提取引号内示例句，绝不整行输出（含括号说明的原文等于自曝素材）
+      if (/^【伪装行为/.test(line)) {
+        const demo = line.match(/如「([^」]+)」/) || line.match(/「([^」]{8,})」/);
+        if (demo) part.push(demo[1]);
+        continue;
+      }
+      if (/昨夜|昨夜我/.test(line) || /有人来/.test(line) || /掌握|名册/.test(line) || /我前往/.test(line)) {
         const cleaned = line
+          .replace(/^【[^】]*】/, '')
           .replace(/【([^】]*)】/g, '$1')
           .replace(/（[^）]*）/g, '')
           .replace(/注意[：:][^。]*。?/g, '')
@@ -1454,7 +1521,8 @@ function buildTwistedSpeech(game, speaker) {
   const k = buildRoleKnowledge(game, speaker);
   let line = '';
   for (const l of k) {
-    if (/昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测/.test(l) && !/身份|纪律|指令|铁律|重要|警惕|绝不|禁止|名册|同伙|注意|掌握/.test(l)) {
+    // 排除素材/指令类行（伪装行为、发言用等）——扭曲发言只能反转真实经历行，绝不能念出素材原文
+    if (/昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测/.test(l) && !/身份|纪律|指令|铁律|重要|警惕|绝不|禁止|名册|同伙|注意|掌握|伪装行为|发言用|如「/.test(l)) {
       line = l;
       break;
     }
@@ -1509,6 +1577,11 @@ async function generateSpeech(game, speaker) {
     );
     const obj = parseActionJson(text);
     let speech = String((obj && obj.speech) || '').trim().slice(0, MAX_SPEECH);
+    // 截断保护：被 MAX_SPEECH 截断且无完整句尾时，回退到最后一个完整句号，避免半句话
+    if (speech.length >= MAX_SPEECH && !/[。！？]$/.test(speech)) {
+      const lastStop = Math.max(speech.lastIndexOf('。'), speech.lastIndexOf('！'), speech.lastIndexOf('？'));
+      if (lastStop > 20) speech = speech.slice(0, lastStop + 1);
+    }
     // 过短发言（如"我是侦探。"一句话敷衍）直接替换为知识包兜底，确保完整信息
     if (speech.length < 24) {
       console.log('[debug] 推理杀发言过短，用知识包兜底替代:', JSON.stringify(speech.slice(0, 30)));
@@ -1550,9 +1623,9 @@ async function generateSpeech(game, speaker) {
         speech = fallbackSpeech(game, speaker);
       }
     }
-    // 人称错乱拦截：发言中用自己的名字称呼/向自己发问（如「XX，我也观测了你」）→ 兜底
-    if (speech.includes(`，${speaker.name}`) || new RegExp(`^${speaker.name}，`).test(speech.trim())) {
-      console.log('[debug] 推理杀人称错乱（用自己名字发问），兜底:', JSON.stringify(speech.slice(0, 30)));
+    // 人称错乱拦截（扩展）：发言者绝不应提及自己的名字（第一人称纪律）——任何位置出现自己名字即兜底
+    if (speaker.name && speech.includes(speaker.name)) {
+      console.log('[debug] 推理杀人称错乱（发言中出现自己名字），兜底:', JSON.stringify(speech.slice(0, 30)));
       speech = fallbackSpeech(game, speaker);
     }
     // 伪装村民行为泄露拦截：声称村民却说出出门行为（造访/拜访/送信等）→ 兜底为整夜在家
@@ -1575,10 +1648,11 @@ async function generateSpeech(game, speaker) {
         speech = fallbackSpeech(game, speaker);
       }
     }
-    // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）→ 提取引号内陈述句，提取不到则兜底
-    if (/【|】|如「|发言用/.test(speech)) {
+    // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）或知识包特征句式（确切知道/重大信息）→ 提取引号内陈述句，提取不到则兜底
+    if (/【|】|如「|发言用|确切知道|重大信息/.test(speech)) {
       const demo = speech.match(/「(我[^」]{6,})」/) || speech.match(/「([^」]{6,})」/);
       speech = demo ? demo[1] : fallbackSpeech(game, speaker);
+      if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
       console.log('[debug] 推理杀发言照抄素材行，已提取陈述句/兜底');
     }
     // 结构化输出校验（硬兜底）：编造规则机制 / 引用白名单外名称 → 回退确定性兜底发言
@@ -1592,6 +1666,13 @@ async function generateSpeech(game, speaker) {
     const named = suspectFromSpeech(w, speaker, speech);
     const target = findPlayer(w, suspect);
     if (named && (!target || target.id !== named)) suspect = named;
+    // 句尾补全（统一出口）：不以句号结尾的完整发言补句号，覆盖 LLM 与兜底所有路径
+    if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
+    // 句中粘连检测：超过 28 字的无标点连续段（两句被粘连）→ 兜底
+    if (/[\u4e00-\u9fa5]{28,}/.test(speech)) {
+      console.log('[debug] 推理杀发言句中粘连，兜底:', JSON.stringify(speech.slice(0, 30)));
+      speech = fallbackSpeech(game, speaker);
+    }
     return { speech, suspect };
   } catch (err) {
     console.log('[debug] 推理杀发言失败:', String(err.message).slice(0, 60));
