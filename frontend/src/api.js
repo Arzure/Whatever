@@ -98,6 +98,15 @@ export const api = {
   login: (username, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   me: () => request('/auth/me'),
+  // —— 账号管理 ——
+  rename: (password, username) =>
+    request('/auth/rename', { method: 'POST', body: JSON.stringify({ password, username }) }),
+  changePassword: (oldPassword, newPassword) =>
+    request('/auth/password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) }),
+  deleteAccount: (password) =>
+    request('/auth/delete', { method: 'POST', body: JSON.stringify({ password }) }),
+  // —— 存档删除 ——
+  deleteSave: (id) => request(`/games/${id}`, { method: 'DELETE' }),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),

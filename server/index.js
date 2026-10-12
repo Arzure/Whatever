@@ -130,6 +130,60 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user });
 });
 
+// —— 账号管理（均需验证当前密码，防止他人冒用登录态篡改） ——
+// 修改用户名
+app.post('/api/auth/rename', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+  const password = String(req.body?.password || '');
+  const newName = String(req.body?.username || '').trim();
+  const record = storage.getUserById(user.id);
+  if (!record || !storage.verifyPassword(password, record.password_hash)) {
+    return res.status(401).json({ error: '密码错误，无法修改用户名' });
+  }
+  if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{2,16}$/.test(newName)) {
+    return res.status(400).json({ error: '用户名需为 2-16 位字母、数字、下划线或中文' });
+  }
+  const existing = storage.findUserByName(newName);
+  if (existing && existing.id !== user.id) {
+    return res.status(400).json({ error: '该用户名已被注册' });
+  }
+  storage.renameUser(user.id, newName);
+  // 签发含新用户名的令牌，前端替换旧令牌
+  const token = require('./auth').sign({ uid: user.id, username: newName, iat: Date.now(), exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  res.json({ ok: true, token, user: { id: user.id, username: newName } });
+});
+
+// 修改密码
+app.post('/api/auth/password', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+  const oldPassword = String(req.body?.oldPassword || '');
+  const newPassword = String(req.body?.newPassword || '');
+  const record = storage.getUserById(user.id);
+  if (!record || !storage.verifyPassword(oldPassword, record.password_hash)) {
+    return res.status(401).json({ error: '旧密码错误' });
+  }
+  if (newPassword.length < 6 || newPassword.length > 64) {
+    return res.status(400).json({ error: '新密码长度需为 6-64 位' });
+  }
+  storage.updatePassword(user.id, newPassword);
+  res.json({ ok: true });
+});
+
+// 删除账号（连同全部存档）
+app.post('/api/auth/delete', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+  const password = String(req.body?.password || '');
+  const record = storage.getUserById(user.id);
+  if (!record || !storage.verifyPassword(password, record.password_hash)) {
+    return res.status(401).json({ error: '密码错误，无法删除账号' });
+  }
+  storage.deleteUserCascade(user.id);
+  res.json({ ok: true });
+});
+
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, llm: isConfigured() });

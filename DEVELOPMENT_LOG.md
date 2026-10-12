@@ -1056,5 +1056,31 @@ AI 发言多次出现规则幻觉（如『酒鬼被误验会中毒自毙』—�
 |------|------|
 | [server/modes/deduction.js](../server/modes/deduction.js) | 兜底引号闭合/运行时错误修复/示例句去嵌套引号（+15/-5） |
 
+## 2026-10-12 · 账号管理功能（改名/改密码/删除账号/存档删除）
+### 背景与目标
+用户要求新增修改用户名、修改密码、删除存档功能。核实发现：服务端虽有删除存档接口，但前端完全没有删除入口（此前文档中『存档可删除』的说法有误，已当面更正）。目标：补齐账号管理闭环。
+### 改动清单
+| # | 改动 | 说明 |
+|---|------|------|
+| 1 | 服务端账号管理接口 | POST /api/auth/rename（验证当前密码 + 新名格式/唯一性校验，成功签发含新用户名的令牌）、POST /api/auth/password（验证旧密码 + 新密码格式校验）、POST /api/auth/delete（验证密码，事务级联删除用户与全部存档） |
+| 2 | 存储层方法 | renameUser / updatePassword / deleteUserCascade（事务保证原子性） |
+| 3 | 前端账号设置弹窗 | AccountSettings.vue：三个标签页（修改用户名/修改密码/删除账号）；删除账号需密码 + 输入「删除」二字双重确认；改名成功后顶栏即时更新并替换令牌 |
+| 4 | 顶栏入口 | App.vue 用户栏增加『账号设置』按钮 |
+| 5 | 存档删除入口 | HomeView 存档列表每项增加删除按钮：confirm 二次确认 → 删除 → 刷新列表；@click.stop 防止误触加载 |
+### 实测验证（接口正反测试全部通过）
+- 改名：错误密码 401 拒绝 / 正确密码成功返回新令牌 / 改成已存在名字 400 拒绝；
+- 改密码：旧密码错误 401 拒绝 / 正确修改后新密码可登录（旧密码失效）；
+- 删除账号：错误密码 401 拒绝 / 正确删除后登录 401、数据库中用户与存档均为 0（级联删除生效）；
+- 前端已构建上线（新产物 index-PZ-Xstc3.js）。
+### 涉及代码文件
+| 文件 | 改动 |
+|------|------|
+| [server/index.js](../server/index.js) | 三个账号管理接口（+54） |
+| [server/storage.js](../server/storage.js) | 改名/改密/级联删除方法（+19） |
+| [frontend/src/api.js](../frontend/src/api.js) | 账号管理与存档删除接口封装（+9） |
+| [frontend/src/components/AccountSettings.vue](../frontend/src/components/AccountSettings.vue) | 新增账号设置弹窗 |
+| [frontend/src/App.vue](../frontend/src/App.vue) | 顶栏入口与联动（+13） |
+| [frontend/src/components/HomeView.vue](../frontend/src/components/HomeView.vue) | 存档删除按钮（+42） |
+
 
 

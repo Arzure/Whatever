@@ -109,6 +109,22 @@ function countSaves(userId) {
   return row ? row.c : 0;
 }
 
+// —— 账号管理 ——
+function renameUser(userId, newName) {
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(newName, userId);
+}
+function updatePassword(userId, newPassword) {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), userId);
+}
+function deleteUserCascade(userId) {
+  // 事务：先删该用户全部存档，再删用户本身——要么全成功要么全回滚
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM saves WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  });
+  tx();
+}
+
 module.exports = {
   db,
   hashPassword,
@@ -116,6 +132,9 @@ module.exports = {
   createUser,
   findUserByName,
   getUserById,
+  renameUser,
+  updatePassword,
+  deleteUserCascade,
   saveGame,
   loadGame,
   getSaveOwner,

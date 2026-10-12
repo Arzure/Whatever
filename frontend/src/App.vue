@@ -9,6 +9,7 @@ import WolfView from './components/WolfView.vue';
 import DeductionView from './components/DeductionView.vue';
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
+import AccountSettings from './components/AccountSettings.vue';
 
 const game = useGame();
 provide('game', game);
@@ -42,6 +43,16 @@ function logout() {
   setAuth('', null);
   authUser.value = null;
 }
+
+// —— 账号设置 ——
+const showSettings = ref(false);
+function onRenamed(user) {
+  authUser.value = user;
+}
+function onDeleted() {
+  showSettings.value = false;
+  authUser.value = null;
+}
 </script>
 <template>
   <AccessGate>
@@ -50,8 +61,10 @@ function logout() {
     <template v-else>
       <header class="app-bar">
         <span class="app-bar-user">👤 {{ authUser.username }}</span>
+        <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
         <button class="app-bar-logout" @click="logout">退出登录</button>
       </header>
+      <AccountSettings v-if="showSettings" :user="authUser" @close="showSettings = false" @renamed="onRenamed" @deleted="onDeleted" />
       <HomeView v-if="game.state.view === 'home'" />
       <DetectiveView v-else-if="game.state.mode === 'detective'" />
       <WolfView v-else-if="game.state.mode === 'wolf'" />

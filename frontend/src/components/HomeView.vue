@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue';
+import { api } from '../api';
 
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave } = inject('game');
 
@@ -83,6 +84,23 @@ const canStart = computed(() => {
   if (needGenre.value && !genreId.value) return false;
   return true;
 });
+
+// —— 存档删除（带二次确认） ——
+const deletingId = ref('');
+async function deleteSave(s) {
+  if (deletingId.value) return;
+  if (!confirm(`确定删除存档「${s.playerName}」吗？此操作不可恢复。`)) return;
+  deletingId.value = s.id;
+  state.error = '';
+  try {
+    await api.deleteSave(s.id);
+    await refreshSaves();
+  } catch (e) {
+    state.error = e.message;
+  } finally {
+    deletingId.value = '';
+  }
+}
 </script>
 
 <template>
@@ -200,6 +218,9 @@ const canStart = computed(() => {
             <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
             {{ new Date(s.updatedAt).toLocaleString() }}
           </span>
+          <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
+            {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
+          </button>
         </div>
       </div>
 
@@ -434,6 +455,27 @@ const canStart = computed(() => {
 
 .save-item:hover {
   border-color: var(--accent);
+}
+
+.save-delete {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.save-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.save-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .save-name {
