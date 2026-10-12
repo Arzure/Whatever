@@ -702,8 +702,11 @@ function buildCoverMaterial(w, p, declared) {
       return `如「我昨夜猜了${fakeName}的阵营，结果是${fakeCamp}」（赌徒每夜只能猜一人，只能编造这一条猜测结果，严禁声称猜了多人）。`;
     case 'thief':
       return `如「我昨夜出门转了转，没有特别的发现」（小偷绝不能声称清除/复制了谁的记忆——那是自曝）。`;
-    case 'clerk':
-      return `公布本局角色名册：${w.rolePoolName.join('、')}（你只知道名单，不知道谁对应谁；首轮应当公布名单）。`;
+    case 'clerk': {
+      // 伪装文员：名单必须包含文员本身（与自称身份一致），否则名单里没有自己声称的身份=自曝
+      const pool = [...new Set([...w.rolePoolName, '文员'])];
+      return `公布本局角色名册：${pool.join('、')}（你只知道名单，不知道谁对应谁；首轮应当公布名单）。`;
+    }
     case 'guard':
       return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
     case 'detective':
@@ -1142,7 +1145,9 @@ function buildRoleKnowledge(game, p) {
         const campText = CAMP[camp];
         if (night.spyLie) {
           const fakeCamp = camp === 'evil' ? '好人' : '坏人';
-          lines.push(`你昨夜拜访了「${t.name}」，探得他属于【${campText}】阵营。但【本日指令·间谍的谎言】你今日必须撒谎：公布拜访结果时，把「${t.name}」的阵营谎报为【${fakeCamp}】。你坚信谎言不会被当场戳穿——但若有人掌握相反的铁证，你将陷入被动。`);
+          // 可公布的说法（含谎报阵营）单独成行——骨架只提取这行，指令行绝不进入发言
+          lines.push(`【昨夜经历】你昨夜拜访了「${t.name}」，探得他属于${fakeCamp}阵营。`);
+          lines.push(`【本日指令·仅你知晓】你今日必须撒谎：公布拜访结果时，把「${t.name}」的阵营谎报为${fakeCamp}（上面那行已是你要公布的说法）。若有人掌握相反的铁证，你将陷入被动。`);
         } else {
           lines.push(`你昨夜拜访了「${t.name}」，探得他属于【${campText}】阵营。你今日如实公布这一结果即可。`);
         }
@@ -1215,8 +1220,9 @@ function buildSpeechSkeleton(game, speaker) {
   // 带伪装（伪装≠真实身份）时，真实身份的技能结果行绝不能进入骨架——那是行为泄露
   const disguised = speaker.cover && speaker.cover !== speaker.role;
   for (const line of k) {
-    // 跳过纪律/指令/内部情报类行（真实夜间行动绝不进入骨架）
-    if (/^【(首轮规则|身份纪律|重要|身份警惕|内部情报|本夜状态)/.test(line)) continue;
+    // 跳过纪律/指令/内部情报类行（真实夜间行动与撒谎指令绝不进入骨架）
+    if (/^【(首轮规则|身份纪律|重要|身份警惕|内部情报|本夜状态|本日指令|伪装纪律)/.test(line)) continue;
+    if (/必须撒谎|谎报|仅你知晓/.test(line)) continue;
     // 伪装者：跳过真实身份的技能结果行（【昨夜经历】等），只保留【伪装行为】素材
     if (disguised && !/^【伪装行为/.test(line) && /昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|有人来|前往/.test(line)) continue;
     // 示例句（如「我昨夜…」）：直接提取引号内内容作为事实
@@ -1228,6 +1234,8 @@ function buildSpeechSkeleton(game, speaker) {
     if (/昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|名册|有人来|掌握|前往|不记得/.test(line)) {
       // 去掉括号说明与「注意：」开头的规则解释子句，只保留可陈述事实
       const fact = line
+        .replace(/^【[^】]*】/, '')
+        .replace(/【([^】]*)】/g, '$1')
         .replace(/（[^）]*）/g, '')
         .replace(/注意[：:][^。]*。?/g, '')
         .replace(/你的/g, '我的')
@@ -1362,8 +1370,8 @@ function fallbackSpeech(game, speaker) {
   const declared = ROLES[speaker.cover || speaker.role];
   const part = [`我是${declared}。`];
 
-  if (speaker.role === 'gambler') {
-    // 赌徒兜底：直接读 night 组装完整猜测结果（真赌徒拥有硬信息）
+  if (speaker.role === 'gambler' && !speaker.cover) {
+    // 赌徒兜底：直接读 night 组装完整猜测结果（真赌徒拥有硬信息）；带伪装时走下方伪装分支，绝不泄露查验行为
     const t = findPlayer(w, night.gamblerTarget);
     if (night.gamblerForgot) {
       part.push(`昨夜我被人清除了记忆，没能完成猜测。`);
@@ -1374,8 +1382,8 @@ function fallbackSpeech(game, speaker) {
     } else {
       part.push(`昨夜我没有找到合适的查验对象。`);
     }
-  } else if (speaker.role === 'thief') {
-    // 小偷兜底：从 night 直接组装"得知死者的秘密"信息；避免泄漏行踪
+  } else if (speaker.role === 'thief' && !speaker.cover) {
+    // 小偷兜底：从 night 直接组装"得知死者的秘密"信息；避免泄漏行踪。带伪装时走下方伪装分支
     const t = findPlayer(w, night.thiefTarget);
     if (night.thiefCopiedRole && t && !t.alive) {
       part.push(`我从死者那边了解到一些情况，但目前还想再核实一下。`);
@@ -1401,11 +1409,20 @@ function fallbackSpeech(game, speaker) {
       part.push('昨夜我大多待在家里，没有特别的发现。');
     }
   } else {
-    // 好人兜底：从知识包提取事件行（以"你昨"开头）；正则放宽到"昨"的任何行为描述
+    // 好人/带伪装中立兜底：从知识包提取事件行；清洗【】标记、括号说明与规则解释子句，避免照抄素材
+    // 带伪装者（伪装≠真实身份）只提取【伪装行为】素材行，真实技能结果绝不进入兜底发言
+    const disguisedFallback = speaker.cover && speaker.cover !== speaker.role;
     const k = buildRoleKnowledge(game, speaker);
     for (const line of k) {
+      if (disguisedFallback && !/^【伪装行为/.test(line)) continue;
       if (/昨夜|昨夜我/.test(line) || /有人来/.test(line) || /我掌握/.test(line) || /我前往/.test(line)) {
-        part.push(line.replace(/你的/g, '我的').replace(/你/g, '我'));
+        const cleaned = line
+          .replace(/【([^】]*)】/g, '$1')
+          .replace(/（[^）]*）/g, '')
+          .replace(/注意[：:][^。]*。?/g, '')
+          .replace(/你的/g, '我的')
+          .replace(/你/g, '我');
+        if (cleaned.trim().length > 4) part.push(cleaned);
       }
     }
   }
@@ -1511,7 +1528,7 @@ async function generateSpeech(game, speaker) {
             : CAMP[campOf(t.role)];
           if (!speech.includes(t.name) || !speech.includes(expectCamp)) {
             console.log('[debug] 推理杀间谍发言与素材矛盾，兜底为确定性句子:', JSON.stringify(speech.slice(0, 30)));
-            speech = `我是间谍。昨夜我拜访了「${t.name}」，探得他属于【${expectCamp}】阵营。`;
+            speech = `我是间谍。昨夜我拜访了「${t.name}」，探得他属于${expectCamp}阵营。`;
           }
         }
       }
@@ -1549,11 +1566,11 @@ async function generateSpeech(game, speaker) {
         speech = fallbackSpeech(game, speaker);
       }
     }
-    // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）→ 提取示例句，提取不到则兜底
+    // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）→ 提取引号内陈述句，提取不到则兜底
     if (/【|】|如「|发言用/.test(speech)) {
-      const demo = speech.match(/「(我昨夜[^」]+)」/);
+      const demo = speech.match(/「(我[^」]{6,})」/) || speech.match(/「([^」]{6,})」/);
       speech = demo ? demo[1] : fallbackSpeech(game, speaker);
-      console.log('[debug] 推理杀发言照抄素材行，已提取示例句/兜底');
+      console.log('[debug] 推理杀发言照抄素材行，已提取陈述句/兜底');
     }
     // 结构化输出校验（硬兜底）：编造规则机制 / 引用白名单外名称 → 回退确定性兜底发言
     const factErr = validateSpeechFacts(game, speaker, speech);
