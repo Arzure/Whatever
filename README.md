@@ -212,7 +212,7 @@ A：支持多玩家：注册登录后每人拥有独立存档空间（互不可�
 | 前端 | Vue 3 + Vite 6（暗色奇幻风 UI） |
 | 后端 | Node.js + Express 4 |
 | AI | OpenAI 兼容 `/chat/completions`（零 SDK，内置 fetch） |
-| 存储 | JSON 文件（`data/` 目录） |
+| 存储 | SQLite（better-sqlite3，`data/game.db`：用户表 + 存档表，按登录账号隔离） |
 
 ```
 Whatever/
@@ -223,7 +223,7 @@ Whatever/
 │   ├── themes/           # 世界观配置（azeroth.json + 文本解析）
 │   └── ...
 ├── frontend/             # 前端（Vue 3 + Vite）
-├── data/                 # 游戏存档（运行时生成）
+├── data/                 # SQLite 数据库 game.db（用户与存档，运行时生成）
 ├── TECH_DOC.md           # 开发者技术文档（架构/实现/AI 交互原理）
 └── DEVELOPMENT_LOG.md    # 开发记录（问题排查与修复过程）
 ```
@@ -246,7 +246,7 @@ Whatever/
 - [x] 移动端适配（响应式布局 / 触控优化 / 道具栏折叠）✅ 已实现
 - [ ] 多人在线（共享世界 / 协作冒险）
 - [ ] 战斗系统强化（技能/属性/装备加成）
-- [ ] SQLite 数据库（多用户与查询）
+- [x] SQLite 数据库 + 玩家账号体系（注册/登录/JWT，存档按账号隔离）✅ 已实现
 
 ---
 
