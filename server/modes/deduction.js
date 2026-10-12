@@ -146,13 +146,15 @@ function assignCovers(players) {
   evildoers.forEach((p, i) => {
     p.cover = chosen[i % chosen.length];
   });
-  // 中立随机：真身份 / 假身份
+  // 中立随机：真身份 / 假身份（排除坏人已选伪装、其他中立已选伪装与自身真实身份，避免任何撞车）
+  const usedCovers = evildoers.map((e) => e.cover);
   players.filter((p) => NEUTRAL_ROLES.includes(p.role)).forEach((p) => {
     if (Math.random() < 0.5) {
       p.cover = null; // 说真话
     } else {
-      const rest = pool.filter((r) => r !== p.role);
+      const rest = pool.filter((r) => r !== p.role && !usedCovers.includes(r));
       p.cover = rest.length ? rest[Math.floor(Math.random() * rest.length)] : null;
+      if (p.cover) usedCovers.push(p.cover);
     }
   });
 }
@@ -702,8 +704,16 @@ function buildCoverMaterial(w, p, declared) {
       return `如「我昨夜出门转了转，没有特别的发现」（小偷绝不能声称清除/复制了谁的记忆——那是自曝）。`;
     case 'clerk':
       return `公布本局角色名册：${w.rolePoolName.join('、')}（你只知道名单，不知道谁对应谁；首轮应当公布名单）。`;
+    case 'guard':
+      return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
+    case 'detective':
+      return `如「我昨夜暗中探访了${fakeName}，他没有外出活动」（侦探每夜只能探访一人，只能编造这一条线索）。`;
+    case 'forensics':
+      return `如「昨夜没有可供检验的新尸体」（法医只能检验上一案发现场的死者，首夜无尸体可验）。`;
+    case 'villager':
+      return `如「我昨夜整夜在家，无人来访」（村民不出门无技能）。`;
     default:
-      return `编造一条与你声称身份一致的日常陈述。`;
+      return `如「我昨夜大多待在家里，没有特别的发现」（与你声称身份一致的日常陈述）。`;
   }
 }
 
@@ -922,13 +932,20 @@ function buildRoleKnowledge(game, p) {
   // 中性/其他角色的伪装一致性提示：若声称身份≠真实身份，禁止提及真实中立夜间活动
   if (NEUTRAL_ROLES.includes(p.role) && p.cover && p.cover !== p.role) {
     lines.push(`【伪装纪律】你声称自己是「${ROLES[p.cover]}」。因此【不要】在发言中提及你真实的中立行动线索（如小偷的"清除记忆/复制能力"、赌博猜测过程），只能用与「${ROLES[p.cover]}」身份相符的陈述。`);
+    // 伪装行为素材：与坏人伪装同源，保证骨架里有与伪装身份相符的可陈述事实
+    lines.push(`【伪装行为·发言用】${buildCoverMaterial(w, p, p.cover)}`);
+  }
+  // 其余带伪装的坏人（小丑/术士/间谍等，无内联素材）：统一注入伪装行为素材
+  if (p.cover && p.cover !== p.role && EVIL_ROLES.includes(p.role) && !['wolf', 'accomplice', 'drunkard'].includes(p.role)) {
+    lines.push(`【伪装行为·发言用】${buildCoverMaterial(w, p, p.cover)}`);
   }
 
   // 技能结果（未被迷醉/遗忘）
   switch (p.role) {
     case 'guard': {
       const t = findPlayer(w, night.guardTarget);
-      const name = t ? t.name : '';
+      // 自保场景：守护目标是自己时用「自己」表述，避免发言者用自己名字称呼自己（人称错乱）
+      const name = t ? (t.id === p.id ? '自己' : t.name) : '';
       if (night.wolfBlocked && night.guardTarget === night.wolfTarget) {
         const variants = [
           `你昨夜守护了「${name}」，成功挡下了狼人的袭击——他活了下来。`,
@@ -1166,6 +1183,87 @@ function buildRoleKnowledge(game, p) {
   return lines;
 }
 
+// ==================== 结构化发言：事实骨架 + 措辞润色 + 输出校验 ====================
+// 各角色官方技能一句话说明：注入提示词供 AI 理解背景（发言中不得复述），从源头杜绝规则幻觉
+const ROLE_SKILL_DESC = {
+  clerk: '文员不出门，开局掌握本局角色名单并公布，无夜晚技能',
+  detective: '侦探每夜探访一人，获知其「曾外出活动/没有外出活动」',
+  villager: '村民不出门无技能，有人拜访会知道「有人来过」',
+  forensics: '法医第一夜不出门，此后每夜前往上一案发现场，白天公布死者真实身份',
+  guard: '守卫每夜保护一人（可自保、不可连续两夜同一人），可挡下狼刀',
+  gambler: '赌徒每夜猜一人阵营，猜对获知其阵营，猜错立即死亡',
+  thief: '小偷每夜拜访一人清除其记忆，拜访死者可复制其信息',
+  wolf: '狼人每夜刀杀一人',
+  accomplice: '帮凶每夜拜访一人干扰调查，不刀人',
+  drunkard: '酒鬼不出门，夜里拜访他的人会被迷醉',
+  watcher: '观者每夜观测一人阵营（观测不构成拜访）',
+  postman: '邮差每夜送信给一人，若狼人目标与其重合则狼人空刀',
+  walker: '行者每夜拜访一人探明身份，对方是坏人则同归于尽',
+  quack: '庸医每夜给药，药可救被刀者或毒杀人',
+  spy: '间谍每夜拜访一人探其阵营，次日如实或撒谎公布',
+  clown: '小丑每夜扭曲一人记忆，使其坚信错误信息',
+  warlock: '术士每夜链接两人命运，一人死则另一人也死',
+};
+
+/**
+ * 事实骨架：从知识包提取本轮必须交代的事实行（程序确定性生成）。
+ * LLM 只负责把骨架润色为自然发言，不得增删事实——这是结构化发言的核心。
+ */
+function buildSpeechSkeleton(game, speaker) {
+  const k = buildRoleKnowledge(game, speaker);
+  const facts = [`我是${ROLES[speaker.cover || speaker.role]}`];
+  // 带伪装（伪装≠真实身份）时，真实身份的技能结果行绝不能进入骨架——那是行为泄露
+  const disguised = speaker.cover && speaker.cover !== speaker.role;
+  for (const line of k) {
+    // 跳过纪律/指令/内部情报类行（真实夜间行动绝不进入骨架）
+    if (/^【(首轮规则|身份纪律|重要|身份警惕|内部情报|本夜状态)/.test(line)) continue;
+    // 伪装者：跳过真实身份的技能结果行（【昨夜经历】等），只保留【伪装行为】素材
+    if (disguised && !/^【伪装行为/.test(line) && /昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|有人来|前往/.test(line)) continue;
+    // 示例句（如「我昨夜…」）：直接提取引号内内容作为事实
+    const demo = line.match(/如「([^」]+)」/);
+    if (demo) {
+      facts.push(demo[1]);
+      continue;
+    }
+    if (/昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|名册|有人来|掌握|前往|不记得/.test(line)) {
+      // 去掉括号说明与「注意：」开头的规则解释子句，只保留可陈述事实
+      const fact = line
+        .replace(/（[^）]*）/g, '')
+        .replace(/注意[：:][^。]*。?/g, '')
+        .replace(/你的/g, '我的')
+        .replace(/你/g, '我');
+      if (fact.replace(/[【】]/g, '').trim().length > 4) facts.push(fact);
+    }
+  }
+  return facts;
+}
+
+/**
+ * 结构化输出校验（硬兜底）：
+ * 1) 引号内名称必须在「本局玩家名 / 角色名 / 阵营名」白名单内；
+ * 2) 规则断言词（中毒/自毙/误验等）必须来自骨架——骨架没有即为编造规则。
+ * 校验失败由调用方回退到确定性兜底发言。
+ */
+function validateSpeechFacts(game, speaker, speech) {
+  const w = game.deduction;
+  const text = String(speech || '');
+  const nameSet = new Set(w.players.map((p) => p.name));
+  const roleNames = Object.values(ROLES);
+  const quoted = text.match(/[「“]([^」”]{1,8})[」”]/g) || [];
+  for (const q of quoted) {
+    const inner = q.slice(1, -1);
+    if (/^[\u4e00-\u9fa5]{2,4}$/.test(inner) && !nameSet.has(inner) && !roleNames.includes(inner) && !['好人', '中立', '坏人'].includes(inner)) {
+      return `未知名称「${inner}」`;
+    }
+  }
+  const RULE_WORDS = /(中毒|自毙|毒死|误验|验错|同归于尽|连锁|空刀|立即死|就会死|会死亡|住所内行凶|不代表安全|不等于安全)/;
+  if (RULE_WORDS.test(text)) {
+    const skeletonText = buildSpeechSkeleton(game, speaker).join('');
+    if (!RULE_WORDS.test(skeletonText)) return '编造规则机制';
+  }
+  return '';
+}
+
 function buildSpeechPrompt(game, speaker) {
   const w = game.deduction;
   const alive = alivePlayers(w);
@@ -1183,19 +1281,19 @@ function buildSpeechPrompt(game, speaker) {
   }
 
   const knowledge = buildRoleKnowledge(game, speaker).join('\n');
+  // 结构化发言核心：事实骨架（程序确定性生成）+ 官方技能说明（背景理解用，不得复述）
+  const skeleton = buildSpeechSkeleton(game, speaker);
+  const skillDesc = ROLE_SKILL_DESC[speaker.role] || '';
 
   const factLine =
-    `【发言风格 — 最高原则】\n` +
-    `1. 第一人称【完整交代你的信息】：先说「我是${ROLES[speaker.cover || speaker.role]}」，再把你素材里的技能结果/亲历事件如实转述，2~3 句话、40~90 字。禁止只报身份就结束。\n` +
-    `2. 杜绝废话：不寒暄、不喊口号、不重复他人、不空泛地"我觉得X可疑"、不请求大家。用陈述句。\n` +
-    `3. 诚实角色说真话；坏人按上述【伪装行为】编造合理细节伪装；中立自选。\n` +
-    `4. 【绝对禁止】坏人（狼人/帮凶/酒鬼）在发言中提及或暗示自己的真实夜间行动（如"我刀了X"）。只能按伪装身份编造行为。违反此条等于自曝。\n` +
-    `5. 【游戏常识·重要】「呆在家中」或「没有外出」不等于「没被袭击」——狼人可以在住所内行凶。不要用「他在家」去反驳「他被刀了」，这是错误的逻辑。\n` +
-    `6. 发言中不要重复别人已经说过的话，只补充自己独有的新信息或对他人信息的判断。\n` +
-    `7. 【技能真实·铁律】你只能声称行使了【你的身份真正拥有的能力】。文员只能公布角色名单、村民无能力、守卫只能保护、侦探只能获知外出线索、法医只能验尸体、赌徒只能猜阵营、小偷只能清记忆/复制、狼人只能夜晚出刀；观者只能观测阵营、邮差只能送信、行者只能探明身份、庸医只能给药、间谍只能探阵营、小丑只能扭曲记忆、术士只能链接命运。严禁凭空声称本游戏不存在的技能。若要诡辩，只能围绕真实能力做伪陈述。\n` +
-    `8. 【信息边界·铁律】只能陈述【你的素材里明确提供的信息】（技能结果 / 亲历事件 / 你的身份与阵营）。不得编造你身份无法观测到的情报，例如守卫不能说「我留意到其他人的动向」，村民不能说「我看到谁半夜出门」。—— 注意：这不是让你少说话！信息越多越好，但必须是素材里有的、且不虚构。禁止用「我是X。」这种一句话敷衍，必须把你真实掌握的信息全部说出来。\n` +
-    `9. 【生死状态·铁律】严格区分存活者与死者：死者已出局，绝不能说存活者「已死/被袭击身亡/不在了」；也绝不能把死者当作仍在场的人讨论或向其发问。发言前先对照下方的存活名单与死者名单。\n` +
-    `10. 【人称纪律·铁律】你始终用第一人称「我」称呼自己，绝不用自己的名字称呼自己（如「XX，你的判断？」是对自己发问，禁止）；提及他人用其名字。`;
+    `【发言方式 — 最高原则：只润色骨架，不得增删事实】\n` +
+    `0. 【事实骨架】你的发言必须且只需覆盖以下事实点（顺序可调、措辞可改写，但一个都不能丢、一个都不能加）：\n${skeleton.map((f, i) => `   ${i + 1}. ${f}`).join('\n')}\n` +
+    `1. 你的任务是把骨架改写成自然、口语化的第一人称发言（2~3 句话、40~90 字），可以调整语序、补充语气词，但【不得添加任何骨架之外的事实、人名、线索或规则】。\n` +
+    `2. 【规则铁律】不得解释、引用或编造任何游戏规则与技能机制（如「X被验会死」「X中毒自毙」）。规则性内容只允许出现在骨架里；骨架没有的规则一个字都不能提。\n` +
+    `3. 【背景参考·不得复述】各角色真实技能（仅供你理解他人发言，绝不在发言中复述）：${skillDesc}。\n` +
+    `4. 杜绝废话：不寒暄、不喊口号、不重复他人已说的话。用陈述句。\n` +
+    `5. 【生死状态·铁律】严格区分存活者与死者：死者已出局，绝不能说存活者「已死/被袭击身亡/不在了」；也绝不能把死者当作仍在场的人讨论或向其发问。发言前先对照下方的存活名单与死者名单。\n` +
+    `6. 【人称纪律·铁律】你始终用第一人称「我」称呼自己，绝不用自己的名字称呼自己；提及他人用其名字。`;
 
   return {
     system: [
@@ -1450,6 +1548,18 @@ async function generateSpeech(game, speaker) {
         console.log('[debug] 推理杀伪装者泄露真实身份专属行为，兜底:', JSON.stringify(speech.slice(0, 30)));
         speech = fallbackSpeech(game, speaker);
       }
+    }
+    // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）→ 提取示例句，提取不到则兜底
+    if (/【|】|如「|发言用/.test(speech)) {
+      const demo = speech.match(/「(我昨夜[^」]+)」/);
+      speech = demo ? demo[1] : fallbackSpeech(game, speaker);
+      console.log('[debug] 推理杀发言照抄素材行，已提取示例句/兜底');
+    }
+    // 结构化输出校验（硬兜底）：编造规则机制 / 引用白名单外名称 → 回退确定性兜底发言
+    const factErr = validateSpeechFacts(game, speaker, speech);
+    if (factErr) {
+      console.log('[debug] 推理杀发言未过结构化校验（' + factErr + '），兜底:', JSON.stringify(speech.slice(0, 30)));
+      speech = fallbackSpeech(game, speaker);
     }
     if (!speech) throw new Error('empty speech');
     let suspect = String((obj && obj.suspect) || '').trim();
