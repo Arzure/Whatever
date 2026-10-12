@@ -950,11 +950,18 @@ function buildRoleKnowledge(game, p) {
       // 自保场景：守护目标是自己时用「自己」表述，避免发言者用自己名字称呼自己（人称错乱）
       const name = t ? (t.id === p.id ? '自己' : t.name) : '';
       if (night.wolfBlocked && night.guardTarget === night.wolfTarget) {
-        const variants = [
-          `你昨夜守护了「${name}」，成功挡下了狼人的袭击——他活了下来。`,
-          `你昨夜守在「${name}」身边，和袭击者搏斗，把他挡了下来。`,
-          `你昨夜护住了「${name}」——狼人确实来了，但被你击退。`,
-        ];
+        const self = t && t.id === p.id;
+        const variants = self
+          ? [
+              `你昨夜守护了自己，成功挡下了狼人的袭击——你活了下来。`,
+              `你昨夜守在自己家中，和袭击者搏斗，把他挡了下来。`,
+              `你昨夜护住了自己——狼人确实来了，但被你击退。`,
+            ]
+          : [
+              `你昨夜守护了「${name}」，成功挡下了狼人的袭击——他活了下来。`,
+              `你昨夜守在「${name}」身边，和袭击者搏斗，把他挡了下来。`,
+              `你昨夜护住了「${name}」——狼人确实来了，但被你击退。`,
+            ];
         lines.push(`【昨夜经历】${variants[Math.floor(Math.random() * variants.length)]}`);
       } else {
         const variants = [
@@ -1456,6 +1463,8 @@ function buildTwistedSpeech(game, speaker) {
     return `我是${declared}。昨夜我总觉得有些异常动静，但说不清具体是什么，心里很不踏实。`;
   }
   let t = line.replace(/你的/g, '我的').replace(/你/g, '我');
+  // 清洗知识行标记（【昨夜经历】等），扭曲发言同样不得照抄标记
+  t = t.replace(/^【[^】]*】/, '').replace(/【([^】]*)】/g, '$1');
   t = t
     .replace(/没有外出活动（一直待在住所）|没有外出活动/g, '【占位外出】')
     .replace(/曾外出活动/g, '【占位在家】')
