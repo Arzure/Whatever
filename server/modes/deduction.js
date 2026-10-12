@@ -730,8 +730,13 @@ function buildCoverMaterial(w, p, declared) {
     case 'guard':
       return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
     case 'detective': {
-      // 线索随机二选一（曾外出/没外出）：伪装者没有侦探能力，纯瞎猜——不同伪装者说法有差异，更像真人猜测
-      const fakeOut = Math.random() < 0.5 ? '曾外出活动' : '没有外出活动';
+      // 线索随机二选一（曾外出/没外出）+ 一致性记忆：同一目标沿用首次编造的线索，避免多夜说法矛盾
+      if (!p.fakeIntel) p.fakeIntel = {};
+      let fakeOut = p.fakeIntel[`探_${fakeName}`];
+      if (!fakeOut) {
+        fakeOut = Math.random() < 0.5 ? '曾外出活动' : '没有外出活动';
+        p.fakeIntel[`探_${fakeName}`] = fakeOut;
+      }
       return `如「我昨夜暗中探访了${fakeName}，他${fakeOut}」（侦探每夜只能探访一人，只能编造这一条线索）。`;
     }
     case 'forensics': {
@@ -744,9 +749,8 @@ function buildCoverMaterial(w, p, declared) {
           if (!p.fakeIntel) p.fakeIntel = {};
           let fakeRole = p.fakeIntel[`验_${prevDead.name}`];
           if (!fakeRole) {
-            // 瞎猜池：本局角色名单中排除已处刑亮牌的身份（每局身份唯一，已亮牌者不可能是夜间死者的真实身份）
-            const revealed = new Set((w.deaths || []).filter((x) => x.cause === 'execute' && x.role).map((x) => x.role));
-            const pool = (w.rolePoolName || []).filter((r) => !revealed.has(r));
+            // 纯瞎猜：从完整角色名单随机抽取，不做任何排除——伪装者没有法医能力，就是随便猜
+            const pool = w.rolePoolName || [];
             fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
             p.fakeIntel[`验_${prevDead.name}`] = fakeRole;
           }
@@ -1074,6 +1078,11 @@ function buildRoleKnowledge(game, p) {
       break;
     }
     case 'thief': {
+      // 带伪装的小偷：不注入真实技能结果（夜间行踪与专属行为绝不能进入提示词，
+      // 否则模型可能复述自曝——与间谍的处理方式一致），只依赖伪装行为素材
+      if (p.cover && p.cover !== 'thief') {
+        break;
+      }
       const t = findPlayer(w, night.thiefTarget);
       const tName = t ? t.name : '';
       if (night.thiefCopiedRole) {
@@ -1146,7 +1155,8 @@ function buildRoleKnowledge(game, p) {
         lines.push(`你昨夜从死者「${tName}」身上得知了他的秘密：${info}。`);
         lines.push(`【发言纪律】你可以把这条信息当作"自己发现/听闻"的线索说出来，但【绝不能】承认自己夜间拜访过死者——那会暴露你是小偷。`);
       } else if (night.wolfForgot) {
-        lines.push(`你昨夜造访了「${tName}」，但你的手段没能生效。`);
+        // 不提拜访对象（夜间行踪自曝）、不用内部术语：扑空的自然表述，进入骨架也安全
+        lines.push(`你昨夜出门办了点自己的事，但似乎扑了个空，什么也没做成。`);
       } else if (tName) {
         lines.push(`你昨夜造访了「${tName}」，并清除了他本夜的记忆（他的技能失效了）。`);
         lines.push(`【伪装纪律】若你声称是别的身份，别说出"我清除了X记忆"这种小偷专属行为——那会暴露你。可以用"X昨夜行为反常/失忆"侧面表达。`);
@@ -1281,7 +1291,8 @@ function buildSpeechSkeleton(game, speaker) {
     if (/^【(首轮规则|身份纪律|重要|身份警惕|内部情报|本夜状态|本日指令|伪装纪律)/.test(line)) continue;
     if (/必须撒谎|谎报|仅你知晓/.test(line)) continue;
     // 伪装者：跳过真实身份的技能结果行（【昨夜经历】等），只保留【伪装行为】素材
-    if (disguised && !/^【伪装行为/.test(line) && /昨夜|线索|观测|守护|保护|探访|拜访|送信|给药|查验|猜测|有人来|前往/.test(line)) continue;
+    // 词表含『造访』——小偷知识行用『造访』表述，漏拦会导致夜间行踪与专属行为自曝
+    if (disguised && !/^【伪装行为/.test(line) && /昨夜|线索|观测|守护|保护|探访|拜访|造访|送信|给药|查验|猜测|有人来|前往|清除|记忆/.test(line)) continue;
     // 小偷（即使坦白身份）：清除记忆的具体对象绝不进入骨架——公开夜间行动等于替法官解谜，用模糊表述代替
     if (speaker.role === 'thief' && /清除|记忆|复制/.test(line) && !/^【伪装行为/.test(line)) {
       facts.push('昨夜我出门办了点自己的事，细节不便多说。');
@@ -1518,7 +1529,9 @@ function fallbackSpeech(game, speaker) {
   }
 
   // 长度保险：若兜底仍过短，补充一句通用推理/表态句，保证信息量
-  let out = part.slice(0, 2).join('').slice(0, MAX_SPEECH);
+  // 片段拼接前统一补句尾标点，避免两句粘连（如『新尸体目前我暂时』）
+  const parts = part.slice(0, 2).map((s) => (/[。！？…]$/.test(s.trim()) ? s : s.trim() + '。'));
+  let out = parts.join('').slice(0, MAX_SPEECH);
   if (out.length < 20 && alivePlayers(w).length > 1) {
     const other = alivePlayers(w).find((p) => p.id !== speaker.id);
     out += (other ? `目前我暂时没有更多实据，需要结合大家的发言推断。` : `目前我暂时没有更多实据，先听听大家的判断。`);
@@ -1710,8 +1723,8 @@ async function generateSpeech(game, speaker) {
     }
     // 句尾补全（统一出口）：不以句号结尾的完整发言补句号，覆盖 LLM 与兜底所有路径
     if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
-    // 句中粘连检测：超过 28 字的无标点连续段（两句被粘连）→ 兜底
-    if (/[\u4e00-\u9fa5]{28,}/.test(speech)) {
+    // 句中粘连检测：超过 20 字的无标点连续段（两句被粘连）→ 兜底
+    if (/[\u4e00-\u9fa5]{20,}/.test(speech)) {
       console.log('[debug] 推理杀发言句中粘连，兜底:', JSON.stringify(speech.slice(0, 30)));
       speech = fallbackSpeech(game, speaker);
     }
