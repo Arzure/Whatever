@@ -657,6 +657,9 @@ function buildDawnNarrative(game, isFirstNight) {
 
 function buildEndNarrative(w, lastExiled) {
   const reveal = w.players.map((p) => `  ${p.name}：${ROLES[p.role]}`).join('\n');
+  // 区分存活与已死的狼人：已死者早已亮牌伏法，不能再说『仍然潜伏』
+  const aliveWolves = w.players.filter((p) => p.role === 'wolf' && p.alive).map((p) => p.name);
+  const deadWolves = w.players.filter((p) => p.role === 'wolf' && !p.alive).map((p) => p.name);
   const wolfNames = w.players.filter((p) => p.role === 'wolf').map((p) => p.name).join('、');
   if (w.phase === 'win') {
     return `所有狼人已被处刑——${wolfNames}。村庄恢复宁静，好人阵营获胜！${buildNightReview(w)}`;
@@ -669,7 +672,7 @@ function buildEndNarrative(w, lastExiled) {
     else distinct = '那就是好人中的一员';
     return (
       `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人，${distinct}。\n\n` +
-      `好人阵营的力量已经耗尽，狼人「${wolfNames}」仍然潜伏在阴影中。狼人获胜。${buildNightReview(w)}`
+      `好人阵营的力量已经耗尽，狼人阵营获胜。潜伏的狼人：「${aliveWolves.join('、')}」${deadWolves.length ? `（另有已伏法的狼人：${deadWolves.join('、')}）` : ''}。${buildNightReview(w)}`
     );
   }
   return `好人阵营已经失去了反击的力量，狼人「${wolfNames}」潜伏在村庄中。狼人获胜。${buildNightReview(w)}`;
@@ -720,7 +723,9 @@ function buildCoverMaterial(w, p, declared) {
     case 'clerk': {
       // 伪装文员：名单必须包含文员本身（与自称身份一致），否则名单里没有自己声称的身份=自曝
       const pool = [...new Set([...w.rolePoolName, '文员'])];
-      return `公布本局角色名册：${pool.join('、')}（你只知道名单，不知道谁对应谁；首轮应当公布名单）。`;
+      // 措辞按轮次适配：首轮说『首轮公布』，后续轮次说『再次公布核对』——避免第 4 天还说『首轮』的时间错位
+      const timing = w.round === 1 ? '首轮应当公布名单' : '再次公布名单，供大家核对';
+      return `公布本局角色名册：${pool.join('、')}（你只知道名单，不知道谁对应谁；${timing}）。`;
     }
     case 'guard':
       return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
