@@ -1688,7 +1688,8 @@ async function generateSpeech(game, speaker) {
       }
     }
     // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）或知识包特征句式（确切知道/重大信息）→ 提取引号内陈述句，提取不到则兜底
-    if (/【|】|如「|发言用|确切知道|确知|重大信息/.test(speech)) {
+    // 程序性表述拦截：『系统提示』等面向开发者的措辞泄露程序视角，绝不能出现在玩家发言中
+    if (/【|】|如「|发言用|确切知道|确知|重大信息|系统提示|程序|后台/.test(speech)) {
       const demo = speech.match(/「(我[^」]{6,})」/) || speech.match(/「([^」]{6,})」/);
       speech = demo ? demo[1] : fallbackSpeech(game, speaker);
       if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
