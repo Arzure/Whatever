@@ -732,8 +732,14 @@ function buildCoverMaterial(w, p, declared) {
       if (w.round >= 2) {
         const prevDead = [...(w.deaths || [])].reverse().find((d) => d.cause === 'night' && d.round < w.round);
         if (prevDead) {
-          const pool = w.rolePoolName || [];
-          const fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
+          // 编造身份一致性记忆：同一死者沿用首次编造的身份，避免多夜说法矛盾
+          if (!p.fakeIntel) p.fakeIntel = {};
+          let fakeRole = p.fakeIntel[`验_${prevDead.name}`];
+          if (!fakeRole) {
+            const pool = w.rolePoolName || [];
+            fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
+            p.fakeIntel[`验_${prevDead.name}`] = fakeRole;
+          }
           return `如「昨夜我前往案发现场，验明了死者「${prevDead.name}」的真实身份是${fakeRole}」（编造的身份，切勿与已公开信息矛盾）。`;
         }
       }
@@ -1649,7 +1655,7 @@ async function generateSpeech(game, speaker) {
       }
     }
     // 素材原文泄露拦截：发言中照抄了知识包标记（【】/如「」/发言用）或知识包特征句式（确切知道/重大信息）→ 提取引号内陈述句，提取不到则兜底
-    if (/【|】|如「|发言用|确切知道|重大信息/.test(speech)) {
+    if (/【|】|如「|发言用|确切知道|确知|重大信息/.test(speech)) {
       const demo = speech.match(/「(我[^」]{6,})」/) || speech.match(/「([^」]{6,})」/);
       speech = demo ? demo[1] : fallbackSpeech(game, speaker);
       if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
@@ -1666,6 +1672,22 @@ async function generateSpeech(game, speaker) {
     const named = suspectFromSpeech(w, speaker, speech);
     const target = findPlayer(w, suspect);
     if (named && (!target || target.id !== named)) suspect = named;
+    // 法医轮次矛盾拦截：自称法医者在存在上一夜死者时说「没有尸体可验」→ 与规则矛盾，兜底
+    const claimedForensics = extractClaim(speech) === '法医';
+    if (claimedForensics && w.round >= 2) {
+      const prevDead = [...(w.deaths || [])].reverse().find((d) => d.cause === 'night' && d.round < w.round);
+      if (prevDead && /没有可供.{0,4}检验.{0,4}尸体|没有.{0,6}尸体可/.test(speech)) {
+        console.log('[debug] 推理杀法医无尸体说法与轮次矛盾，兜底:', JSON.stringify(speech.slice(0, 30)));
+        speech = fallbackSpeech(game, speaker);
+      }
+    }
+    // 引号闭合校验：发言中「」不成对（截断切在引号内部，句子不完整）→ 兜底
+    const openQuotes = (speech.match(/「/g) || []).length;
+    const closeQuotes = (speech.match(/」/g) || []).length;
+    if (openQuotes !== closeQuotes) {
+      console.log('[debug] 推理杀发言引号未闭合（截断），兜底:', JSON.stringify(speech.slice(0, 30)));
+      speech = fallbackSpeech(game, speaker);
+    }
     // 句尾补全（统一出口）：不以句号结尾的完整发言补句号，覆盖 LLM 与兜底所有路径
     if (speech.length > 10 && !/[。！？…]$/.test(speech)) speech += '。';
     // 句中粘连检测：超过 28 字的无标点连续段（两句被粘连）→ 兜底
