@@ -740,7 +740,7 @@ function buildCoverMaterial(w, p, declared) {
             fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
             p.fakeIntel[`验_${prevDead.name}`] = fakeRole;
           }
-          return `如「昨夜我前往案发现场，验明了死者「${prevDead.name}」的真实身份是${fakeRole}」（编造的身份，切勿与已公开信息矛盾）。`;
+          return `如「昨夜我前往案发现场，验明了死者${prevDead.name}的真实身份是${fakeRole}」（编造的身份，切勿与已公开信息矛盾；示例句内不得使用引号）。`;
         }
       }
       return `如「昨夜没有可供检验的新尸体」（法医只能检验上一案发现场的死者，首夜无尸体可验）。`;
@@ -1114,13 +1114,13 @@ function buildRoleKnowledge(game, p) {
               : `邮差原本给「${pm.name}」送了一封信，一路平安`)
             : '邮差原本没有送出信件';
         } else if (deadRole === 'quack') {
-          const saves = (night.quackSaves || []).map(nameOf).filter(Boolean);
-          const poisons = (night.quackPoisons || []).map(nameOf).filter(Boolean);
+          const saves = (night.quackSaves || []).map((id) => { const q = findPlayer(w, id); return q ? q.name : ''; }).filter(Boolean);
+          const poisons = (night.quackPoisons || []).map((id) => { const q = findPlayer(w, id); return q ? q.name : ''; }).filter(Boolean);
           info = saves.length || poisons.length
             ? `庸医原本给来客递了药${saves.length ? `，救下了${saves.join('、')}` : ''}${poisons.length ? `${saves.length ? '，' : ''}药死了${poisons.join('、')}` : ''}`
             : '庸医昨夜原本无人来访';
         } else if (deadRole === 'warlock') {
-          const links = (night.warlockLinks || []).map(nameOf).filter(Boolean);
+          const links = (night.warlockLinks || []).map((id) => { const q = findPlayer(w, id); return q ? q.name : ''; }).filter(Boolean);
           info = links.length === 2
             ? `术士原本作法链接了「${links[0]}」与「${links[1]}」的命运`
             : '术士原本没有完成链接';
@@ -1513,7 +1513,17 @@ function fallbackSpeech(game, speaker) {
     const other = alivePlayers(w).find((p) => p.id !== speaker.id);
     out += (other ? `目前我暂时没有更多实据，需要结合大家的发言推断。` : `目前我暂时没有更多实据，先听听大家的判断。`);
   }
-  return out.slice(0, MAX_SPEECH);
+  out = out.slice(0, MAX_SPEECH);
+  // 兜底输出同样做引号闭合与句尾处理：截断切在引号内部时回退到最后一个完整句号
+  const oq = (out.match(/「/g) || []).length;
+  const cq = (out.match(/」/g) || []).length;
+  if (oq !== cq) {
+    const lastStop = Math.max(out.lastIndexOf('。'), out.lastIndexOf('！'), out.lastIndexOf('？'));
+    if (lastStop > 10) out = out.slice(0, lastStop + 1);
+    else out = out.replace(/[「」]/g, '');
+  }
+  if (out.length > 10 && !/[。！？…]$/.test(out)) out += '。';
+  return out;
 }
 
 /**
