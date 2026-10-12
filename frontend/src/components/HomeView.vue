@@ -12,6 +12,14 @@ const importing = ref(false);
 const genreId = ref(''); // 探案模式：案件题材
 const boardId = ref('standard'); // 推理杀：板子（standard 七人标准 | advanced 十人进阶）
 const needBoard = computed(() => modeId.value === 'deduction');
+// 各模式在名称为空时服务端使用的默认名（与后端 newGame 逻辑保持一致）
+const DEFAULT_NAMES = {
+  deduction: '法官',
+  wolf: '村民甲',
+  detective: '无名侦探',
+  world: '无名冒险者',
+};
+const defaultName = computed(() => DEFAULT_NAMES[modeId.value] || '无名冒险者');
 const BOARDS = [
   { id: 'standard', name: '七人标准', intro: '4 好人 + 1 中立 + 2 坏人，经典配置' },
   { id: 'advanced', name: '十人进阶', intro: '5 好人 + 2 中立 + 3 坏人，新增观者/邮差/行者/庸医/间谍/小丑/术士' },
@@ -71,7 +79,7 @@ function start() {
 }
 
 const canStart = computed(() => {
-  if (!playerName.value.trim()) return false;
+  // 名称可选：留空时由服务端使用各模式默认名（法官/村民甲/无名侦探/无名冒险者）
   if (needGenre.value && !genreId.value) return false;
   return true;
 });
@@ -168,7 +176,7 @@ const canStart = computed(() => {
           v-model="playerName"
           type="text"
           maxlength="20"
-          :placeholder="needGenre ? '输入你的侦探名字' : '输入你的名字'"
+          :placeholder="`给自己起个名字（可留空，默认「${defaultName}」）`"
           @keyup.enter="start"
         />
         <button class="btn primary" :disabled="state.loading || !canStart" @click="start">
@@ -176,6 +184,7 @@ const canStart = computed(() => {
           <template v-else>{{ needGenre ? '开始查案' : '开始新冒险' }}</template>
         </button>
       </div>
+      <p class="hint small">名字可留空：不填将直接以「{{ defaultName }}」的身份开始游戏</p>
       <p v-if="needGenre" class="hint small">探案模式会由 AI 即时设计一桩命案，请先选择题材</p>
 
       <p v-if="state.error" class="error">{{ state.error }}</p>
