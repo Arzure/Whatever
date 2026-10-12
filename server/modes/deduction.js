@@ -729,8 +729,11 @@ function buildCoverMaterial(w, p, declared) {
     }
     case 'guard':
       return `如「我昨夜守护了${fakeName}，整夜平安无事」（守卫每夜只能守护一人，只能编造这一条守护经历）。`;
-    case 'detective':
-      return `如「我昨夜暗中探访了${fakeName}，他没有外出活动」（侦探每夜只能探访一人，只能编造这一条线索）。`;
+    case 'detective': {
+      // 线索随机二选一（曾外出/没外出）：伪装者没有侦探能力，纯瞎猜——不同伪装者说法有差异，更像真人猜测
+      const fakeOut = Math.random() < 0.5 ? '曾外出活动' : '没有外出活动';
+      return `如「我昨夜暗中探访了${fakeName}，他${fakeOut}」（侦探每夜只能探访一人，只能编造这一条线索）。`;
+    }
     case 'forensics': {
       // 第 2 夜起法医必然能验上一案发现场死者：伪装话术必须随轮次适配，否则与公开事实直接冲突（一眼识破）
       // 注意：只能验【上一夜】的死者——当夜（本轮）死者天亮才被发现，法医夜里不可能验到，必须排除
@@ -741,7 +744,9 @@ function buildCoverMaterial(w, p, declared) {
           if (!p.fakeIntel) p.fakeIntel = {};
           let fakeRole = p.fakeIntel[`验_${prevDead.name}`];
           if (!fakeRole) {
-            const pool = w.rolePoolName || [];
+            // 瞎猜池：本局角色名单中排除已处刑亮牌的身份（每局身份唯一，已亮牌者不可能是夜间死者的真实身份）
+            const revealed = new Set((w.deaths || []).filter((x) => x.cause === 'execute' && x.role).map((x) => x.role));
+            const pool = (w.rolePoolName || []).filter((r) => !revealed.has(r));
             fakeRole = pool.length ? pool[Math.floor(Math.random() * pool.length)] : '村民';
             p.fakeIntel[`验_${prevDead.name}`] = fakeRole;
           }
