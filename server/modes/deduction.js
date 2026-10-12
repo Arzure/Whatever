@@ -1539,7 +1539,7 @@ function buildTwistedSpeech(game, speaker) {
     .replace(/【占位外出】/g, '曾外出活动')
     .replace(/【占位在家】/g, '没有外出活动（一直待在住所）');
   t = t
-    .replace(/平安无事|风平浪静|无事发生|没有异常动静|整夜平稳/g, '【占位平安】')
+    .replace(/一路平安|平安无事|风平浪静|无事发生|没有异常动静|整夜平稳/g, '【占位平安】')
     .replace(/【占位平安】/g, '有些异常动静');
   t = t
     .replace(/好人/g, '【占位好】')
