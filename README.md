@@ -232,7 +232,7 @@ Whatever/
 
 - **[TECH_DOC.md](TECH_DOC.md)** —— 开发者文档：开发进度、多模式架构、AI 交互实现原理、启动/关闭/配置详解
 - **[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)** —— 开发记录：关键问题的排查过程与决策原因
-- **[DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md)** —— 部署全记录：服务器部署、HTTPS 配置、安全加固、问题修复与实测的完整过程（含命令学习手册）
+- **[DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md)** —— 部署全记录：服务器部署、HTTPS 配置、安全加固、问题修复与实测的完整过程（含命令学习手册；第十四部分为玩家账号系统上线的逐条命令教科书式解读）
 
 ## 🗺️ 路线图
 
