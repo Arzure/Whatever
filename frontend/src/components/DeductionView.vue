@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, inject, Transition } from 'vue';
 import { api } from '../api';
 import NightActionGraph from './NightActionGraph.vue';
 
@@ -614,7 +614,10 @@ watch(() => state.history.length, scrollToBottom);
     </nav>
 
     <!-- 移动端：底部抽屉（覆盖层，关闭后阅读位置不变） -->
-    <div v-if="drawer" class="drawer-mask" @click="closeDrawer"></div>
+    <Transition name="drw">
+      <div v-if="drawer" class="drawer-mask" @click="closeDrawer"></div>
+    </Transition>
+    <Transition name="drw">
     <div v-if="drawer" class="drawer-panel">
       <div class="drawer-head">
         <h3>{{ drawer === 'players' ? '在场者' : drawer === 'claims' ? '自称身份' : drawer === 'roles' ? '角色能力说明' : '法官状态' }}</h3>
@@ -720,6 +723,7 @@ watch(() => state.history.length, scrollToBottom);
         </template>
       </div>
     </div>
+    </Transition>
 
     <!-- 主区：发言流 + 裁决面板 -->
     <main class="main-panel">
@@ -776,6 +780,7 @@ watch(() => state.history.length, scrollToBottom);
     </main>
 
     <!-- 裁决浮层：点击『现在由你裁决』后弹出 -->
+    <Transition name="ovl">
     <div v-if="showAdjudicate && canAdjudicate" class="review-overlay" @click.self="showAdjudicate = false">
       <div class="review-modal adjudicate-modal">
         <div class="review-head">
@@ -803,8 +808,10 @@ watch(() => state.history.length, scrollToBottom);
         </div>
       </div>
     </div>
+    </Transition>
 
     <!-- 处刑结果弹窗：法槌落下，身份牌揭开（按阵营着色） -->
+    <Transition name="ovl">
     <div v-if="execResult" class="review-overlay" @click.self="execResult = null">
       <div class="review-modal exec-modal">
         <div v-if="execResult.pass" class="exec-gavel pass">🛡️</div>
@@ -822,8 +829,10 @@ watch(() => state.history.length, scrollToBottom);
         <button class="btn primary" @click="execResult = null">知道了</button>
       </div>
     </div>
+    </Transition>
 
     <!-- 每夜事件弹窗：提示昨夜实际发生的事情（死讯/平安夜，带动画） -->
+    <Transition name="ovl">
     <div v-if="nightEvent && !state.gameOver" class="review-overlay night-event-overlay" @click.self="nightEvent = null">
       <div class="review-modal night-event-modal">
         <div class="night-event-icon" :class="nightEvent.peaceful ? 'peaceful' : 'death'">{{ nightEvent.peaceful ? '🌙' : '💀' }}</div>
@@ -833,8 +842,10 @@ watch(() => state.history.length, scrollToBottom);
         <button class="btn primary" @click="nightEvent = null">知道了</button>
       </div>
     </div>
+    </Transition>
 
     <!-- 终局结算弹窗：胜负结算 + 逐夜行动回顾入口 -->
+    <Transition name="ovl">
     <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
       <div class="review-modal end-modal">
         <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
@@ -845,8 +856,10 @@ watch(() => state.history.length, scrollToBottom);
         </div>
       </div>
     </div>
+    </Transition>
 
     <!-- 终局：逐夜行动回顾浮层（每夜一张关系图 + 对齐后的说明文字） -->
+    <Transition name="ovl">
     <div v-if="showNightReview && nightLogs.length" class="review-overlay" @click.self="showNightReview = false">
       <div class="review-modal">
         <div class="review-head">
@@ -862,6 +875,7 @@ watch(() => state.history.length, scrollToBottom);
         </div>
       </div>
     </div>
+    </Transition>
   </div>
 </template>
 
@@ -1146,6 +1160,48 @@ watch(() => state.history.length, scrollToBottom);
 
 .review-btn {
   margin-top: 10px;
+}
+/* 弹窗收回动画：遮罩淡出 + 弹窗缩小下沉（展开动画保持原有 evt-pop） */
+.ovl-enter-active {
+  transition: opacity 0.2s ease;
+}
+.ovl-enter-active .review-modal {
+  animation: evt-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ovl-leave-active {
+  transition: opacity 0.22s ease;
+}
+.ovl-leave-active .review-modal {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: scale(0.85) translateY(14px);
+  opacity: 0;
+}
+.ovl-enter-from,
+.ovl-leave-to {
+  opacity: 0;
+}
+/* 抽屉收回动画：遮罩淡出 + 面板滑落 */
+.drw-enter-active {
+  transition: opacity 0.2s ease;
+}
+.drw-enter-active.drawer-panel {
+  animation: drawer-up 0.22s ease-out;
+}
+.drw-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.drw-leave-active.drawer-panel {
+  transform: translateY(100%);
+}
+.drw-enter-from,
+.drw-leave-to {
+  opacity: 0;
+}
+.drw-leave-active.drawer-panel {
+  opacity: 1;
+}
+.drw-leave-to.drawer-panel {
+  transform: translateY(100%);
 }
 /* 静态天分隔标题（替代原折叠按钮） */
 .day-header {
