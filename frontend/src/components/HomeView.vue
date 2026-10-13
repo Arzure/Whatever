@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted, inject, Transition } from 'vue';
 import { api } from '../api';
 
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave } = inject('game');
@@ -85,6 +85,8 @@ const canStart = computed(() => {
   return true;
 });
 
+// —— 存档选择弹窗：首页仅显示入口按钮，点击后浮层内选择存档 ——
+const showSaves = ref(false);
 // —— 存档删除（带二次确认） ——
 const deletingId = ref('');
 async function deleteSave(s) {
@@ -207,25 +209,38 @@ async function deleteSave(s) {
 
       <p v-if="state.error" class="error">{{ state.error }}</p>
 
-      <div v-if="state.saves.length" class="save-list">
-        <h2>继续冒险</h2>
-        <div v-for="s in state.saves" :key="s.id" class="save-item" @click="loadSave(s.id)">
-          <span class="save-name">{{ s.playerName }}</span>
-          <span class="save-meta">
-            <em v-if="s.caseTitle">{{ s.caseTitle }}</em>
-            <em v-else-if="s.themeName">{{ s.themeName }}</em>
-            <template v-if="s.caseTitle || s.themeName"> · </template>
-            <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
-            {{ new Date(s.updatedAt).toLocaleString() }}
-          </span>
-          <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
-            {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
-          </button>
+      <div class="save-entry">
+        <button v-if="state.saves.length" class="btn save-btn" @click="showSaves = true">📂 存档（{{ state.saves.length }}）</button>
+        <p v-else class="hint">尚无存档，从第一场冒险开始吧</p>
+      </div>
+    </div>
+
+    <!-- 存档选择浮层：点击存档按钮后弹出 -->
+    <Transition name="ovl">
+      <div v-if="showSaves" class="save-overlay" @click.self="showSaves = false">
+        <div class="save-modal">
+          <div class="save-modal-head">
+            <h3>📂 继续冒险</h3>
+            <button class="save-modal-close" @click="showSaves = false">✕</button>
+          </div>
+          <div class="save-modal-body">
+            <div v-for="s in state.saves" :key="s.id" class="save-item" @click="showSaves = false; loadSave(s.id)">
+              <span class="save-name">{{ s.playerName }}</span>
+              <span class="save-meta">
+                <em v-if="s.caseTitle">{{ s.caseTitle }}</em>
+                <em v-else-if="s.themeName">{{ s.themeName }}</em>
+                <template v-if="s.caseTitle || s.themeName"> · </template>
+                <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
+                {{ new Date(s.updatedAt).toLocaleString() }}
+              </span>
+              <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
+                {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-
-      <p v-else class="hint">尚无存档，从第一场冒险开始吧</p>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -428,20 +443,92 @@ async function deleteSave(s) {
   font-size: 12px;
 }
 
-.save-list {
+/* 存档入口按钮（替代原卡片内铺开的存档列表） */
+.save-entry {
   margin-top: 28px;
   border-top: 1px solid var(--border);
   padding-top: 20px;
-  /* 存档过多时收纳在卡片内：限高 + 内部滚动，避免撑破卡片挂到外面 */
-  max-height: 320px;
-  overflow-y: auto;
-  padding-right: 6px;
+  text-align: center;
 }
-
-.save-list h2 {
+.save-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+.save-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+/* 存档选择浮层 */
+.save-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.save-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.save-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.save-modal-head h3 {
+  margin: 0;
   font-size: 15px;
+}
+.save-modal-close {
+  background: none;
+  border: none;
   color: var(--text-dim);
-  margin-bottom: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.save-modal-body {
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.save-modal-body .save-item {
+  margin-bottom: 8px;
+}
+/* 浮层展开/收回动画（与推理杀弹窗一致） */
+.ovl-enter-active {
+  transition: opacity 0.2s ease;
+}
+.ovl-enter-active .save-modal {
+  animation: save-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ovl-leave-active {
+  transition: opacity 0.22s ease;
+}
+.ovl-leave-active .save-modal {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: scale(0.85) translateY(14px);
+  opacity: 0;
+}
+.ovl-enter-from,
+.ovl-leave-to {
+  opacity: 0;
+}
+@keyframes save-pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 .save-item {
