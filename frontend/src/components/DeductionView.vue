@@ -1081,16 +1081,18 @@ watch(() => state.history.length, scrollToBottom);
 .exec-flip::before {
   content: '';
   position: absolute;
-  inset: -60px -40px;
-  background: radial-gradient(circle, transparent 18%, rgba(6, 8, 16, 0.75) 55%);
+  inset: -26px -18px;
+  background: radial-gradient(circle, transparent 30%, rgba(6, 8, 16, 0.5) 70%);
   opacity: 0;
-  animation: spotlight 0.5s ease 0.45s forwards;
+  /* 闪一下即淡出：翻牌瞬间聚光，翻完不残留（避免深色遮罩遮挡卡片） */
+  animation: spotlight 1.1s ease 0.4s forwards;
   pointer-events: none;
   z-index: 1;
 }
 @keyframes spotlight {
   0% { opacity: 0; }
-  100% { opacity: 1; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
 }
 .exec-flip-inner {
   z-index: 2;
