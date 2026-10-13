@@ -34,7 +34,12 @@ function buildEdges(l) {
   if (l.walker) e.push({ from: l.walker.who, to: l.walker.target, label: l.walker.kill ? '同归于尽' : '探明身份', type: l.walker.kill ? 'kill' : 'probe' });
   if (l.spy) e.push({ from: l.spy.who, to: l.spy.target, label: l.spy.lie ? '刺探·将撒谎' : '刺探', type: 'probe' });
   if (l.clown) e.push({ from: l.clown.who, to: l.clown.target, label: '扭曲记忆', type: 'confuse' });
-  if (l.warlock && l.warlock.links && l.warlock.links.length === 2) e.push({ from: l.warlock.links[0], to: l.warlock.links[1], label: '命运链接', type: 'link' });
+  if (l.warlock && l.warlock.links && l.warlock.links.length === 2) {
+    // 术士才是执行者：从他出发连向两位被链接者；另加一条虚线标出两人的命运关联
+    e.push({ from: l.warlock.who, to: l.warlock.links[0], label: '链接命运', type: 'link' });
+    e.push({ from: l.warlock.who, to: l.warlock.links[1], label: '链接命运', type: 'link' });
+    e.push({ from: l.warlock.links[0], to: l.warlock.links[1], label: '命运相连', type: 'link', dashed: true });
+  }
   if (l.drunkard) (l.drunkard.affected || []).forEach((n) => e.push({ from: l.drunkard.who, to: n, label: '迷醉', type: 'confuse' }));
   if (l.quack) {
     (l.quack.saves || []).forEach((n) => e.push({ from: l.quack.who, to: n, label: '救治', type: 'protect' }));
@@ -150,10 +155,10 @@ const activeDetail = computed(() => {
         <path d="M 0 0 L 10 5 L 0 10 z" :fill="color" />
       </marker>
     </defs>
-    <path v-for="(e, i) in graph.edges" :key="'e' + i" :d="e.path" :stroke="e.color" stroke-width="2" fill="none"
+    <path v-for="(e, i) in graph.edges" :key="'e' + i" :d="e.path" :stroke="e.color" :stroke-width="e.dashed ? 1.5 : 2" fill="none"
       pathLength="1"
       class="edge-line" :style="{ animationDelay: (0.3 + e.order * 0.38) + 's' }"
-      :class="{ 'edge-dim': isEdgeDim(e) }"
+      :class="{ 'edge-dim': isEdgeDim(e), 'edge-dashed': e.dashed }"
       :marker-end="`url(#ng-arrow-${log.round}-${e.type})`" />
     <text v-for="(e, i) in graph.edges" :key="'l' + i" :x="e.lx" :y="e.ly" class="edge-label" :fill="e.color"
       :style="{ animationDelay: (0.55 + e.order * 0.38) + 's' }"
@@ -204,6 +209,15 @@ const activeDetail = computed(() => {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   animation: edge-grow 0.5s ease-out both;
+}
+/* 命运相连的关联线：虚线（在生长动画结束后切换为点划线样式） */
+.edge-line.edge-dashed {
+  animation: edge-grow 0.5s ease-out both;
+  stroke-linecap: round;
+}
+.edge-line.edge-dashed {
+  stroke-dasharray: 4 4;
+  stroke-dashoffset: 0;
 }
 @keyframes edge-grow {
   0% { stroke-dashoffset: 1; opacity: 0.25; }
