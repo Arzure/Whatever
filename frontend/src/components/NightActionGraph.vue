@@ -105,12 +105,16 @@ const graph = computed(() => {
       const path = `M ${a.x - 16} ${a.y - NODE_HH - EDGE_PAD} C ${a.x - 44} ${a.y - 78}, ${a.x + 44} ${a.y - 78}, ${a.x + 16} ${a.y - NODE_HH - EDGE_PAD}`;
       return { ...e, path, lx: a.x, ly: a.y - 72, color, order: i };
     }
-    // 控制点：两框中心连线中点，向外偏移形成弧度
+    // 控制点：以两框中心连线的『垂直方向』偏移形成弧度。
+    // 关键：方向按参与者名字的固定先后规范化——这样 A→B 与 B→A 会分居连线两侧，
+    // 不会像原来那样两条反向线走同一条弧、完全重叠。
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    const dx = mx - cx, dy = my - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    const bend = 0.28 + (i % 3) * 0.14; // 多条边错开弧度
-    const c = { x: mx + (dx / len) * R * bend, y: my + (dy / len) * R * bend };
+    const [p1, p2] = e.from < e.to ? [a, b] : [b, a];
+    const ndx = p2.x - p1.x, ndy = p2.y - p1.y;
+    const nlen = Math.hypot(ndx, ndy) || 1;
+    const nx = -ndy / nlen, ny = ndx / nlen; // 规范连线的垂线单位向量
+    const bend = Math.min(nlen * 0.16, 80); // 弧度随距离自适应，封顶避免过大
+    const c = { x: mx + nx * bend, y: my + ny * bend };
     // 起止点：沿『中心→控制点』方向与人物框边缘求交（避免线条压在框上）
     const s = boxEdgePoint(a, c);
     const t = boxEdgePoint(b, c);
