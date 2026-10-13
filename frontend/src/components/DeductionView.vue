@@ -368,23 +368,16 @@ function onPageTouchEnd(e) {
 }
 
 // —— 每夜事件弹窗：新的一天开始时提示昨夜实际发生的事情（死讯/平安夜） ——
+// 时序：若处刑结果弹窗正在显示，先暂存，待其关闭后再弹出（处刑结果 → 夜间事件）
 const nightEvent = ref(null);
 let lastSeenRound = 0;
-watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
-  if (state.gameOver) return;
-  const r = d.value.round || 1;
-  if (r !== lastSeenRound && (d.value.phase === 'day' || d.value.phase === 'adjudicate')) {
-    lastSeenRound = r;
-    const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
-    nightEvent.value = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
-  }
-}, { immediate: true });
+let pendingNightEvent = null;
 
 // —— 终局结算弹窗 ——
 const showEndModal = ref(false);
 watch(() => state.gameOver, (v) => { showEndModal.value = !!v; }, { immediate: true });
 // 换局重置弹窗状态
-watch(() => state.gameId, () => { lastSeenRound = 0; nightEvent.value = null; });
+watch(() => state.gameId, () => { lastSeenRound = 0; nightEvent.value = null; pendingNightEvent = null; });
 function togglePick(id) {
   const i = execPicks.value.indexOf(id);
   if (i >= 0) execPicks.value.splice(i, 1);
@@ -415,6 +408,26 @@ function watchExecResult() {
   }
 }
 watch(() => (state.history || []).length, watchExecResult, { immediate: false });
+
+// 夜间事件监听（注册于处刑结果之后，确保同批次更新时处刑结果先落定）
+watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
+  if (state.gameOver) return;
+  const r = d.value.round || 1;
+  if (r !== lastSeenRound && (d.value.phase === 'day' || d.value.phase === 'adjudicate')) {
+    lastSeenRound = r;
+    const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
+    const evt = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
+    if (execResult.value) pendingNightEvent = evt;
+    else nightEvent.value = evt;
+  }
+}, { immediate: true });
+// 处刑结果弹窗关闭后，再显示暂存的夜间事件弹窗
+watch(execResult, (v) => {
+  if (!v && pendingNightEvent) {
+    nightEvent.value = pendingNightEvent;
+    pendingNightEvent = null;
+  }
+});
 
 function doExecute(targetId) {
   if (isAdvanced.value) {
@@ -1390,6 +1403,14 @@ watch(() => state.history.length, scrollToBottom);
 }
 .end-modal-actions .review-btn {
   margin-top: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+.end-modal-actions .review-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .review-overlay {
   position: fixed;
