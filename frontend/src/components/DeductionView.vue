@@ -843,9 +843,14 @@ watch(() => state.history.length, scrollToBottom);
         <p v-if="execResult.pass" class="exec-text">你权衡再三，决定【放弃处刑】——证据还不够充分，贸然出手可能误伤好人。今天没有人被放逐，直接进入下一夜。</p>
         <template v-else>
           <p class="exec-text">你举起法槌{{ execResult.multi ? '，接连指向' : '，指向' }}<span v-for="(t, i) in execResult.targets" :key="t.name">{{ i > 0 ? '与' : '' }}「{{ t.name }}」</span>，下令{{ execResult.multi ? '处决' : '处刑' }}。</p>
-          <div v-for="t in execResult.targets" :key="t.name" class="exec-card">
+          <div v-for="(t, i) in execResult.targets" :key="t.name" class="exec-card" :style="{ animationDelay: (0.5 + i * 0.4) + 's' }">
             <span class="exec-name">「{{ t.name }}」被带下去，身份牌翻开——</span>
-            <b :class="roleClass(t.role)" class="exec-role">【{{ t.role }}】</b>
+            <div class="exec-flip">
+              <div class="exec-flip-inner">
+                <div class="exec-flip-back">？</div>
+                <div class="exec-flip-front"><b :class="roleClass(t.role)" class="exec-role">【{{ t.role }}】</b></div>
+              </div>
+            </div>
             <span v-if="t.verdict" class="exec-verdict">{{ t.verdict }}</span>
           </div>
         </template>
@@ -858,10 +863,14 @@ watch(() => state.history.length, scrollToBottom);
     <Transition name="ovl">
     <div v-if="nightEvent && !state.gameOver" class="review-overlay night-event-overlay" @click.self="nightEvent = null">
       <div class="review-modal night-event-modal">
+        <!-- 第一幕：夜空背景层（星星闪烁，随后褪去） -->
+        <div class="night-sky" aria-hidden="true">
+          <span v-for="s in 12" :key="s" class="star" :style="{ left: (s * 8 - 4) + '%', animationDelay: (s * 0.18) + 's' }"></span>
+        </div>
         <div class="night-event-icon" :class="nightEvent.peaceful ? 'peaceful' : 'death'">{{ nightEvent.peaceful ? '🌙' : '💀' }}</div>
         <h3 class="night-event-title">第 {{ nightEvent.round }} 天 · 天亮了</h3>
         <p v-if="nightEvent.peaceful" class="night-event-text">昨夜风平浪静，是个平安夜。</p>
-        <p v-else class="night-event-text">昨夜，黑暗夺走了<span v-for="n in nightEvent.deaths" :key="n" class="night-event-dead">「{{ n }}」</span>的生命——尸体在清晨被发现，身份未知。</p>
+        <p v-else class="night-event-text">昨夜，黑暗夺走了<span v-for="(n, i) in nightEvent.deaths" :key="n" class="night-event-dead" :style="{ animationDelay: (0.6 + i * 0.3) + 's' }">「{{ n }}」</span>的生命——尸体在清晨被发现，身份未知。</p>
         <button class="btn primary" @click="nightEvent = null">知道了</button>
       </div>
     </div>
@@ -871,8 +880,16 @@ watch(() => state.history.length, scrollToBottom);
     <Transition name="ovl">
     <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
       <div class="review-modal end-modal">
+        <div class="end-modal-glow" aria-hidden="true"></div>
         <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
-        <h3 class="end-modal-title">{{ d.winner === 'good' ? '狼人全部落网，好人获胜！' : '狼人潜伏到最后，好人失败…' }}</h3>
+        <h3 class="end-modal-title">
+          <span
+            v-for="(ch, i) in (d.winner === 'good' ? '狼人全部落网，好人获胜！' : '狼人潜伏到最后，好人失败…')"
+            :key="i"
+            class="end-title-char"
+            :style="{ animationDelay: (0.8 + i * 0.08) + 's' }"
+          >{{ ch }}</span>
+        </h3>
         <div class="end-modal-actions">
           <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
           <button class="btn primary" @click="restart">🔄 再开一局</button>
@@ -1250,12 +1267,59 @@ watch(() => state.history.length, scrollToBottom);
   animation: exec-slam 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .exec-gavel.pass {
-  animation: evt-float 2.2s ease-in-out infinite;
+  animation: shield-rise 0.8s ease-out both, evt-float 2.2s ease-in-out 0.8s infinite;
 }
 @keyframes exec-slam {
-  0% { transform: rotate(-40deg) translateY(-18px); opacity: 0; }
-  60% { transform: rotate(8deg) translateY(2px); opacity: 1; }
+  0% { transform: translate(60px, -60px) rotate(120deg); opacity: 0; }
+  55% { transform: translate(-4px, 4px) rotate(-14deg); opacity: 1; }
+  75% { transform: translate(0, 0) rotate(6deg); }
   100% { transform: rotate(0); }
+}
+@keyframes shield-rise {
+  0% { transform: translateY(24px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+/* 身份牌 3D 翻牌：卡片入场 → 牌背问号 → 翻转显示身份 */
+.exec-card {
+  animation: dead-reveal 0.5s ease both;
+}
+.exec-flip {
+  perspective: 600px;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 4px 0;
+}
+.exec-flip-inner {
+  position: relative;
+  width: 92px;
+  height: 40px;
+  transform-style: preserve-3d;
+  animation: card-flip 0.55s cubic-bezier(0.34, 1.2, 0.64, 1) 0.7s both;
+}
+.exec-flip-back,
+.exec-flip-front {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  backface-visibility: hidden;
+  border: 1px solid var(--border);
+}
+.exec-flip-back {
+  background: repeating-linear-gradient(45deg, #21262d, #21262d 6px, #2d333b 6px, #2d333b 12px);
+  color: var(--text-dim);
+  font-size: 18px;
+  font-weight: 700;
+}
+.exec-flip-front {
+  background: #161b22;
+  transform: rotateY(180deg);
+}
+@keyframes card-flip {
+  0% { transform: rotateY(0); }
+  100% { transform: rotateY(180deg); }
 }
 .exec-title {
   margin: 0 0 8px;
@@ -1341,7 +1405,36 @@ watch(() => state.history.length, scrollToBottom);
   font-weight: 600;
 }
 /* 每夜事件弹窗 */
+/* 第一幕：夜空背景层——深蓝渐变 + 星星闪烁，随后整体褪去 */
+.night-sky {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #0b1026 0%, #131a3a 55%, transparent 100%);
+  animation: sky-fade 2.6s ease forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+.star {
+  position: absolute;
+  top: 12%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #e6edf3;
+  animation: star-twinkle 1.6s ease-in-out infinite;
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1.2); }
+}
+@keyframes sky-fade {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .night-event-modal {
+  position: relative;
   max-width: 360px;
   text-align: center;
   padding: 22px 20px 18px;
@@ -1353,10 +1446,27 @@ watch(() => state.history.length, scrollToBottom);
   margin-bottom: 10px;
 }
 .night-event-icon.death {
-  animation: evt-shake 0.6s ease 0.15s;
+  animation: death-drop 0.7s cubic-bezier(0.34, 1.2, 0.64, 1) 0.2s both, evt-shake 0.6s ease 0.9s;
 }
 .night-event-icon.peaceful {
-  animation: evt-float 2.2s ease-in-out infinite;
+  animation: moon-rise 1.2s ease-out 0.2s both, evt-float 2.2s ease-in-out 1.4s infinite;
+}
+/* 死者名字逐个延迟淡入（模板内联 animationDelay 控制间隔） */
+.night-event-dead {
+  animation: dead-reveal 0.5s ease both;
+}
+@keyframes death-drop {
+  0% { transform: translateY(-46px) scale(1.3); opacity: 0; }
+  60% { transform: translateY(4px) scale(1); opacity: 1; }
+  100% { transform: translateY(0); }
+}
+@keyframes moon-rise {
+  0% { transform: translateY(22px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes dead-reveal {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 .night-event-title {
   margin: 0 0 8px;
@@ -1394,13 +1504,50 @@ watch(() => state.history.length, scrollToBottom);
   padding: 26px 22px 22px;
   animation: evt-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+.end-modal {
+  position: relative;
+  overflow: hidden;
+}
+/* 胜利光晕：金色光圈扩散 + 持续脉动 */
+.end-modal-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 30%, rgba(212, 161, 44, 0.22), transparent 60%);
+  animation: glow-pulse 2.8s ease-in-out infinite;
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
 .end-modal-icon {
   font-size: 52px;
   line-height: 1;
   margin-bottom: 12px;
+  position: relative;
 }
 .end-modal-icon.win {
-  animation: evt-float 2.2s ease-in-out infinite;
+  animation: sun-rise 1.1s ease-out both, evt-float 2.2s ease-in-out 1.1s infinite;
+}
+.end-modal-icon.lose {
+  animation: wolf-emerge 1.2s ease-out both;
+}
+@keyframes sun-rise {
+  0% { transform: translateY(30px) scale(0.7); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes wolf-emerge {
+  0% { transform: scale(0.8); opacity: 0; filter: blur(6px) brightness(0.3); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0) brightness(1); }
+}
+/* 标题逐字浮现（模板内联 animationDelay 控制间隔） */
+.end-title-char {
+  display: inline-block;
+  animation: char-reveal 0.4s ease both;
+}
+@keyframes char-reveal {
+  0% { opacity: 0; transform: translateY(8px) scale(0.85); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 .end-modal-title {
   margin: 0 0 16px;
