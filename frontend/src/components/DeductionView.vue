@@ -44,26 +44,32 @@ function parseSpeaker(text) {
   const m = text.match(/^「([^」]+)」：/);
   return m ? { name: m[1], rest: text.slice(m[0].length) } : null;
 }
-// 按天分组：把历史记录拆成『天』的数组（发言叙事按天分隔，其他记录归入当天）
+// 按天分组：把历史记录拆成『天』的数组
+// 注意：天标记（—— 第 N 天 ——）可能嵌在消息中间（裁决结果之后），需从标记处拆分消息
 const dayGroups = computed(() => {
   const groups = [];
   let cur = null;
+  const push = (content) => {
+    if (!cur) { cur = { day: 1, msgs: [] }; groups.push(cur); }
+    cur.msgs.push({ role: 'assistant', content });
+  };
   for (const msg of state.history || []) {
     const content = String(msg.content || '');
-    const dm = content.match(/^—— 第 (\d+) 天 ——/);
-    if (dm) {
-      cur = { day: Number(dm[1]), msgs: [] };
+    // 在消息中查找所有天标记的位置（不限开头）
+    const dayRe = /—— 第 (\d+) 天 ——/g;
+    const marks = [];
+    let m;
+    while ((m = dayRe.exec(content)) !== null) marks.push({ idx: m.index, day: Number(m[1]) });
+    if (!marks.length) { push(content); continue; }
+    // 按天标记拆分：标记前的内容归上一组，标记处开新组
+    let pos = 0;
+    for (const mk of marks) {
+      if (mk.idx > pos) push(content.slice(pos, mk.idx));
+      cur = { day: mk.day, msgs: [] };
       groups.push(cur);
-      cur.msgs.push(msg);
-      continue;
+      pos = mk.idx;
     }
-    if (content.startsWith('天亮了')) {
-      if (!cur) { cur = { day: groups.length + 1, msgs: [] }; groups.push(cur); }
-      cur.msgs.push(msg);
-      continue;
-    }
-    if (cur) cur.msgs.push(msg);
-    else { cur = { day: 1, msgs: [] }; groups.push(cur); cur.msgs.push(msg); }
+    push(content.slice(pos));
   }
   return groups;
 });
@@ -498,6 +504,7 @@ watch(() => state.history.length, scrollToBottom);
 
     <!-- 移动端：吸顶摘要条（天数/存活/阶段，随时可见） -->
     <div class="mobile-summary">
+      <button class="ms-back" @click="backToHome">←</button>
       <span>第 {{ d.round || 1 }} 天</span>
       <span>存活 {{ d.aliveCount || 0 }}/{{ (d.players || []).length }}</span>
       <span class="ms-phase">{{ PHASE_TEXT[phase] || phase }}</span>
@@ -505,6 +512,7 @@ watch(() => state.history.length, scrollToBottom);
 
     <!-- 移动端：底部悬浮工具栏（打开覆盖式抽屉，页面不滚动） -->
     <nav class="mobile-dock">
+      <button :class="{ on: drawer === 'status' }" @click="openDrawer('status')">⚖️ 状态</button>
       <button :class="{ on: drawer === 'players' }" @click="openDrawer('players')">👥 在场者</button>
       <button :class="{ on: drawer === 'claims' }" @click="openDrawer('claims')">🗣 自称身份</button>
       <button :class="{ on: drawer === 'roles' }" @click="openDrawer('roles')">📖 角色说明</button>
@@ -514,7 +522,7 @@ watch(() => state.history.length, scrollToBottom);
     <div v-if="drawer" class="drawer-mask" @click="closeDrawer"></div>
     <div v-if="drawer" class="drawer-panel">
       <div class="drawer-head">
-        <h3>{{ drawer === 'players' ? '在场者' : drawer === 'claims' ? '自称身份' : '角色能力说明' }}</h3>
+        <h3>{{ drawer === 'players' ? '在场者' : drawer === 'claims' ? '自称身份' : drawer === 'roles' ? '角色能力说明' : '法官状态' }}</h3>
         <button class="drawer-close" @click="closeDrawer">收起 ▼</button>
       </div>
       <div class="drawer-body">
@@ -574,7 +582,7 @@ watch(() => state.history.length, scrollToBottom);
           <p v-if="!(d.claims || []).length" class="drawer-empty">暂无人声明身份</p>
         </template>
         <!-- 角色能力说明 -->
-        <template v-else>
+        <template v-else-if="drawer === 'roles'">
           <div v-for="g in deckGroups" :key="g.group" class="deck-group">
             <div class="deck-group-label">{{ g.group }}</div>
             <div
@@ -590,6 +598,37 @@ watch(() => state.history.length, scrollToBottom);
               <p class="deck-desc">{{ r.desc }}</p>
             </div>
           </div>
+        </template>
+        <!-- 法官状态 / 死讯 / 复盘（移动端单屏布局：侧栏内容收进抽屉） -->
+        <template v-else>
+          <div class="phase-badge" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>
+          <div class="stat-row">
+            <span>第 {{ d.round || 1 }} 天</span>
+            <span>存活 {{ d.aliveCount || 0 }}/{{ (d.players || []).length }}</span>
+          </div>
+          <div v-if="(d.deaths || []).length" class="death-list">
+            <div v-for="(dd, i) in d.deaths" :key="i" class="death-row">
+              <span class="death-round">第{{ dd.round }}天</span>
+              <span class="death-name">{{ dd.name }}</span>
+              <span class="death-cause">{{ dd.cause === 'execute' ? '被处刑' : '夜里遇害' }}</span>
+              <b v-if="dd.role" :class="roleClass(dd.role)">{{ dd.role }}</b>
+            </div>
+          </div>
+          <div v-if="d.roles" class="reveal">
+            <h3>身份复盘</h3>
+            <div v-for="(r, i) in d.roles" :key="i" class="reveal-row">
+              <span>{{ r.name }}</span>
+              <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}<span v-if="r.roleBackup" class="reveal-turned">（第{{ r.turnedRound || '?' }}夜变身狼人）</span></b>
+            </div>
+          </div>
+          <div v-if="nightLogs.length" class="night-review">
+            <h3>逐夜行动回顾</h3>
+            <div v-for="(l, i) in nightLogs" :key="i" class="night-log-row">
+              <span class="night-round">第{{ l.round }}夜</span>
+              <span class="night-detail">{{ formatNightLog(l) }}</span>
+            </div>
+          </div>
+          <button v-if="state.gameOver" class="btn primary full" @click="restart">再开一局</button>
         </template>
       </div>
     </div>
@@ -1224,6 +1263,16 @@ watch(() => state.history.length, scrollToBottom);
   .ms-phase {
     color: var(--accent-2);
   }
+  .ms-back {
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    min-height: 30px;
+  }
   .mobile-dock {
     display: flex;
     position: fixed;
@@ -1324,6 +1373,25 @@ watch(() => state.history.length, scrollToBottom);
   }
   .game {
     flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  /* 单屏布局：侧栏整体隐藏（信息走抽屉），主区占满全屏，仅发言流内部滚动，页面不翻页 */
+  .side-panel {
+    display: none;
+  }
+  .main-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .side-panel {
     width: 100%;
