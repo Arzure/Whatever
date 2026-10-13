@@ -108,6 +108,9 @@ export const api = {
   // —— 存档删除 ——
   deleteSave: (id) => request(`/games/${id}`, { method: 'DELETE' }),
   deleteAllSaves: () => request('/games', { method: 'DELETE' }),
+  // 终局插画（推理杀，未配置 IMAGE_MODEL 时返回 disabled）
+  endingArt: (gameId) => request(`/games/${gameId}/ending-art`, { method: 'POST' }),
+  portrait: (gameId, name) => request(`/games/${gameId}/portrait`, { method: 'POST', body: JSON.stringify({ name }) }),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),

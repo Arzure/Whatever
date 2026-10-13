@@ -1,6 +1,6 @@
 <script setup>
 // 逐夜行动关系图：人物为节点（含真实身份），行动为带箭头连线，每夜一张
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
   log: { type: Object, required: true },
@@ -99,6 +99,29 @@ const graph = computed(() => {
 });
 
 function campColor(n) { return CAMP_COLOR[n.camp] || '#8b949e'; }
+
+// —— 交互：悬停高亮连线 / 点击展开人物当夜行动详情 ——
+const hoverName = ref('');
+const activeName = ref('');
+function nodeEdges(n) {
+  // 该人物相关的所有连线（作为执行者或目标）
+  return graph.value.edges.filter((e) => e.from === n.name || e.to === n.name);
+}
+function isEdgeDim(e) {
+  if (!hoverName.value && !activeName.value) return false;
+  const focus = hoverName.value || activeName.value;
+  return e.from !== focus && e.to !== focus;
+}
+// 人物当夜行动详情（执行的行动 + 被指向的行动）
+const activeDetail = computed(() => {
+  if (!activeName.value) return null;
+  const g = graph.value;
+  const node = g.nodes.find((n) => n.name === activeName.value);
+  if (!node) return null;
+  const outgoing = g.edges.filter((e) => e.from === activeName.value);
+  const incoming = g.edges.filter((e) => e.to === activeName.value && e.from !== activeName.value);
+  return { node, outgoing, incoming };
+});
 </script>
 
 <template>
@@ -110,14 +133,37 @@ function campColor(n) { return CAMP_COLOR[n.camp] || '#8b949e'; }
       </marker>
     </defs>
     <path v-for="(e, i) in graph.edges" :key="'e' + i" :d="e.path" :stroke="e.color" stroke-width="2" fill="none"
+      :class="{ 'edge-dim': isEdgeDim(e) }"
       :marker-end="`url(#ng-arrow-${log.round}-${e.type})`" />
-    <text v-for="(e, i) in graph.edges" :key="'l' + i" :x="e.lx" :y="e.ly" class="edge-label" :fill="e.color">{{ e.label }}</text>
-    <g v-for="n in graph.nodes" :key="n.name" :transform="`translate(${n.x},${n.y})`">
-      <rect x="-50" y="-27" width="100" height="54" rx="9" class="node-box" :stroke="campColor(n)" stroke-width="2" />
+    <text v-for="(e, i) in graph.edges" :key="'l' + i" :x="e.lx" :y="e.ly" class="edge-label" :fill="e.color"
+      :class="{ 'edge-dim': isEdgeDim(e) }">{{ e.label }}</text>
+    <g v-for="(n, i) in graph.nodes" :key="n.name" :transform="`translate(${n.x},${n.y})`"
+      class="node-g" :style="{ animationDelay: (i * 0.12) + 's' }"
+      @mouseenter="hoverName = n.name" @mouseleave="hoverName = ''"
+      @click="activeName = activeName === n.name ? '' : n.name">
+      <rect x="-50" y="-27" width="100" height="54" rx="9" class="node-box" :stroke="campColor(n)" stroke-width="2"
+        :class="{ 'node-active': activeName === n.name || hoverName === n.name }" />
       <text y="-3" class="node-name">{{ n.name }}</text>
       <text y="17" class="node-role" :fill="campColor(n)">{{ n.role }}{{ n.dead ? ' 💀' : '' }}</text>
     </g>
   </svg>
+  <!-- 点击节点：该人物当夜完整行动详情 -->
+  <div v-if="activeDetail" class="node-detail">
+    <div class="nd-head">
+      <b :style="{ color: campColor(activeDetail.node) }">{{ activeDetail.node.name }}</b>
+      <span>{{ activeDetail.node.role }}{{ activeDetail.node.dead ? ' · 当夜逝去' : '' }}</span>
+      <button class="nd-close" @click="activeName = ''">✕</button>
+    </div>
+    <p v-if="!activeDetail.outgoing.length && !activeDetail.incoming.length" class="nd-empty">当夜无记录在案的行动</p>
+    <div v-for="(e, i) in activeDetail.outgoing" :key="'o' + i" class="nd-row">
+      <span class="nd-arrow" :style="{ color: e.color }">→</span>
+      <span>对「{{ e.to }}」{{ e.label }}</span>
+    </div>
+    <div v-for="(e, i) in activeDetail.incoming" :key="'i' + i" class="nd-row">
+      <span class="nd-arrow" :style="{ color: e.color }">←</span>
+      <span>被「{{ e.from }}」{{ e.label }}</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -126,4 +172,68 @@ function campColor(n) { return CAMP_COLOR[n.camp] || '#8b949e'; }
 .node-name { fill: #e6edf3; font-size: 15px; font-weight: 600; text-anchor: middle; }
 .node-role { font-size: 12px; text-anchor: middle; }
 .edge-label { font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: #0d1117; stroke-width: 4px; stroke-linejoin: round; }
+/* —— 节点弹性入场：依次弹入 —— */
+.node-g {
+  cursor: pointer;
+  animation: node-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes node-pop {
+  0% { opacity: 0; transform: scale(0.3); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* 悬停/激活：节点高亮 */
+.node-box.node-active {
+  filter: drop-shadow(0 0 6px rgba(230, 237, 243, 0.5));
+}
+/* 非相关连线变暗 */
+.edge-dim {
+  opacity: 0.18;
+}
+/* —— 行动详情浮层 —— */
+.node-detail {
+  margin-top: 8px;
+  border: 1px solid #2d3644;
+  border-radius: 8px;
+  background: #161b22;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.nd-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.nd-head b {
+  font-size: 14px;
+}
+.nd-head span {
+  color: #9aa7b4;
+  font-size: 12px;
+}
+.nd-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #9aa7b4;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.nd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  color: #e6edf3;
+}
+.nd-arrow {
+  font-weight: 700;
+  width: 16px;
+  text-align: center;
+}
+.nd-empty {
+  color: #9aa7b4;
+  font-size: 12px;
+}
 </style>

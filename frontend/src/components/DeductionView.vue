@@ -11,6 +11,24 @@ const showRoles = ref(false);
 // —— 阅读重点强化：发言者着色 + 关键词标记 + 按天分组 ——
 // 每位玩家固定颜色（按玩家序号取色，全流一致）
 const PLAYER_COLORS = ['#58a6ff', '#f0883e', '#3fb950', '#db61a2', '#d29922', '#a371f7', '#39c5cf', '#ff7b72', '#7ee787', '#ffa657'];
+// —— 发言卡片视觉：死者/被处刑者判断（用于卡片变灰与红框） ——
+function isDeadName(name) {
+  const p = (d.value.players || []).find((x) => x.name === name);
+  return p ? !p.alive : false;
+}
+function isExecutedName(name) {
+  return (d.value.deaths || []).some((x) => x.name === name && x.cause === 'execute');
+}
+// 终局阵营着色：按真实身份返回阵营类名（好人蓝/中立黄/坏人红），非终局返回空
+function campClassOfName(name) {
+  if (!state.gameOver) return '';
+  const r = (d.value.roles || []).find((x) => x.name === name);
+  if (!r) return '';
+  const role = r.roleBackup || r.role;
+  if (EVIL_ROLES.includes(role)) return 'msg-camp-evil';
+  if (NEUTRAL_ROLES.includes(role)) return 'msg-camp-neutral';
+  return 'msg-camp-good';
+}
 function playerColor(name) {
   const idx = (d.value.players || []).findIndex((p) => p.name === name);
   return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : '#e6edf3';
@@ -211,6 +229,12 @@ watch(() => state.gameId, loadMarks, { immediate: true });
 
 const d = computed(() => state.deduction || {});
 const phase = computed(() => d.value.phase || 'day');
+// —— 昼夜主题：白天暖色 / 夜晚结算深蓝，1.5s 平滑渐变 ——
+// 夜幕时刻：处刑确认后到天亮弹窗关闭前（execResult 或 nightEvent 显示中）
+const isNightTheme = computed(() => {
+  if (state.gameOver) return false;
+  return !!execResult.value || !!nightEvent.value;
+});
 const disabled = computed(() => state.loading || state.gameOver);
 const canAdjudicate = computed(() => !!d.value.canAdjudicate && !disabled.value);
 const canListen = computed(() => phase.value === 'day' && !state.gameOver && !state.loading);
@@ -375,6 +399,27 @@ let pendingNightEvent = null;
 
 // —— 终局结算弹窗（时序：处刑结果弹窗显示期间暂存，关闭后再弹出） ——
 const showEndModal = ref(false);
+// 终局插画：游戏结束后自动请求（未配置 IMAGE_MODEL 时后端返回 disabled，静默跳过）
+const endingArt = ref('');
+watch(() => state.gameOver, async (v) => {
+  if (!v || !state.gameId) { endingArt.value = ''; portraits.value = {}; return; }
+  try {
+    const r = await api.endingArt(state.gameId);
+    if (r && r.b64) endingArt.value = `data:image/png;base64,${r.b64}`;
+  } catch (e) { /* 插画失败不影响游戏 */ }
+}, { immediate: true });
+// 角色立绘：点击谢幕卡片按需生成（控制成本），生成后替换卡片徽章
+const portraits = ref({});
+const portraitLoading = ref('');
+async function loadPortrait(name) {
+  if (portraitLoading.value || portraits.value[name] || !state.gameId) return;
+  portraitLoading.value = name;
+  try {
+    const r = await api.portrait(state.gameId, name);
+    if (r && r.b64) portraits.value = { ...portraits.value, [name]: `data:image/png;base64,${r.b64}` };
+  } catch (e) { /* 失败静默 */ }
+  portraitLoading.value = '';
+}
 let pendingEndModal = false;
 watch(() => state.gameOver, (v) => {
   if (!v) { showEndModal.value = false; pendingEndModal = false; return; }
@@ -391,6 +436,12 @@ function togglePick(id) {
 // —— 处刑结果弹窗：处刑/放弃后解析叙事，以黑夜弹窗同风格展示 ——
 const execResult = ref(null);
 let pendingExec = false;
+// 处刑仪式感：法槌落下瞬间的全屏闪白 + 界面震动
+const gavelFlash = ref(false);
+function triggerGavelFlash() {
+  gavelFlash.value = true;
+  setTimeout(() => { gavelFlash.value = false; }, 600);
+}
 function watchExecResult() {
   if (!pendingExec) return;
   const hist = state.history || [];
@@ -406,6 +457,7 @@ function watchExecResult() {
         let m;
         while ((m = re.exec(c)) !== null) targets.push({ name: m[1], role: m[2], verdict: m[3].trim() });
         execResult.value = { pass: false, multi: c.includes('下令处决两人'), targets };
+        triggerGavelFlash(); // 法槌落下：全屏闪白 + 界面震动
       }
       return;
     }
@@ -427,11 +479,18 @@ watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
   }
 }, { immediate: true });
 // 处刑结果弹窗关闭后，再显示暂存的夜间事件弹窗与终局结算弹窗
+// 华丽化：夜间事件前先播放 2.5s 夜晚过场动画（黑幕→行动剪影→天光）
+const nightTransition = ref(false);
 watch(execResult, (v) => {
   if (!v) {
     if (pendingNightEvent) {
-      nightEvent.value = pendingNightEvent;
+      const evt = pendingNightEvent;
       pendingNightEvent = null;
+      nightTransition.value = true; // 播放过场
+      setTimeout(() => {
+        nightTransition.value = false;
+        nightEvent.value = evt; // 过场结束弹出天亮弹窗
+      }, 2500);
     }
     if (pendingEndModal) {
       showEndModal.value = true;
@@ -479,7 +538,11 @@ watch(() => state.history.length, scrollToBottom);
 </script>
 
 <template>
-  <div class="game" :class="{ 'drawer-open': drawer }">
+  <div class="game" :class="{ 'drawer-open': drawer, 'theme-night': isNightTheme, 'theme-day': !isNightTheme && !state.gameOver }">
+    <!-- 昼夜主题：星星粒子背景层（夜晚显示） -->
+    <div v-if="isNightTheme" class="night-particles" aria-hidden="true">
+      <span v-for="s in 24" :key="s" class="np-star" :style="{ left: ((s * 41) % 100) + '%', top: ((s * 29) % 90) + '%', animationDelay: (s * 0.23) + 's', animationDuration: (1.8 + (s % 5) * 0.5) + 's' }"></span>
+    </div>
     <!-- 左侧：法官状态 + 存活玩家 + 死讯 -->
     <aside class="side-panel">
       <div class="panel-head">
@@ -763,10 +826,13 @@ watch(() => state.history.length, scrollToBottom);
             <div
               v-for="(msg, i) in g.msgs"
               :key="g.day + '-' + i"
-              class="msg assistant"
+              class="msg assistant msg-card"
+              :class="{ 'msg-dead': parseSpeaker(msg.content) && isDeadName(parseSpeaker(msg.content).name), 'msg-executed': parseSpeaker(msg.content) && isExecutedName(parseSpeaker(msg.content).name), [campClassOfName(parseSpeaker(msg.content)?.name)]: parseSpeaker(msg.content) }"
+              :style="parseSpeaker(msg.content) ? { '--pc': playerColor(parseSpeaker(msg.content).name) } : {}"
             >
               <div class="msg-content">
                 <template v-if="parseSpeaker(msg.content)">
+                  <span class="msg-avatar" :style="{ background: playerColor(parseSpeaker(msg.content).name) }">{{ parseSpeaker(msg.content).name.slice(0, 1) }}</span>
                   <span class="speaker" :style="{ color: playerColor(parseSpeaker(msg.content).name) }">「{{ parseSpeaker(msg.content).name }}」：</span><template v-for="(seg, j) in parseSpeech(parseSpeaker(msg.content).rest)" :key="j"><span v-if="seg.cls" :class="seg.cls">{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template><span v-if="claimConflictsOf(parseSpeaker(msg.content).name).length" class="conflict-flag" :title="'与 ' + claimConflictsOf(parseSpeaker(msg.content).name).join('、') + ' 身份对跳'">⚠ 对跳</span>
                 </template>
                 <template v-else>
@@ -859,6 +925,23 @@ watch(() => state.history.length, scrollToBottom);
     </div>
     </Transition>
 
+    <!-- 处刑仪式感：法槌落下瞬间的全屏闪白 -->
+    <div v-if="gavelFlash" class="gavel-flash" aria-hidden="true"></div>
+
+    <!-- 夜晚结算过场：黑幕降临 → 行动剪影掠过 → 天光渐亮（不剧透具体内容） -->
+    <Transition name="ovl">
+      <div v-if="nightTransition" class="night-transition">
+        <div class="nt-silhouettes" aria-hidden="true">
+          <span class="nt-icon" style="animation-delay: 0.3s">🗡️</span>
+          <span class="nt-icon" style="animation-delay: 0.7s">🛡️</span>
+          <span class="nt-icon" style="animation-delay: 1.1s">🔍</span>
+          <span class="nt-icon" style="animation-delay: 1.5s">✉️</span>
+          <span class="nt-icon" style="animation-delay: 1.9s">🔮</span>
+        </div>
+        <div class="nt-dawn"></div>
+      </div>
+    </Transition>
+
     <!-- 每夜事件弹窗：提示昨夜实际发生的事情（死讯/平安夜，带动画） -->
     <Transition name="ovl">
     <div v-if="nightEvent && !state.gameOver" class="review-overlay night-event-overlay" @click.self="nightEvent = null">
@@ -881,6 +964,7 @@ watch(() => state.history.length, scrollToBottom);
     <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
       <div class="review-modal end-modal">
         <div class="end-modal-glow" aria-hidden="true"></div>
+        <img v-if="endingArt" :src="endingArt" class="end-art" alt="本局终局插画" />
         <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
         <h3 class="end-modal-title">
           <span
@@ -890,6 +974,22 @@ watch(() => state.history.length, scrollToBottom);
             :style="{ animationDelay: (0.8 + i * 0.08) + 's' }"
           >{{ ch }}</span>
         </h3>
+        <!-- 谢幕演出：角色卡片依次滑入排列成终局阵容（胜利时） -->
+        <div v-if="d.roles" class="end-curtain-call" :class="d.winner === 'good' ? 'win' : 'lose'">
+          <div
+            v-for="(r, i) in d.roles"
+            :key="r.name"
+            class="curtain-card"
+            :style="{ animationDelay: (1.6 + i * 0.22) + 's' }"
+            :title="portraits[r.name] ? '' : '点击生成角色立绘'"
+            @click="loadPortrait(r.name)"
+          >
+            <img v-if="portraits[r.name]" :src="portraits[r.name]" class="curtain-portrait" :alt="r.name + ' 立绘'" />
+            <span v-else class="curtain-badge" :class="roleClass(r.roleBackup || r.role)">{{ portraitLoading === r.name ? '…' : r.name.slice(0, 1) }}</span>
+            <span class="curtain-name">{{ r.name }}</span>
+            <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}</b>
+          </div>
+        </div>
         <div class="end-modal-actions">
           <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
           <button class="btn primary" @click="restart">🔄 再开一局</button>
@@ -923,6 +1023,139 @@ watch(() => state.history.length, scrollToBottom);
 .game {
   display: flex;
   height: 100%;
+  position: relative;
+  /* 昼夜主题 1.5s 平滑渐变 */
+  transition: background-color 1.5s ease;
+}
+/* 白天：暖色调（米金/晨光） */
+.game.theme-day {
+  --bg: var(--bg-day);
+  --panel: var(--panel-day);
+  --panel-2: var(--panel-2-day);
+  --border: var(--border-day);
+  background: var(--bg-day);
+}
+/* 夜晚：深蓝夜色 */
+.game.theme-night {
+  --bg: var(--bg-night);
+  --panel: var(--panel-night);
+  --panel-2: var(--panel-2-night);
+  --border: var(--border-night);
+  background: var(--bg-night);
+}
+.game.theme-day .side-panel,
+.game.theme-night .side-panel {
+  transition: background-color 1.5s ease, border-color 1.5s ease;
+}
+/* —— 处刑仪式感：全屏闪白 + 弹窗震动 + 翻牌聚光灯 —— */
+.gavel-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #fff;
+  pointer-events: none;
+  animation: gf-flash 0.6s ease-out forwards;
+}
+@keyframes gf-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.exec-modal {
+  animation: exec-shake 0.5s ease 0.15s;
+}
+@keyframes exec-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+/* 翻牌聚光灯：牌周围变暗、牌本身高亮 */
+.exec-flip {
+  position: relative;
+}
+.exec-flip::before {
+  content: '';
+  position: absolute;
+  inset: -60px -40px;
+  background: radial-gradient(circle, transparent 18%, rgba(6, 8, 16, 0.75) 55%);
+  opacity: 0;
+  animation: spotlight 0.5s ease 0.45s forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes spotlight {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.exec-flip-inner {
+  z-index: 2;
+}
+/* —— 夜晚结算过场：黑幕 → 剪影掠过 → 天光渐亮 —— */
+.night-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #060810;
+  animation: nt-curtain 2.5s ease forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes nt-curtain {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.nt-silhouettes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8vw;
+}
+.nt-icon {
+  font-size: 42px;
+  opacity: 0;
+  filter: brightness(0.55);
+  animation: nt-sweep 0.9s ease both;
+}
+@keyframes nt-sweep {
+  0% { opacity: 0; transform: translateX(-70px) scale(0.8); }
+  35% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(70px) scale(1.15); }
+}
+.nt-dawn {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(232, 193, 90, 0.28), transparent 65%);
+  opacity: 0;
+  animation: nt-dawn-glow 1s ease 1.6s forwards;
+}
+@keyframes nt-dawn-glow {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+/* 星星粒子背景层（夜晚） */
+.night-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.np-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #cdd9f0;
+  animation: np-twinkle 2.4s ease-in-out infinite;
+}
+@keyframes np-twinkle {
+  0%, 100% { opacity: 0.1; transform: scale(0.7); }
+  50% { opacity: 0.85; transform: scale(1.25); }
 }
 
 .side-panel {
@@ -1540,6 +1773,103 @@ watch(() => state.history.length, scrollToBottom);
   0% { transform: scale(0.8); opacity: 0; filter: blur(6px) brightness(0.3); }
   100% { transform: scale(1); opacity: 1; filter: blur(0) brightness(1); }
 }
+/* 终局插画：渐显入场 */
+.end-art {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 2;
+  animation: art-reveal 1.2s ease 0.6s both;
+}
+@keyframes art-reveal {
+  0% { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* —— 终局谢幕演出 —— */
+/* 胜利：角色卡片从两侧依次滑入排列成终局阵容 */
+.end-curtain-call {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  position: relative;
+  z-index: 2;
+}
+.curtain-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  font-size: 12px;
+  opacity: 0;
+  animation: curtain-slide 0.6s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.end-curtain-call.win .curtain-card:nth-child(odd) {
+  --slide-from: -60px;
+}
+.end-curtain-call.win .curtain-card:nth-child(even) {
+  --slide-from: 60px;
+}
+@keyframes curtain-slide {
+  0% { opacity: 0; transform: translateX(var(--slide-from, 0)) translateY(10px); }
+  100% { opacity: 1; transform: translateX(0) translateY(0); }
+}
+.curtain-name {
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.curtain-card {
+  cursor: pointer;
+}
+.curtain-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.curtain-portrait {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 4px;
+  animation: art-reveal 0.8s ease both;
+}
+/* 失败：红色迷雾从屏幕边缘渗入笼罩界面 */
+.end-modal.lose {
+  overflow: hidden;
+}
+.end-modal.lose::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 0% 50%, rgba(248, 81, 73, 0.28), transparent 45%),
+    radial-gradient(ellipse at 100% 50%, rgba(248, 81, 73, 0.28), transparent 45%),
+    radial-gradient(ellipse at 50% 100%, rgba(248, 81, 73, 0.2), transparent 50%);
+  animation: fog-seep 2.2s ease 0.8s forwards;
+  opacity: 0;
+}
+@keyframes fog-seep {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
 /* 标题逐字浮现（模板内联 animationDelay 控制间隔） */
 .end-title-char {
   display: inline-block;
@@ -1679,6 +2009,69 @@ watch(() => state.history.length, scrollToBottom);
   word-break: break-word;
   background: var(--panel-2);
   border: 1px solid var(--border);
+}
+/* —— 发言卡片化：专属色竖条 + 首字徽章 —— */
+.msg-card {
+  position: relative;
+  margin-bottom: 8px;
+}
+.msg-card .msg-content {
+  border-left: 3px solid var(--pc, var(--border));
+  position: relative;
+  transition: opacity 0.4s ease, border-color 0.4s ease, transform 0.4s ease;
+}
+.msg-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #0d1117;
+  font-size: 13px;
+  font-weight: 700;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+/* 死者卡片：变灰 + 💀 角标 + 轻微倾斜（视觉上退出对话） */
+.msg-card.msg-dead .msg-content {
+  opacity: 0.55;
+  transform: rotate(-0.6deg);
+  filter: grayscale(0.6);
+}
+.msg-card.msg-dead .msg-content::after {
+  content: '💀';
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+/* 被处刑者卡片：红色边框渐隐动画 */
+.msg-card.msg-executed .msg-content {
+  border-color: rgba(248, 81, 73, 0.55);
+  animation: executed-fade 2.4s ease;
+}
+@keyframes executed-fade {
+  0% { border-color: #f85149; box-shadow: 0 0 12px rgba(248, 81, 73, 0.35); }
+  100% { border-color: rgba(248, 81, 73, 0.55); box-shadow: none; }
+}
+/* —— 终局阵营着色：全场发言按真实阵营重新着色 —— */
+.msg-card.msg-camp-good .msg-content {
+  border-left-color: #58a6ff;
+  background: linear-gradient(90deg, rgba(88, 166, 255, 0.08), transparent 40%), var(--panel-2);
+}
+.msg-card.msg-camp-neutral .msg-content {
+  border-left-color: #d29922;
+  background: linear-gradient(90deg, rgba(210, 153, 34, 0.08), transparent 40%), var(--panel-2);
+}
+.msg-card.msg-camp-evil .msg-content {
+  border-left-color: #f85149;
+  background: linear-gradient(90deg, rgba(248, 81, 73, 0.1), transparent 40%), var(--panel-2);
+}
+.msg-card.msg-camp-evil .speaker {
+  color: #f85149 !important;
 }
 
 /* —— 回到底部悬浮按钮 —— */

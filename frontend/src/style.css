@@ -16,6 +16,16 @@
   --danger: #d9524e;
   --hp: #3fb950;
   --hp-bg: #2d333b;
+  /* 昼夜主题：白天暖色调（推理杀界面切换） */
+  --bg-day: #14120c;
+  --panel-day: #1d1a12;
+  --panel-2-day: #262117;
+  --border-day: #3d3626;
+  /* 夜晚深蓝色调 */
+  --bg-night: #0a0e1f;
+  --panel-night: #10162e;
+  --panel-2-night: #16203f;
+  --border-night: #26325c;
 }
 
 html,
