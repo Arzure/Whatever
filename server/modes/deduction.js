@@ -1575,7 +1575,9 @@ function buildTwistedSpeech(game, speaker) {
     .replace(/【占位好】/g, '坏人')
     .replace(/【占位坏】/g, '好人')
     .replace(/【占位中】/g, '好人');
-  return `我是${declared}。${t}`.slice(0, MAX_SPEECH);
+  // 重复短语折叠：原知识行若含多个平安表述，逐一替换后会产生『有些异常动静，有些异常动静』，折叠为一次
+  const out = `我是${declared}。${t}`.replace(/([^，。！？、；\s]{4,16})[，、；\s]+\1/g, '$1');
+  return out.slice(0, MAX_SPEECH);
 }
 
 /** 生成单个 AI 的发言；失败/被迷醉遗忘时回落模板（保证回合不断） */
