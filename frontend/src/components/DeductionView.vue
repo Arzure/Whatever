@@ -623,7 +623,6 @@ watch(() => state.history.length, scrollToBottom);
 
     <!-- 移动端：吸顶摘要条（天数/存活/阶段，随时可见） -->
     <div class="mobile-summary">
-      <button class="ms-back" @click="backToHome">←</button>
       <span>第 {{ d.round || 1 }} 天</span>
       <span>存活 {{ d.aliveCount || 0 }}/{{ (d.players || []).length }}</span>
       <span class="ms-phase">{{ PHASE_TEXT[phase] || phase }}</span>
@@ -1765,16 +1764,6 @@ watch(() => state.history.length, scrollToBottom);
   }
   .ms-phase {
     color: var(--accent-2);
-  }
-  .ms-back {
-    padding: 2px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel-2);
-    color: var(--text-dim);
-    font-size: 14px;
-    cursor: pointer;
-    min-height: 30px;
   }
   .mobile-dock {
     display: flex;

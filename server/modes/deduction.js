@@ -1609,6 +1609,8 @@ async function generateSpeech(game, speaker) {
       const lastStop = Math.max(speech.lastIndexOf('。'), speech.lastIndexOf('！'), speech.lastIndexOf('？'));
       if (lastStop > 20) speech = speech.slice(0, lastStop + 1);
     }
+    // 重复短语清理：LLM 偶发生成『有些异常动静，有些异常动静』这类紧邻重复，折叠为一次
+    speech = speech.replace(/([^，。！？、；\s]{4,16})[，、；\s]+\1/g, '$1');
     // 过短发言（如"我是侦探。"一句话敷衍）直接替换为知识包兜底，确保完整信息
     if (speech.length < 24) {
       console.log('[debug] 推理杀发言过短，用知识包兜底替代:', JSON.stringify(speech.slice(0, 30)));

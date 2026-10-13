@@ -60,6 +60,7 @@ function onDeleted() {
     <LoginView v-else-if="!authUser" @logged-in="onLoggedIn" />
     <template v-else>
       <header class="app-bar">
+        <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
         <span class="app-bar-user">👤 {{ authUser.username }}</span>
         <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
         <button class="app-bar-logout" @click="logout">退出登录</button>
@@ -95,6 +96,20 @@ function onDeleted() {
 .app-bar-user {
   color: #e6edf3;
   font-size: 14px;
+}
+.app-bar-home {
+  margin-right: auto;
+  padding: 4px 12px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #21262d;
+  color: #e6edf3;
+  font-size: 13px;
+  cursor: pointer;
+}
+.app-bar-home:hover {
+  border-color: #58a6ff;
+  color: #58a6ff;
 }
 .app-bar-logout {
   background: none;
