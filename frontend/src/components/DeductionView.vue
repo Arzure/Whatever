@@ -373,11 +373,16 @@ const nightEvent = ref(null);
 let lastSeenRound = 0;
 let pendingNightEvent = null;
 
-// —— 终局结算弹窗 ——
+// —— 终局结算弹窗（时序：处刑结果弹窗显示期间暂存，关闭后再弹出） ——
 const showEndModal = ref(false);
-watch(() => state.gameOver, (v) => { showEndModal.value = !!v; }, { immediate: true });
+let pendingEndModal = false;
+watch(() => state.gameOver, (v) => {
+  if (!v) { showEndModal.value = false; pendingEndModal = false; return; }
+  if (execResult.value) pendingEndModal = true;
+  else showEndModal.value = true;
+}, { immediate: true });
 // 换局重置弹窗状态
-watch(() => state.gameId, () => { lastSeenRound = 0; nightEvent.value = null; pendingNightEvent = null; });
+watch(() => state.gameId, () => { lastSeenRound = 0; nightEvent.value = null; pendingNightEvent = null; pendingEndModal = false; });
 function togglePick(id) {
   const i = execPicks.value.indexOf(id);
   if (i >= 0) execPicks.value.splice(i, 1);
@@ -421,11 +426,17 @@ watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
     else nightEvent.value = evt;
   }
 }, { immediate: true });
-// 处刑结果弹窗关闭后，再显示暂存的夜间事件弹窗
+// 处刑结果弹窗关闭后，再显示暂存的夜间事件弹窗与终局结算弹窗
 watch(execResult, (v) => {
-  if (!v && pendingNightEvent) {
-    nightEvent.value = pendingNightEvent;
-    pendingNightEvent = null;
+  if (!v) {
+    if (pendingNightEvent) {
+      nightEvent.value = pendingNightEvent;
+      pendingNightEvent = null;
+    }
+    if (pendingEndModal) {
+      showEndModal.value = true;
+      pendingEndModal = false;
+    }
   }
 });
 
