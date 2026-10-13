@@ -171,7 +171,7 @@ npm run dev
 1. **构建前端**：`npm run build:frontend` 生成 `frontend/dist`，由后端直接托管（单端口提供页面 + API，同源无跨域）；
 2. **进程守护**：`pm2 start server/index.js --name ai-rpg && pm2 save && pm2 startup`，崩溃自动拉起、开机自启；
 3. **反向代理**：Caddy 监听 80/443 反代到 3001，无域名时自动生成自签证书（浏览器首次访问需手动信任），绑定域名后自动申请受信任证书；
-4. **访问口令**：`.env` 中配置 `ACCESS_TOKEN` 后，所有 `/api` 请求须携带口令（前端有口令输入界面，验证后 24 小时内免输）；
+4. **访问口令**：`.env` 中配置 `ACCESS_TOKEN` 后，所有 `/api` 请求须携带口令（前端有口令输入界面，验证后 7 天内免输）；
 5. **防火墙**：仅放通 22/80/443，3001 不对公网暴露。
 
 > 完整部署过程、踩坑记录与问题修复详见 [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md)。

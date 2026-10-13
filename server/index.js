@@ -150,7 +150,7 @@ app.post('/api/auth/rename', (req, res) => {
   }
   storage.renameUser(user.id, newName);
   // 签发含新用户名的令牌，前端替换旧令牌
-  const token = require('./auth').sign({ uid: user.id, username: newName, iat: Date.now(), exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  const token = require('./auth').sign({ uid: user.id, username: newName, iat: Date.now(), exp: Date.now() + 72 * 60 * 60 * 1000 });
   res.json({ ok: true, token, user: { id: user.id, username: newName } });
 });
 

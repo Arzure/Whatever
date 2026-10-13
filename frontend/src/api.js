@@ -3,8 +3,8 @@
 const TOKEN_KEY = 'rpg_access_token';
 const AUTH_KEY = 'rpg_auth_token';
 const AUTH_USER_KEY = 'rpg_auth_user';
-// 口令有效期：24 小时（毫秒）。过期后自动清除，需重新输入
-const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// 口令有效期：7 天（毫秒）。过期后自动清除，需重新输入
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * 读取本地保存的访问口令（无则空串）。
