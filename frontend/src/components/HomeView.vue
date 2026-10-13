@@ -432,6 +432,10 @@ async function deleteSave(s) {
   margin-top: 28px;
   border-top: 1px solid var(--border);
   padding-top: 20px;
+  /* 存档过多时收纳在卡片内：限高 + 内部滚动，避免撑破卡片挂到外面 */
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .save-list h2 {
