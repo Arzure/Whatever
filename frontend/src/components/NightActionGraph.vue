@@ -49,6 +49,22 @@ function quadPoint(p0, c, p1, t) {
   return { x: u * u * p0.x + 2 * u * t * c.x + t * t * p1.x, y: u * u * p0.y + 2 * u * t * c.y + t * t * p1.y };
 }
 
+// 人物框尺寸（半宽/半高）与连线避让间距
+const NODE_HW = 50, NODE_HH = 27, EDGE_PAD = 9;
+/**
+ * 求『从 from 中心射向 to 中心』的射线与 from 人物框（外扩 EDGE_PAD）的交点。
+ * 连线起止点都用它计算，即可让线条与箭头都落在框外，不被遮挡。
+ */
+function boxEdgePoint(from, to) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  if (!dx && !dy) return { x: from.x, y: from.y };
+  const hw = NODE_HW + EDGE_PAD, hh = NODE_HH + EDGE_PAD;
+  const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+  const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+  const k = Math.min(tx, ty); // 取先碰到的那条边
+  return { x: from.x + dx * k, y: from.y + dy * k };
+}
+
 const graph = computed(() => {
   const l = props.log;
   const edges = buildEdges(l);
@@ -80,19 +96,21 @@ const graph = computed(() => {
     if (!a || !b) return null;
     const color = EDGE_COLOR[e.type] || '#8b949e';
     if (a === b) {
-      // 自环（如守卫自保）：在节点上方画一个小弧
-      const path = `M ${a.x - 16} ${a.y - 26} C ${a.x - 44} ${a.y - 78}, ${a.x + 44} ${a.y - 78}, ${a.x + 16} ${a.y - 26}`;
-      return { ...e, path, lx: a.x, ly: a.y - 66, color };
+      // 自环（如守卫自保）：在节点上方画一个小弧（起止点贴在框顶外缘）
+      const path = `M ${a.x - 16} ${a.y - NODE_HH - EDGE_PAD} C ${a.x - 44} ${a.y - 78}, ${a.x + 44} ${a.y - 78}, ${a.x + 16} ${a.y - NODE_HH - EDGE_PAD}`;
+      return { ...e, path, lx: a.x, ly: a.y - 72, color, order: i };
     }
+    // 控制点：两框中心连线中点，向外偏移形成弧度
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     const dx = mx - cx, dy = my - cy;
     const len = Math.hypot(dx, dy) || 1;
     const bend = 0.28 + (i % 3) * 0.14; // 多条边错开弧度
     const c = { x: mx + (dx / len) * R * bend, y: my + (dy / len) * R * bend };
-    const s = quadPoint(a, c, b, 0.1);
-    const t = quadPoint(a, c, b, 0.9);
-    const mid = quadPoint(a, c, b, 0.5);
-    return { ...e, path: `M ${s.x} ${s.y} Q ${c.x} ${c.y} ${t.x} ${t.y}`, lx: mid.x, ly: mid.y, color };
+    // 起止点：沿『中心→控制点』方向与人物框边缘求交（避免线条压在框上）
+    const s = boxEdgePoint(a, c);
+    const t = boxEdgePoint(b, c);
+    const mid = quadPoint(s, c, t, 0.5);
+    return { ...e, path: `M ${s.x} ${s.y} Q ${c.x} ${c.y} ${t.x} ${t.y}`, lx: mid.x, ly: mid.y, color, order: i };
   }).filter(Boolean);
 
   return { W, H, nodes, edges: geo };
@@ -133,9 +151,12 @@ const activeDetail = computed(() => {
       </marker>
     </defs>
     <path v-for="(e, i) in graph.edges" :key="'e' + i" :d="e.path" :stroke="e.color" stroke-width="2" fill="none"
+      pathLength="1"
+      class="edge-line" :style="{ animationDelay: (0.3 + e.order * 0.38) + 's' }"
       :class="{ 'edge-dim': isEdgeDim(e) }"
       :marker-end="`url(#ng-arrow-${log.round}-${e.type})`" />
     <text v-for="(e, i) in graph.edges" :key="'l' + i" :x="e.lx" :y="e.ly" class="edge-label" :fill="e.color"
+      :style="{ animationDelay: (0.55 + e.order * 0.38) + 's' }"
       :class="{ 'edge-dim': isEdgeDim(e) }">{{ e.label }}</text>
     <g v-for="(n, i) in graph.nodes" :key="n.name" :transform="`translate(${n.x},${n.y})`"
       class="node-g"
@@ -177,6 +198,23 @@ const activeDetail = computed(() => {
 /* —— 节点弹性入场：依次弹入 —— */
 .node-g {
   cursor: pointer;
+}
+/* 连线按行动顺序依次生长：从起点冒出一路延伸，箭头到位后显现 */
+.edge-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: edge-grow 0.5s ease-out both;
+}
+@keyframes edge-grow {
+  0% { stroke-dashoffset: 1; opacity: 0.25; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+.edge-label {
+  animation: label-in 0.35s ease both;
+}
+@keyframes label-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 /* 入场缩放作用在内层容器上，避免覆盖外层的定位坐标 */
 .node-inner {
