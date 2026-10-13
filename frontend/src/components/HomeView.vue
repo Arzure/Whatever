@@ -89,6 +89,23 @@ const canStart = computed(() => {
 const showSaves = ref(false);
 // —— 存档删除（带二次确认） ——
 const deletingId = ref('');
+const deletingAll = ref(false);
+async function deleteAllSaves() {
+  if (deletingAll.value || deletingId.value) return;
+  const n = state.saves.length;
+  if (!n) return;
+  if (!confirm(`确定清空全部 ${n} 个存档吗？此操作不可恢复，且只影响当前账号。`)) return;
+  deletingAll.value = true;
+  state.error = '';
+  try {
+    await api.deleteAllSaves();
+    await refreshSaves();
+  } catch (e) {
+    state.error = e.message;
+  } finally {
+    deletingAll.value = false;
+  }
+}
 async function deleteSave(s) {
   if (deletingId.value) return;
   if (!confirm(`确定删除存档「${s.playerName}」吗？此操作不可恢复。`)) return;
@@ -237,6 +254,9 @@ async function deleteSave(s) {
                 {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
               </button>
             </div>
+            <button class="save-clear-all" :disabled="deletingAll" @click="deleteAllSaves">
+              {{ deletingAll ? '清空中…' : `🗑 清空全部存档（${state.saves.length}）` }}
+            </button>
           </div>
         </div>
       </div>
@@ -506,6 +526,26 @@ async function deleteSave(s) {
 }
 .save-modal-body .save-item {
   margin-bottom: 8px;
+}
+.save-clear-all {
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 6px;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 8px;
+  background: rgba(248, 81, 73, 0.08);
+  color: #f85149;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.save-clear-all:hover:not(:disabled) {
+  border-color: #f85149;
+  background: rgba(248, 81, 73, 0.16);
+}
+.save-clear-all:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 /* 浮层展开/收回动画（与推理杀弹窗一致） */
 .ovl-enter-active {

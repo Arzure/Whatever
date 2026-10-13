@@ -107,6 +107,7 @@ export const api = {
     request('/auth/delete', { method: 'POST', body: JSON.stringify({ password }) }),
   // —— 存档删除 ——
   deleteSave: (id) => request(`/games/${id}`, { method: 'DELETE' }),
+  deleteAllSaves: () => request('/games', { method: 'DELETE' }),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),

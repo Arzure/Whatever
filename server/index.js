@@ -455,6 +455,14 @@ app.delete('/api/games/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// 一键清空存档（仅删除当前登录用户名下的全部存档，不影响他人数据）
+app.delete('/api/games', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const deleted = storage.deleteAllSaves(user.id);
+  res.json({ ok: true, deleted });
+});
+
 // 使用道具（从背包移除，记为待结算动作，效果延迟到下次 AI 回合）
 app.post('/api/games/:id/use-item', (req, res) => {
   const found = findGame(req, res);

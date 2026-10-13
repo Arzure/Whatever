@@ -80,6 +80,11 @@ function getSaveOwner(id) {
 function deleteGame(id) {
   db.prepare('DELETE FROM saves WHERE id = ?').run(id);
 }
+// 批量删除某用户名下全部存档（一键清空）；返回删除的条数
+function deleteAllSaves(userId) {
+  const info = db.prepare('DELETE FROM saves WHERE user_id = ?').run(userId);
+  return info.changes;
+}
 function listSaves(userId) {
   const rows = userId
     ? db.prepare('SELECT data FROM saves WHERE user_id = ? ORDER BY updated_at DESC').all(userId)
@@ -139,6 +144,7 @@ module.exports = {
   loadGame,
   getSaveOwner,
   deleteGame,
+  deleteAllSaves,
   listSaves,
   countSaves,
 };
