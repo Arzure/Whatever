@@ -56,6 +56,13 @@ const dayGroups = computed(() => {
     let c = content;
     const endIdx = c.indexOf('—— 游戏结束 ——');
     if (endIdx >= 0) c = c.slice(0, endIdx);
+    // 过滤：处刑叙事文本（改由处刑结果弹窗展示）——从叙事起点删至下一个天标记/游戏结束标记/末尾
+    const execStart = c.search(/你举起法槌|决定【放弃处刑】/);
+    if (execStart >= 0) {
+      const rest = c.slice(execStart);
+      const endMatch = rest.match(/—— 第 \d+ 天 ——|—— 游戏结束 ——/);
+      c = (c.slice(0, execStart) + (endMatch ? rest.slice(endMatch.index) : '')).trim();
+    }
     c = c.trim();
     if (!c) return;
     if (/^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) return;
@@ -81,14 +88,6 @@ const dayGroups = computed(() => {
   }
   return groups;
 });
-// 历史天默认折叠（未展开且非最近一天），最近一天始终展开；点击标题切换
-const expandedDays = ref(new Set());
-function expandDay(day) { expandedDays.value = new Set([...expandedDays.value, day]); }
-function toggleDay(day) {
-  const s = new Set(expandedDays.value);
-  if (s.has(day)) s.delete(day); else s.add(day);
-  expandedDays.value = s;
-}
 // 死讯折叠：默认只显示最近两条，点击展开全部
 const showAllDeaths = ref(false);
 
@@ -391,6 +390,32 @@ function togglePick(id) {
   if (i >= 0) execPicks.value.splice(i, 1);
   else if (execPicks.value.length < 2) execPicks.value.push(id);
 }
+// —— 处刑结果弹窗：处刑/放弃后解析叙事，以黑夜弹窗同风格展示 ——
+const execResult = ref(null);
+let pendingExec = false;
+function watchExecResult() {
+  if (!pendingExec) return;
+  const hist = state.history || [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const c = String(hist[i].content || '');
+    if (c.includes('你举起法槌') || c.includes('决定【放弃处刑】')) {
+      pendingExec = false;
+      if (c.includes('决定【放弃处刑】')) {
+        execResult.value = { pass: true };
+      } else {
+        const targets = [];
+        const re = /「([^」]+)」被带下去，身份牌翻开——【([^】]+)】！(.*)/g;
+        let m;
+        while ((m = re.exec(c)) !== null) targets.push({ name: m[1], role: m[2], verdict: m[3].trim() });
+        execResult.value = { pass: false, multi: c.includes('下令处决两人'), targets };
+      }
+      return;
+    }
+    if (c.includes('天亮了')) break;
+  }
+}
+watch(() => (state.history || []).length, watchExecResult, { immediate: false });
+
 function doExecute(targetId) {
   if (isAdvanced.value) {
     if (!execPicks.value.length) return;
@@ -400,6 +425,7 @@ function doExecute(targetId) {
       .join('」与「');
     const sure = window.confirm(`确定处刑「${names}」吗？处刑会公开其真实身份牌，若误伤好人将损失好人。`);
     if (!sure) return;
+    pendingExec = true;
     adjudicateTarget(execPicks.value.slice());
     execPicks.value = [];
     return;
@@ -407,12 +433,14 @@ function doExecute(targetId) {
   const p = (d.value.players || []).find((x) => x.id === targetId);
   const sure = window.confirm(`确定处刑「${p?.name || ''}」吗？处刑会公开其真实身份牌，若误伤好人将损失一名好人。`);
   if (!sure) return;
+  pendingExec = true;
   adjudicateTarget(targetId);
 }
 
 function doPass() {
   const sure = window.confirm('确定放弃处刑吗？今天无人被放逐，直接进入下一夜。');
   if (!sure) return;
+  pendingExec = true;
   adjudicateTarget('');
 }
 
@@ -703,10 +731,8 @@ watch(() => state.history.length, scrollToBottom);
           <button class="pager-btn" :disabled="curDay >= lastDay" @click="nextDay">›</button>
         </div>
         <div v-for="g in displayGroups" :key="g.day" class="day-group">
-          <button class="day-toggle" @click="toggleDay(g.day)">
-            📅 第 {{ g.day }} 天 <span class="day-count">（{{ g.msgs.length }} 条）</span> {{ expandedDays.has(g.day) || g.day === (dayGroups[dayGroups.length - 1] && dayGroups[dayGroups.length - 1].day) ? '▼' : '▸' }}
-          </button>
-          <div v-if="expandedDays.has(g.day) || g.day === (dayGroups[dayGroups.length - 1] && dayGroups[dayGroups.length - 1].day)">
+          <div class="day-header">📅 第 {{ g.day }} 天 <span class="day-count">（{{ g.msgs.length }} 条）</span></div>
+          <div>
             <div
               v-for="(msg, i) in g.msgs"
               :key="g.day + '-' + i"
@@ -775,6 +801,25 @@ watch(() => state.history.length, scrollToBottom);
           </button>
           <button class="pass-btn" :disabled="disabled" @click="doPass">🛡️ 放弃处刑（进入下一夜）</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 处刑结果弹窗：法槌落下，身份牌揭开（按阵营着色） -->
+    <div v-if="execResult" class="review-overlay" @click.self="execResult = null">
+      <div class="review-modal exec-modal">
+        <div v-if="execResult.pass" class="exec-gavel pass">🛡️</div>
+        <div v-else class="exec-gavel" :class="execResult.multi ? 'multi' : ''">🔨</div>
+        <h3 class="exec-title">{{ execResult.pass ? '放弃处刑' : execResult.multi ? '处决两人' : '处刑' }}</h3>
+        <p v-if="execResult.pass" class="exec-text">你权衡再三，决定【放弃处刑】——证据还不够充分，贸然出手可能误伤好人。今天没有人被放逐，直接进入下一夜。</p>
+        <template v-else>
+          <p class="exec-text">你举起法槌{{ execResult.multi ? '，接连指向' : '，指向' }}<span v-for="(t, i) in execResult.targets" :key="t.name">{{ i > 0 ? '与' : '' }}「{{ t.name }}」</span>，下令{{ execResult.multi ? '处决' : '处刑' }}。</p>
+          <div v-for="t in execResult.targets" :key="t.name" class="exec-card">
+            <span class="exec-name">「{{ t.name }}」被带下去，身份牌翻开——</span>
+            <b :class="roleClass(t.role)" class="exec-role">【{{ t.role }}】</b>
+            <span v-if="t.verdict" class="exec-verdict">{{ t.verdict }}</span>
+          </div>
+        </template>
+        <button class="btn primary" @click="execResult = null">知道了</button>
       </div>
     </div>
 
@@ -1101,6 +1146,64 @@ watch(() => state.history.length, scrollToBottom);
 
 .review-btn {
   margin-top: 10px;
+}
+/* 静态天分隔标题（替代原折叠按钮） */
+.day-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 8px 0 6px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 4px;
+}
+/* 处刑结果弹窗 */
+.exec-modal {
+  max-width: 380px;
+  text-align: center;
+  padding: 22px 20px 18px;
+  animation: evt-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.exec-gavel {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 10px;
+  display: inline-block;
+  animation: exec-slam 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.exec-gavel.pass {
+  animation: evt-float 2.2s ease-in-out infinite;
+}
+@keyframes exec-slam {
+  0% { transform: rotate(-40deg) translateY(-18px); opacity: 0; }
+  60% { transform: rotate(8deg) translateY(2px); opacity: 1; }
+  100% { transform: rotate(0); }
+}
+.exec-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.exec-text {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 10px;
+}
+.exec-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.exec-role {
+  font-size: 15px;
+}
+.exec-verdict {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 2px;
 }
 /* 裁决入口（按需弹出） */
 .adjudicate-entry {
