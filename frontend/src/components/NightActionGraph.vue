@@ -38,7 +38,6 @@ function buildEdges(l) {
     // 术士才是执行者：从他出发连向两位被链接者；另加一条虚线标出两人的命运关联
     e.push({ from: l.warlock.who, to: l.warlock.links[0], label: '链接命运', type: 'link' });
     e.push({ from: l.warlock.who, to: l.warlock.links[1], label: '链接命运', type: 'link' });
-    e.push({ from: l.warlock.links[0], to: l.warlock.links[1], label: '命运相连', type: 'link', dashed: true });
   }
   if (l.drunkard) (l.drunkard.affected || []).forEach((n) => e.push({ from: l.drunkard.who, to: n, label: '迷醉', type: 'confuse' }));
   if (l.quack) {
@@ -109,10 +108,9 @@ const graph = computed(() => {
     // 关键：方向按参与者名字的固定先后规范化——这样 A→B 与 B→A 会分居连线两侧，
     // 不会像原来那样两条反向线走同一条弧、完全重叠。
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    const [p1, p2] = e.from < e.to ? [a, b] : [b, a];
-    const ndx = p2.x - p1.x, ndy = p2.y - p1.y;
+    const ndx = b.x - a.x, ndy = b.y - a.y;
     const nlen = Math.hypot(ndx, ndy) || 1;
-    const nx = -ndy / nlen, ny = ndx / nlen; // 规范连线的垂线单位向量
+    const nx = -ndy / nlen, ny = ndx / nlen; // 连线的垂线单位向量
     const bend = Math.min(nlen * 0.16, 80); // 弧度随距离自适应，封顶避免过大
     const c = { x: mx + nx * bend, y: my + ny * bend };
     // 起止点：沿『中心→控制点』方向与人物框边缘求交（避免线条压在框上）
