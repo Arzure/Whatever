@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
 import { api } from '../api';
+import NightActionGraph from './NightActionGraph.vue';
 
 const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject('game');
 
@@ -285,32 +286,49 @@ const deckGroups = computed(() =>
     .map((g) => ({ ...g, roles: g.roles.filter((r) => d.value.board === 'advanced' || !ADV_NEW_ROLES.includes(r.name)) }))
     .filter((g) => g.roles.length)
 );
+// 与原对话消息中「逐夜行动回顾」完全一致的表述（已从对话迁移至此）
 function formatNightLog(l) {
-  const parts = [];
-  if (l.wolf) parts.push(l.wolf.blocked ? `狼人袭击「${l.wolf.target}」→ 被守卫挡下` : `狼人刀杀「${l.wolf.killed || l.wolf.target}」`);
-  if (l.guard) parts.push(`守卫保护「${l.guard.target}」`);
-  if (l.detective) parts.push(`侦探探访「${l.detective.target}」（${l.detective.clue}）`);
-  if (l.accomplice) parts.push(`帮凶拜访「${l.accomplice.target}」`);
-  if (l.thief) parts.push(`小偷造访「${l.thief.target}」${l.thief.effect ? '，' + l.thief.effect : ''}`);
-  if (l.gambler) parts.push(`赌徒猜「${l.gambler.target}」为${l.gambler.claim}（${l.gambler.correct ? '正确' : '错误'}${l.gambler.died ? '，赌徒殒命' : ''}）`);
-  if (l.forensics && l.forensics.role) parts.push(`法医鉴定「${l.forensics.target}」→ ${l.forensics.role}`);
-  if (l.drunkAffected && l.drunkAffected.length) parts.push(`酒鬼迷醉：${l.drunkAffected.join('、')}`);
-  if (l.watcher) parts.push(`观者观测「${l.watcher.target}」→ ${l.watcher.camp}阵营`);
-  if (l.postman) parts.push(l.postman.saved ? `邮差送信给「${l.postman.target}」时察觉杀机——狼人空刀` : `邮差给「${l.postman.target}」送信，无事发生`);
-  if (l.walker) parts.push(l.walker.kill ? `行者拜访「${l.walker.target}」——对方是坏人，同归于尽` : `行者拜访「${l.walker.target}」，探明其身份`);
-  if (l.spy) parts.push(`间谍拜访「${l.spy.target}」，明日将${l.spy.lie ? '撒谎' : '如实发言'}`);
-  if (l.clown) parts.push(`小丑扭曲了「${l.clown.target}」的记忆`);
-  if (l.warlock) parts.push(`术士链接了「${l.warlock.links[0]}」与「${l.warlock.links[1]}」的命运${l.warlock.chain && l.warlock.chain.length ? `，连锁带走了${l.warlock.chain.join('、')}` : ''}`);
-  if (l.quack) {
-    if (l.quack.saves && l.quack.saves.length) parts.push(`庸医救下了${l.quack.saves.join('、')}`);
-    if (l.quack.poisons && l.quack.poisons.length) parts.push(`庸医的药毒杀了${l.quack.poisons.join('、')}`);
+  const line = [];
+  if (l.wolf) {
+    const wft = l.wolf.who || '狼人';
+    line.push(l.wolf.killed ? `${wft}（狼）刀杀「${l.wolf.killed}」` : l.wolf.blocked ? `${wft}（狼）袭击「${l.wolf.target}」但被守卫挡下` : `${wft}（狼）未刀任何人`);
   }
-  if (l.deaths && l.deaths.length) parts.push(`本夜逝去：${l.deaths.join('、')}`);
-  return parts.join('；');
+  if (l.accomplice) line.push(`${l.accomplice.who}（帮凶）拜访「${l.accomplice.target}」`);
+  if (l.guard) {
+    const g = l.guard;
+    line.push(g.effective && l.wolf && l.wolf.blocked
+      ? `${g.who}（守卫）保护「${g.target}」，成功挡下狼刀`
+      : `${g.who}（守卫）守护「${g.target}」，平安无事`);
+  }
+  if (l.detective) line.push(`${l.detective.who}（侦探）探访「${l.detective.target}」，结论：该人昨夜${l.detective.clue}`);
+  if (l.forensics && l.forensics.role) line.push(`${l.forensics.who}（法医）鉴定上一夜死者「${l.forensics.target}」的身份为${l.forensics.role}`);
+  else if (l.forensics && !l.forensics.role) line.push(`${l.forensics.who}（法医）此前无新尸体可检`);
+  if (l.thief) line.push(`${l.thief.who}（小偷）拜访「${l.thief.target}」：${l.thief.effect || '行动未生效'}`);
+  if (l.gambler) {
+    const g = l.gambler;
+    if (g.forgot) line.push(`${g.who}（赌徒）本欲猜测「${g.target}」但被清除记忆，未能行动`);
+    else line.push(`${g.who}（赌徒）猜「${g.target}」为${g.claim}（${g.correct ? '正确' : '错误'}${g.died ? '，赌徒不幸殒命' : '，安然无恙'}）`);
+  }
+  if (l.drunkard && l.drunkard.affected && l.drunkard.affected.length) line.push(`${l.drunkard.who}（酒鬼）迷醉了${l.drunkard.affected.join('、')}`);
+  if (l.watcher) line.push(`${l.watcher.who}（观者）观测「${l.watcher.target}」，阵营为${l.watcher.camp}`);
+  if (l.postman) line.push(l.postman.saved ? `${l.postman.who}（邮差）送信给「${l.postman.target}」时察觉杀机——狼人空刀` : `${l.postman.who}（邮差）给「${l.postman.target}」送信，无事发生`);
+  if (l.walker) line.push(l.walker.kill ? `${l.walker.who}（行者）拜访「${l.walker.target}」——对方是坏人，同归于尽` : `${l.walker.who}（行者）拜访「${l.walker.target}」，探明其身份`);
+  if (l.spy) line.push(`${l.spy.who}（间谍）拜访「${l.spy.target}」，明日将${l.spy.lie ? '撒谎' : '如实发言'}`);
+  if (l.clown) line.push(`${l.clown.who}（小丑）扭曲了「${l.clown.target}」的记忆`);
+  if (l.warlock) line.push(`${l.warlock.who}（术士）链接了「${l.warlock.links[0]}」与「${l.warlock.links[1]}」的命运${l.warlock.chain && l.warlock.chain.length ? `，连锁带走了${l.warlock.chain.join('、')}` : ''}`);
+  if (l.quack) {
+    const q = l.quack;
+    if (q.saves && q.saves.length) line.push(`${q.who}（庸医）救下了${q.saves.join('、')}`);
+    if (q.poisons && q.poisons.length) line.push(`${q.who}（庸医）的药毒杀了${q.poisons.join('、')}`);
+  }
+  if (l.forgotten && l.forgotten.length) line.push(`被清除记忆：${l.forgotten.join('、')}`);
+  if (l.deaths && l.deaths.length) line.push(`本夜逝去：${l.deaths.join('、')}`);
+  return line.join('；');
 }
 
 const isAdvanced = computed(() => d.value.board === 'advanced');
 const execPicks = ref([]); // 十人局：勾选的处决目标（最多 2 人）
+const showNightReview = ref(false); // 终局：逐夜行动回顾浮层
 function togglePick(id) {
   const i = execPicks.value.indexOf(id);
   if (i >= 0) execPicks.value.splice(i, 1);
@@ -488,14 +506,6 @@ watch(() => state.history.length, scrollToBottom);
       </div>
 
       <!-- 逐夜行动回顾（游戏结束） -->
-      <div v-if="nightLogs.length" class="night-review">
-        <h3>逐夜行动回顾</h3>
-        <div v-for="(l, i) in nightLogs" :key="i" class="night-log-row">
-          <span class="night-round">第{{ l.round }}夜</span>
-          <span class="night-detail">{{ formatNightLog(l) }}</span>
-        </div>
-      </div>
-
       <button v-if="state.gameOver" class="btn primary full" @click="restart">再开一局</button>
     </aside>
 
@@ -621,13 +631,6 @@ watch(() => state.history.length, scrollToBottom);
               <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}<span v-if="r.roleBackup" class="reveal-turned">（第{{ r.turnedRound || '?' }}夜变身狼人）</span></b>
             </div>
           </div>
-          <div v-if="nightLogs.length" class="night-review">
-            <h3>逐夜行动回顾</h3>
-            <div v-for="(l, i) in nightLogs" :key="i" class="night-log-row">
-              <span class="night-round">第{{ l.round }}夜</span>
-              <span class="night-detail">{{ formatNightLog(l) }}</span>
-            </div>
-          </div>
           <button v-if="state.gameOver" class="btn primary full" @click="restart">再开一局</button>
         </template>
       </div>
@@ -695,8 +698,26 @@ watch(() => state.history.length, scrollToBottom);
 
       <div v-else-if="state.gameOver" class="end-bar">
         <p class="end-text">{{ d.winner === 'good' ? '🌅 狼人全部落网，好人获胜！' : '🐺 狼人潜伏到最后，好人失败…' }}</p>
+        <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
       </div>
     </main>
+
+    <!-- 终局：逐夜行动回顾浮层（每夜一张关系图 + 对齐后的说明文字） -->
+    <div v-if="showNightReview && nightLogs.length" class="review-overlay" @click.self="showNightReview = false">
+      <div class="review-modal">
+        <div class="review-head">
+          <h3>逐夜行动回顾</h3>
+          <button class="review-close" @click="showNightReview = false">✕</button>
+        </div>
+        <div class="review-body">
+          <div v-for="(l, i) in nightLogs" :key="i" class="night-graph-card">
+            <div class="night-graph-title">第{{ l.round }}夜</div>
+            <NightActionGraph :log="l" :roles="d.roles || []" />
+            <div class="night-detail">{{ formatNightLog(l) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -979,9 +1000,71 @@ watch(() => state.history.length, scrollToBottom);
   font-size: 14px;
 }
 
-.night-review {
-  border-top: 1px dashed var(--border);
-  padding-top: 10px;
+.review-btn {
+  margin-top: 10px;
+}
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.review-modal {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.review-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.review-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.review-body {
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+.night-graph-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  margin: 8px 0;
+  background: #0d1117;
+}
+.night-graph-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.night-graph-card .night-detail {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-top: 4px;
 }
 .night-log-row {
   display: flex;

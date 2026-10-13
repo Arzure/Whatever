@@ -662,7 +662,7 @@ function buildEndNarrative(w, lastExiled) {
   const deadWolves = w.players.filter((p) => p.role === 'wolf' && !p.alive).map((p) => p.name);
   const wolfNames = w.players.filter((p) => p.role === 'wolf').map((p) => p.name).join('、');
   if (w.phase === 'win') {
-    return `所有狼人已被处刑——${wolfNames}。村庄恢复宁静，好人阵营获胜！${buildNightReview(w)}`;
+    return `所有狼人已被处刑——${wolfNames}。村庄恢复宁静，好人阵营获胜！`;
   }
   if (lastExiled) {
     const camp = campOf(lastExiled.role);
@@ -672,10 +672,10 @@ function buildEndNarrative(w, lastExiled) {
     else distinct = '那就是好人中的一员';
     return (
       `「${lastExiled.name}」被处刑，身份公开：【${ROLES[lastExiled.role]}】——可惜，那不是狼人，${distinct}。\n\n` +
-      `好人阵营的力量已经耗尽，狼人阵营获胜。潜伏的狼人：「${aliveWolves.join('、')}」${deadWolves.length ? `（另有已伏法的狼人：${deadWolves.join('、')}）` : ''}。${buildNightReview(w)}`
+      `好人阵营的力量已经耗尽，狼人阵营获胜。潜伏的狼人：「${aliveWolves.join('、')}」${deadWolves.length ? `（另有已伏法的狼人：${deadWolves.join('、')}）` : ''}。`
     );
   }
-  return `好人阵营已经失去了反击的力量，狼人「${wolfNames}」潜伏在村庄中。狼人获胜。${buildNightReview(w)}`;
+  return `好人阵营已经失去了反击的力量，狼人「${wolfNames}」潜伏在村庄中。狼人获胜。`;
 }
 
 /**
