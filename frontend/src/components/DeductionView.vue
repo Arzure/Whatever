@@ -487,6 +487,8 @@ watch(execResult, (v) => {
   }
 });
 // 夜间事件监听（注册于处刑结果之后，确保同批次更新时处刑结果先落定）
+// 注意：数据更新顺序为『游戏状态先、历史消息后』，而处刑结果从历史消息解析，
+// 因此此处用 nextTick 延后到全部数据落定后再判断，避免暂存判断失效导致抢先弹出。
 watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
   if (state.gameOver) return;
   const r = d.value.round || 1;
@@ -494,8 +496,10 @@ watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
     lastSeenRound = r;
     const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
     const evt = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
-    if (execResult.value) pendingNightEvent = evt;
-    else nightEvent.value = evt;
+    nextTick(() => {
+      if (execResult.value) pendingNightEvent = evt; // 处刑结果弹窗显示中 → 暂存
+      else nightEvent.value = evt;
+    });
   }
 }, { immediate: true });
 

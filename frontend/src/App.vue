@@ -59,18 +59,22 @@ function onDeleted() {
     <div v-if="authChecking" class="auth-loading">正在检查登录状态…</div>
     <LoginView v-else-if="!authUser" @logged-in="onLoggedIn" />
     <template v-else>
-      <header class="app-bar">
-        <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
-        <span class="app-bar-user">👤 {{ authUser.username }}</span>
-        <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
-        <button class="app-bar-logout" @click="logout">退出登录</button>
-      </header>
+      <div class="app-shell">
+        <header class="app-bar">
+          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
+          <span class="app-bar-user">👤 {{ authUser.username }}</span>
+          <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
+          <button class="app-bar-logout" @click="logout">退出登录</button>
+        </header>
+        <div class="app-body">
+          <HomeView v-if="game.state.view === 'home'" />
+          <DetectiveView v-else-if="game.state.mode === 'detective'" />
+          <WolfView v-else-if="game.state.mode === 'wolf'" />
+          <DeductionView v-else-if="game.state.mode === 'deduction'" />
+          <WorldView v-else />
+        </div>
+      </div>
       <AccountSettings v-if="showSettings" :user="authUser" @close="showSettings = false" @renamed="onRenamed" @deleted="onDeleted" />
-      <HomeView v-if="game.state.view === 'home'" />
-      <DetectiveView v-else-if="game.state.mode === 'detective'" />
-      <WolfView v-else-if="game.state.mode === 'wolf'" />
-      <DeductionView v-else-if="game.state.mode === 'deduction'" />
-      <WorldView v-else />
     </template>
   </AccessGate>
 </template>
@@ -84,7 +88,21 @@ function onDeleted() {
   color: #8b949e;
   font-size: 14px;
 }
+.app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.app-body {
+  flex: 1;
+  min-height: 0; /* 关键：允许子元素在 flex 容器内正确计算高度，避免超出视口 */
+  position: relative;
+}
+.app-body > * {
+  height: 100%;
+}
 .app-bar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;

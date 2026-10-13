@@ -138,13 +138,15 @@ const activeDetail = computed(() => {
     <text v-for="(e, i) in graph.edges" :key="'l' + i" :x="e.lx" :y="e.ly" class="edge-label" :fill="e.color"
       :class="{ 'edge-dim': isEdgeDim(e) }">{{ e.label }}</text>
     <g v-for="(n, i) in graph.nodes" :key="n.name" :transform="`translate(${n.x},${n.y})`"
-      class="node-g" :style="{ animationDelay: (i * 0.12) + 's' }"
+      class="node-g"
       @mouseenter="hoverName = n.name" @mouseleave="hoverName = ''"
       @click="activeName = activeName === n.name ? '' : n.name">
+      <g class="node-inner" :style="{ animationDelay: (i * 0.12) + 's' }">
       <rect x="-50" y="-27" width="100" height="54" rx="9" class="node-box" :stroke="campColor(n)" stroke-width="2"
         :class="{ 'node-active': activeName === n.name || hoverName === n.name }" />
       <text y="-3" class="node-name">{{ n.name }}</text>
       <text y="17" class="node-role" :fill="campColor(n)">{{ n.role }}{{ n.dead ? ' 💀' : '' }}</text>
+      </g>
     </g>
   </svg>
   <!-- 点击节点：该人物当夜完整行动详情 -->
@@ -175,7 +177,12 @@ const activeDetail = computed(() => {
 /* —— 节点弹性入场：依次弹入 —— */
 .node-g {
   cursor: pointer;
+}
+/* 入场缩放作用在内层容器上，避免覆盖外层的定位坐标 */
+.node-inner {
   animation: node-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 @keyframes node-pop {
   0% { opacity: 0; transform: scale(0.3); }
