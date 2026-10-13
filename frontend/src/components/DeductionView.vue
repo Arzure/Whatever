@@ -52,7 +52,14 @@ const dayGroups = computed(() => {
   let cur = null;
   const push = (content) => {
     if (!cur) { cur = { day: 1, msgs: [] }; groups.push(cur); }
-    cur.msgs.push({ role: 'assistant', content });
+    // 过滤：终局复盘长文本（改由结算弹窗展示）；纯天标记消息（改由夜事件弹窗展示）
+    let c = content;
+    const endIdx = c.indexOf('—— 游戏结束 ——');
+    if (endIdx >= 0) c = c.slice(0, endIdx);
+    c = c.trim();
+    if (!c) return;
+    if (/^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) return;
+    cur.msgs.push({ role: 'assistant', content: c });
   };
   for (const msg of state.history || []) {
     const content = String(msg.content || '');
@@ -329,6 +336,51 @@ function formatNightLog(l) {
 const isAdvanced = computed(() => d.value.board === 'advanced');
 const execPicks = ref([]); // 十人局：勾选的处决目标（最多 2 人）
 const showNightReview = ref(false); // 终局：逐夜行动回顾浮层
+
+// —— 手机端按天翻页：每天的角色对话独占一页，左右滑动/点按切换 ——
+const isMobile = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mq = window.matchMedia('(max-width: 768px)');
+  const onMq = (e) => { isMobile.value = e.matches; };
+  if (mq.addEventListener) mq.addEventListener('change', onMq);
+  else if (mq.addListener) mq.addListener(onMq);
+}
+const curDay = ref(1);
+const lastDay = computed(() => (dayGroups.value.length ? dayGroups.value[dayGroups.value.length - 1].day : 1));
+watch(dayGroups, (gs, old) => {
+  if (!gs.length) return;
+  // 仅当用户正停留在最新一天时自动跟随；翻看历史页时不打断
+  const prevLast = old && old.length ? old[old.length - 1].day : 0;
+  if (!old || curDay.value >= prevLast) curDay.value = gs[gs.length - 1].day;
+}, { immediate: true });
+const displayGroups = computed(() => (isMobile.value ? dayGroups.value.filter((g) => g.day === curDay.value) : dayGroups.value));
+function prevDay() { if (curDay.value > 1) curDay.value -= 1; }
+function nextDay() { if (curDay.value < lastDay.value) curDay.value += 1; }
+let pageTouchX = 0;
+function onPageTouchStart(e) { pageTouchX = e.changedTouches[0].clientX; }
+function onPageTouchEnd(e) {
+  const dx = e.changedTouches[0].clientX - pageTouchX;
+  if (Math.abs(dx) > 50) (dx < 0 ? nextDay() : prevDay());
+}
+
+// —— 每夜事件弹窗：新的一天开始时提示昨夜实际发生的事情（死讯/平安夜） ——
+const nightEvent = ref(null);
+let lastSeenRound = 0;
+watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
+  if (state.gameOver) return;
+  const r = d.value.round || 1;
+  if (r !== lastSeenRound && (d.value.phase === 'day' || d.value.phase === 'adjudicate')) {
+    lastSeenRound = r;
+    const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
+    nightEvent.value = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
+  }
+}, { immediate: true });
+
+// —— 终局结算弹窗 ——
+const showEndModal = ref(false);
+watch(() => state.gameOver, (v) => { showEndModal.value = !!v; }, { immediate: true });
+// 换局重置弹窗状态
+watch(() => state.gameId, () => { lastSeenRound = 0; nightEvent.value = null; });
 function togglePick(id) {
   const i = execPicks.value.indexOf(id);
   if (i >= 0) execPicks.value.splice(i, 1);
@@ -638,8 +690,14 @@ watch(() => state.history.length, scrollToBottom);
 
     <!-- 主区：发言流 + 裁决面板 -->
     <main class="main-panel">
-      <div class="messages" ref="messagesEl" @scroll="onMessagesScroll">
-        <div v-for="g in dayGroups" :key="g.day" class="day-group">
+      <div class="messages" ref="messagesEl" @scroll="onMessagesScroll" @touchstart="isMobile ? onPageTouchStart($event) : null" @touchend="isMobile ? onPageTouchEnd($event) : null">
+        <!-- 手机端：按天翻页指示条 -->
+        <div v-if="isMobile && lastDay > 1" class="day-pager">
+          <button class="pager-btn" :disabled="curDay <= 1" @click="prevDay">‹</button>
+          <span class="pager-indicator">第 {{ curDay }} / {{ lastDay }} 天</span>
+          <button class="pager-btn" :disabled="curDay >= lastDay" @click="nextDay">›</button>
+        </div>
+        <div v-for="g in displayGroups" :key="g.day" class="day-group">
           <button class="day-toggle" @click="toggleDay(g.day)">
             📅 第 {{ g.day }} 天 <span class="day-count">（{{ g.msgs.length }} 条）</span> {{ expandedDays.has(g.day) || g.day === (dayGroups[dayGroups.length - 1] && dayGroups[dayGroups.length - 1].day) ? '▼' : '▸' }}
           </button>
@@ -698,9 +756,32 @@ watch(() => state.history.length, scrollToBottom);
 
       <div v-else-if="state.gameOver" class="end-bar">
         <p class="end-text">{{ d.winner === 'good' ? '🌅 狼人全部落网，好人获胜！' : '🐺 狼人潜伏到最后，好人失败…' }}</p>
-        <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
+        <button class="btn review-btn" @click="showEndModal = true">📜 查看结算</button>
       </div>
     </main>
+
+    <!-- 每夜事件弹窗：提示昨夜实际发生的事情（死讯/平安夜，带动画） -->
+    <div v-if="nightEvent && !state.gameOver" class="review-overlay night-event-overlay" @click.self="nightEvent = null">
+      <div class="review-modal night-event-modal">
+        <div class="night-event-icon" :class="nightEvent.peaceful ? 'peaceful' : 'death'">{{ nightEvent.peaceful ? '🌙' : '💀' }}</div>
+        <h3 class="night-event-title">第 {{ nightEvent.round }} 天 · 天亮了</h3>
+        <p v-if="nightEvent.peaceful" class="night-event-text">昨夜风平浪静，是个平安夜。</p>
+        <p v-else class="night-event-text">昨夜，黑暗夺走了<span v-for="n in nightEvent.deaths" :key="n" class="night-event-dead">「{{ n }}」</span>的生命——尸体在清晨被发现，身份未知。</p>
+        <button class="btn primary" @click="nightEvent = null">知道了</button>
+      </div>
+    </div>
+
+    <!-- 终局结算弹窗：胜负结算 + 逐夜行动回顾入口 -->
+    <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
+      <div class="review-modal end-modal">
+        <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
+        <h3 class="end-modal-title">{{ d.winner === 'good' ? '狼人全部落网，好人获胜！' : '狼人潜伏到最后，好人失败…' }}</h3>
+        <div class="end-modal-actions">
+          <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
+          <button class="btn primary" @click="restart">🔄 再开一局</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 终局：逐夜行动回顾浮层（每夜一张关系图 + 对齐后的说明文字） -->
     <div v-if="showNightReview && nightLogs.length" class="review-overlay" @click.self="showNightReview = false">
@@ -1002,6 +1083,109 @@ watch(() => state.history.length, scrollToBottom);
 
 .review-btn {
   margin-top: 10px;
+}
+/* 手机端按天翻页指示条 */
+.day-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 0 8px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 6px;
+}
+.pager-btn {
+  background: #161b22;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  width: 34px;
+  height: 30px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pager-indicator {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+/* 每夜事件弹窗 */
+.night-event-modal {
+  max-width: 360px;
+  text-align: center;
+  padding: 22px 20px 18px;
+  animation: evt-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.night-event-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.night-event-icon.death {
+  animation: evt-shake 0.6s ease 0.15s;
+}
+.night-event-icon.peaceful {
+  animation: evt-float 2.2s ease-in-out infinite;
+}
+.night-event-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.night-event-text {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 14px;
+}
+.night-event-dead {
+  color: #f85149;
+  font-weight: 600;
+}
+@keyframes evt-pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes evt-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes evt-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+/* 终局结算弹窗 */
+.end-modal {
+  max-width: 380px;
+  text-align: center;
+  padding: 26px 22px 22px;
+  animation: evt-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.end-modal-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.end-modal-icon.win {
+  animation: evt-float 2.2s ease-in-out infinite;
+}
+.end-modal-title {
+  margin: 0 0 16px;
+  font-size: 17px;
+}
+.end-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.end-modal-actions .review-btn {
+  margin-top: 0;
 }
 .review-overlay {
   position: fixed;

@@ -638,21 +638,9 @@ function checkWinner(w) {
 
 function buildDawnNarrative(game, isFirstNight) {
   const w = game.deduction;
-  const alive = alivePlayers(w);
-  const names = alive.map((p) => p.name).join('、');
-  const deadNames = w.deaths
-    .filter((d) => d.round === w.round && d.cause === 'night')
-    .map((d) => d.name);
-  const deathText = deadNames.length
-    ? `昨夜，黑暗夺走了「${deadNames.join('」「')}」的生命——尸体在清晨被发现，身份未知。`
-    : '昨夜风平浪静，没有人死去。';
-  const dayTag = isFirstNight ? '天亮了。' : `—— 第 ${w.round} 天 ——\n\n天亮了。`;
-  return (
-    `${dayTag}${deathText}\n\n现在，村里还活着的人：${names}。\n\n` +
-    `（你是法官——不参与游戏，只负责裁决。请听完大家的发言后，决定是否处刑某人。）\n\n` +
-    `白天的规则：每人发言一次，然后由你裁决——处刑最可疑的人（公开其身份牌），或放弃处刑直接进入下一夜。\n\n` +
-    `（请开始听取发言。）`
-  );
+  // 死讯与法官提示改由前端弹窗展示，叙事仅保留天标记（供前端分天）
+  const dayTag = isFirstNight ? `—— 第 ${w.round} 天 ——\n\n天亮了。` : `—— 第 ${w.round} 天 ——\n\n天亮了。`;
+  return dayTag;
 }
 
 function buildEndNarrative(w, lastExiled) {
