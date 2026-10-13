@@ -337,6 +337,11 @@ const isAdvanced = computed(() => d.value.board === 'advanced');
 const execPicks = ref([]); // 十人局：勾选的处决目标（最多 2 人）
 const showNightReview = ref(false); // 终局：逐夜行动回顾浮层
 
+// —— 裁决浮层：裁决阶段按需弹出，避免面板常驻占用对话空间 ——
+const showAdjudicate = ref(false);
+watch(canAdjudicate, (v) => { if (!v) showAdjudicate.value = false; });
+watch(() => state.gameId, () => { showAdjudicate.value = false; });
+
 // —— 手机端按天翻页：每天的角色对话独占一页，左右滑动/点按切换 ——
 const isMobile = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
 if (typeof window !== 'undefined' && window.matchMedia) {
@@ -733,25 +738,9 @@ watch(() => state.history.length, scrollToBottom);
         <p class="listen-hint">{{ state.loading ? '大家正在依次陈述，约需 10~20 秒，请稍候…' : '法官无需发言，点击按钮即可听取在场所有人的陈述。' }}</p>
       </div>
 
-      <!-- 裁决面板 -->
-      <div v-else-if="canAdjudicate" class="adjudicate-panel">
-        <p class="adjudicate-hint">现在由你裁决。处刑某位存活者会公开其真实身份牌；或放弃处刑直接进入下一夜。</p>
-        <div class="vote-list">
-          <button
-            v-for="p in (d.players || []).filter((x) => x.alive)"
-            :key="p.id"
-            class="execute-btn"
-            :class="{ picked: isAdvanced && execPicks.includes(p.id) }"
-            :disabled="disabled || (isAdvanced && !execPicks.includes(p.id) && execPicks.length >= 2)"
-            @click="isAdvanced ? togglePick(p.id) : doExecute(p.id)"
-          >
-            {{ isAdvanced ? (execPicks.includes(p.id) ? '✅ 已选 ' : '☐ 勾选 ') : '⚔️ 处刑 ' }}{{ p.name }}
-          </button>
-        </div>
-        <button v-if="isAdvanced" class="pass-btn" :disabled="disabled || !execPicks.length" @click="doExecute()">
-          ⚔️ 处决选中的 {{ execPicks.length }} 人
-        </button>
-        <button class="pass-btn" :disabled="disabled" @click="doPass">🛡️ 放弃处刑（进入下一夜）</button>
+      <!-- 裁决阶段：按需弹出（避免面板常驻占用对话空间） -->
+      <div v-else-if="canAdjudicate" class="adjudicate-entry">
+        <button class="btn primary" :disabled="disabled" @click="showAdjudicate = true">⚔️ 现在由你裁决</button>
       </div>
 
       <div v-else-if="state.gameOver" class="end-bar">
@@ -759,6 +748,35 @@ watch(() => state.history.length, scrollToBottom);
         <button class="btn review-btn" @click="showEndModal = true">📜 查看结算</button>
       </div>
     </main>
+
+    <!-- 裁决浮层：点击『现在由你裁决』后弹出 -->
+    <div v-if="showAdjudicate && canAdjudicate" class="review-overlay" @click.self="showAdjudicate = false">
+      <div class="review-modal adjudicate-modal">
+        <div class="review-head">
+          <h3>⚔️ 现在由你裁决</h3>
+          <button class="review-close" @click="showAdjudicate = false">✕</button>
+        </div>
+        <div class="review-body">
+          <p class="adjudicate-hint">处刑某位存活者会公开其真实身份牌；或放弃处刑直接进入下一夜。</p>
+          <div class="vote-list">
+            <button
+              v-for="p in (d.players || []).filter((x) => x.alive)"
+              :key="p.id"
+              class="execute-btn"
+              :class="{ picked: isAdvanced && execPicks.includes(p.id) }"
+              :disabled="disabled || (isAdvanced && !execPicks.includes(p.id) && execPicks.length >= 2)"
+              @click="isAdvanced ? togglePick(p.id) : doExecute(p.id)"
+            >
+              {{ isAdvanced ? (execPicks.includes(p.id) ? '✅ 已选 ' : '☐ 勾选 ') : '⚔️ 处刑 ' }}{{ p.name }}
+            </button>
+          </div>
+          <button v-if="isAdvanced" class="pass-btn" :disabled="disabled || !execPicks.length" @click="doExecute()">
+            ⚔️ 处决选中的 {{ execPicks.length }} 人
+          </button>
+          <button class="pass-btn" :disabled="disabled" @click="doPass">🛡️ 放弃处刑（进入下一夜）</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 每夜事件弹窗：提示昨夜实际发生的事情（死讯/平安夜，带动画） -->
     <div v-if="nightEvent && !state.gameOver" class="review-overlay night-event-overlay" @click.self="nightEvent = null">
@@ -1083,6 +1101,33 @@ watch(() => state.history.length, scrollToBottom);
 
 .review-btn {
   margin-top: 10px;
+}
+/* 裁决入口（按需弹出） */
+.adjudicate-entry {
+  display: flex;
+  justify-content: center;
+  padding: 10px 12px;
+  border-top: 1px dashed var(--border);
+}
+.adjudicate-modal {
+  max-width: 460px;
+  animation: evt-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.adjudicate-modal .adjudicate-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.adjudicate-modal .vote-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.adjudicate-modal .pass-btn {
+  width: 100%;
+  margin-top: 6px;
 }
 /* 手机端按天翻页指示条 */
 .day-pager {
