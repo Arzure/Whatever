@@ -466,18 +466,6 @@ function watchExecResult() {
 }
 watch(() => (state.history || []).length, watchExecResult, { immediate: false });
 
-// 夜间事件监听（注册于处刑结果之后，确保同批次更新时处刑结果先落定）
-watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
-  if (state.gameOver) return;
-  const r = d.value.round || 1;
-  if (r !== lastSeenRound && (d.value.phase === 'day' || d.value.phase === 'adjudicate')) {
-    lastSeenRound = r;
-    const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
-    const evt = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
-    if (execResult.value) pendingNightEvent = evt;
-    else nightEvent.value = evt;
-  }
-}, { immediate: true });
 // 处刑结果弹窗关闭后，再显示暂存的夜间事件弹窗与终局结算弹窗
 // 华丽化：夜间事件前先播放 2.5s 夜晚过场动画（黑幕→行动剪影→天光）
 const nightTransition = ref(false);
@@ -498,6 +486,18 @@ watch(execResult, (v) => {
     }
   }
 });
+// 夜间事件监听（注册于处刑结果之后，确保同批次更新时处刑结果先落定）
+watch(() => [d.value.round, d.value.phase, state.gameOver], () => {
+  if (state.gameOver) return;
+  const r = d.value.round || 1;
+  if (r !== lastSeenRound && (d.value.phase === 'day' || d.value.phase === 'adjudicate')) {
+    lastSeenRound = r;
+    const deaths = (d.value.deaths || []).filter((x) => x.round === r && x.cause === 'night');
+    const evt = { round: r, deaths: deaths.map((x) => x.name), peaceful: !deaths.length };
+    if (execResult.value) pendingNightEvent = evt;
+    else nightEvent.value = evt;
+  }
+}, { immediate: true });
 
 function doExecute(targetId) {
   if (isAdvanced.value) {
