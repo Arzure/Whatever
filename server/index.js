@@ -458,30 +458,52 @@ app.delete('/api/games/:id', (req, res) => {
 });
 
 // 终局插画（推理杀）：为存档生成主题插画；未配置 IMAGE_MODEL 时返回 disabled
-app.post('/api/games/:id/ending-art', async (req, res) => {
+// 终局插画（推理杀）：资产合成——按胜负抽取背景（win/lose 各 5 张），按存活角色身份与性别选取人物剪影叠放其上；
+// 背景与剪影均为预生成资产（server/assets/endings/），合成由 Python Pillow 完成，秒出、零生图费用
+app.post('/api/games/:id/ending-art', (req, res) => {
   const found = findGame(req, res);
   if (!found) return;
   const { game } = found;
   if (game.mode !== 'deduction') return res.status(400).json({ error: '该模式不支持终局插画' });
   const w = game.deduction;
   if (!(w.phase === 'win' || w.phase === 'lose')) return res.status(400).json({ error: '游戏尚未结束' });
-  if (!image.isImageEnabled()) return res.json({ disabled: true });
-  const winner = w.winner === 'good' ? '好人胜利' : '狼人胜利';
-  // 依据终局场上剩余角色及身份描绘一个事件场景（比固定剪影更有叙事感）
-  // 存档中 role 为英文 key，转中文职业名进入提示词
+  const dir = path.join(__dirname, 'assets', 'endings');
+  if (!fs.existsSync(dir)) return res.json({ disabled: true });
+  // 背景池：按胜负过滤
+  const prefix = w.winner === 'good' ? 'win-' : 'lose-';
+  const bgs = fs.readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith('.png')).sort();
+  if (!bgs.length) return res.json({ disabled: true });
+  // 确定性抽取背景（同一存档固定同一张，不同局随机换新）
+  let h = 0;
+  const key = req.params.id + ':ending';
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const bg = bgs[h % bgs.length];
+  // 存活角色：身份（英文 key 转中文）+ 性别 → 剪影文件
   const ROLE_CN_END = {
     clerk: '文员', detective: '侦探', villager: '村民', forensics: '法医', guard: '守卫',
     gambler: '赌徒', thief: '小偷', wolf: '狼人', accomplice: '帮凶', drunkard: '酒鬼',
     watcher: '观者', postman: '邮差', walker: '行者', quack: '庸医', spy: '间谍', clown: '小丑', warlock: '术士',
   };
-  const survivors = (w.players || []).filter((x) => x.alive);
-  const survivorDesc = survivors
-    .map((x) => `${x.name}（${x.roleBackup ? (ROLE_CN_END[x.roleBackup] || x.roleBackup) + '变身狼人' : (ROLE_CN_END[x.role] || x.role)}）`)
-    .join('、');
-  const prompt = `暗色调中世纪村庄剪影插画，${winner}结局：天亮后的村庄广场上，幸存者${survivorDesc}聚集在一起的场景，月光与晨光交界，人物为剪影轮廓但姿态各异反映其身份，神秘悬疑氛围，扁平插画风格，深蓝与金色配色，无文字`;
-  const result = await image.generateImage(`${req.params.id}:ending`, prompt, { size: '768x768' });
-  if (!result) return res.json({ disabled: true });
-  res.json({ b64: result.b64 });
+  const FEMALE_NAMES_END = ['婉清', '苏晴', '孟瑶', '语嫣', '许诺'];
+  const survivors = (w.players || []).filter((x) => x.alive).map((x) => ({
+    role: ROLE_CN_END[x.roleBackup || x.role] || x.role,
+    gender: FEMALE_NAMES_END.includes(x.name) ? '女' : '男',
+  }));
+  const silhouettes = survivors
+    .map((s) => path.join(dir, `${s.role}-剪-${s.gender}.png`))
+    .filter((p) => fs.existsSync(p));
+  // 合成：调用 Python 脚本（Pillow）把剪影叠放在背景上
+  const { execFile } = require('child_process');
+  const args = [path.join(__dirname, 'scripts', 'compose_ending.py'), path.join(dir, bg), ...silhouettes];
+  execFile('python3', args, { maxBuffer: 32 * 1024 * 1024 }, (err, stdout) => {
+    if (err) {
+      console.log('[ending] 合成失败：', err.message);
+      return res.json({ disabled: true });
+    }
+    const b64 = stdout.trim();
+    if (!b64) return res.json({ disabled: true });
+    res.json({ b64 });
+  });
 });
 
 // 角色立绘（推理杀终局）：从预生成资产库随机抽取（点击秒出、零生图费用）

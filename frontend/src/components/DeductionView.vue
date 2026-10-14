@@ -414,23 +414,15 @@ let pendingNightEvent = null;
 
 // —— 终局结算弹窗（时序：处刑结果弹窗显示期间暂存，关闭后再弹出） ——
 const showEndModal = ref(false);
-// 终局海报：改为点击按钮按需生成（节约成本）；未配置 IMAGE_MODEL 时后端返回 disabled，隐藏按钮
+// 终局海报：资产合成（背景+存活人物剪影），秒出零成本——游戏结束自动显示
 const endingArt = ref('');
-const endingArtLoading = ref(false);
-let endingArtDisabled = false;
-watch(() => state.gameOver, (v) => {
-  if (!v || !state.gameId) { endingArt.value = ''; endingArtLoading.value = false; endingArtDisabled = false; portraits.value = {}; }
-}, { immediate: true });
-async function loadEndingArt() {
-  if (endingArtDisabled || endingArtLoading.value || endingArt.value || !state.gameId) return;
-  endingArtLoading.value = true;
+watch(() => state.gameOver, async (v) => {
+  if (!v || !state.gameId) { endingArt.value = ''; portraits.value = {}; return; }
   try {
     const r = await api.endingArt(state.gameId);
     if (r && r.b64) endingArt.value = `data:image/png;base64,${r.b64}`;
-    else if (r && r.disabled) endingArtDisabled = true;
   } catch (e) { /* 失败静默 */ }
-  endingArtLoading.value = false;
-}
+}, { immediate: true });
 // 角色立绘：终局谢幕卡片点击按需生成（控制成本），生成后替换卡片徽章；带缓存
 const portraits = ref({});
 const portraitLoading = ref({}); // 加载中标记（响应式，模板显示 …）
@@ -1001,8 +993,6 @@ watch(() => state.history.length, scrollToBottom);
       <div class="review-modal end-modal">
         <div class="end-modal-glow" aria-hidden="true"></div>
         <img v-if="endingArt" :src="endingArt" class="end-art" alt="本局终局海报" />
-        <button v-else-if="!endingArtDisabled && !endingArtLoading" class="btn primary end-art-btn" @click="loadEndingArt">🎨 生成终局海报</button>
-        <div v-else-if="endingArtLoading" class="end-art-loading">🎨 海报生成中，约 10 秒…</div>
         <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
         <h3 class="end-modal-title">
           <span
