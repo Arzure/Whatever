@@ -97,7 +97,7 @@ const canStart = computed(() => {
           :style="{ animationDelay: (0.15 + i * 0.12) + 's' }"
         >{{ ch }}</span>
       </h1>
-      <p class="subtitle">AI 驱动的创作世界 · 冒险与绘图，皆由你定义</p>
+      <p class="subtitle">AI 驱动的创作世界 · Powered by AI</p>
       <div class="title-divider" aria-hidden="true"></div>
 
       <!-- 玩法选择：绘图工作台（独立入口，非文字冒险） -->

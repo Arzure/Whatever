@@ -18,9 +18,10 @@ function isImageEnabled() {
   return !!(process.env.IMAGE_API_KEY || process.env.LLM_API_KEY);
 }
 
-// 预设模型清单（官方文档禁止自动抓取，只保留实际验证过的型号；UI 支持自定义输入补充）
+// 预设模型清单（官方文档确认的生图模型；UI 支持自定义输入补充）
 const PRESET_MODELS = [
-  { id: 'sensenova-u1.5-fast', desc: 'U1.5 快速版（默认，速度快）' },
+  { id: 'sensenova-u1.5-fast', desc: 'U1.5 Fast · 图片创作加速版，即时创作，高效修改' },
+  { id: 'sensenova-u1.5-lite', desc: 'U1.5 Lite · 图片创作，生成与编辑一体，支持参考图' },
 ];
 
 // 支持的尺寸（正方形/横版/竖版常见档位）
