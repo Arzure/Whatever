@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { loadEnv } = require('./config');
 const { isConfigured, llmConfig } = require('./llm');
 const storage = require('./storage');
@@ -466,41 +467,61 @@ app.post('/api/games/:id/ending-art', async (req, res) => {
   if (!(w.phase === 'win' || w.phase === 'lose')) return res.status(400).json({ error: '游戏尚未结束' });
   if (!image.isImageEnabled()) return res.json({ disabled: true });
   const winner = w.winner === 'good' ? '好人胜利' : '狼人胜利';
-  const prompt = `暗色调中世纪村庄剪影插画，${winner}结局，月光下的村庄轮廓，神秘悬疑氛围，扁平插画风格，深蓝与金色配色，无文字`;
+  // 依据终局场上剩余角色及身份描绘一个事件场景（比固定剪影更有叙事感）
+  // 存档中 role 为英文 key，转中文职业名进入提示词
+  const ROLE_CN_END = {
+    clerk: '文员', detective: '侦探', villager: '村民', forensics: '法医', guard: '守卫',
+    gambler: '赌徒', thief: '小偷', wolf: '狼人', accomplice: '帮凶', drunkard: '酒鬼',
+    watcher: '观者', postman: '邮差', walker: '行者', quack: '庸医', spy: '间谍', clown: '小丑', warlock: '术士',
+  };
+  const survivors = (w.players || []).filter((x) => x.alive);
+  const survivorDesc = survivors
+    .map((x) => `${x.name}（${x.roleBackup ? (ROLE_CN_END[x.roleBackup] || x.roleBackup) + '变身狼人' : (ROLE_CN_END[x.role] || x.role)}）`)
+    .join('、');
+  const prompt = `暗色调中世纪村庄剪影插画，${winner}结局：天亮后的村庄广场上，幸存者${survivorDesc}聚集在一起的场景，月光与晨光交界，人物为剪影轮廓但姿态各异反映其身份，神秘悬疑氛围，扁平插画风格，深蓝与金色配色，无文字`;
   const result = await image.generateImage(`${req.params.id}:ending`, prompt, { size: '768x768' });
   if (!result) return res.json({ disabled: true });
   res.json({ b64: result.b64 });
 });
 
-// 角色立绘（推理杀终局）：点击谢幕卡片按需生成单个角色立绘（控制成本）；带缓存
-// 提示词按阵营与职业定制：好人/中立/坏人反映不同的立绘感觉；小窗口只需半身头像，512x512 提速
-app.post('/api/games/:id/portrait', async (req, res) => {
+// 角色立绘（推理杀终局）：从预生成资产库随机抽取（点击秒出、零生图费用）
+// 资产由 server/scripts/gen-portraits.js 一次性生成：每角色多张带阵营气质的 512x512 半身头像；
+// 选择方式：按『存档id+角色名』哈希确定 variant——同一局同一角色固定同一张，不同局随机换新保持新鲜感
+app.post('/api/games/:id/portrait', (req, res) => {
   const found = findGame(req, res);
   if (!found) return;
   const { game } = found;
   if (game.mode !== 'deduction') return res.status(400).json({ error: '该模式不支持角色立绘' });
   const w = game.deduction;
   if (!(w.phase === 'win' || w.phase === 'lose')) return res.status(400).json({ error: '游戏尚未结束' });
-  if (!image.isImageEnabled()) return res.json({ disabled: true });
   const name = String(req.body?.name || '').trim();
   const p = w.players.find((x) => x.name === name);
   if (!p) return res.status(404).json({ error: '角色不存在' });
-  const roleText = p.roleBackup ? `${p.roleBackup}变身狼人` : p.role;
-  // 阵营气质：好人——温暖正气；中立——神秘暧昧；坏人——阴冷危险
-  const CAMP_MOOD = {
-    good: '气质温暖正直，眼神坚定，暖金色光晕点缀',
-    neutral: '气质神秘莫测，眼神暧昧难辨，暗紫色调点缀',
-    evil: '气质阴冷危险，眼神锐利带压迫感，暗红色调点缀',
+  // 变身者用变身后的角色立绘（狼人气质）；存档中 role 为英文 key，需转中文职业名匹配资产文件
+  const ROLE_CN = {
+    clerk: '文员', detective: '侦探', villager: '村民', forensics: '法医', guard: '守卫',
+    gambler: '赌徒', thief: '小偷', wolf: '狼人', accomplice: '帮凶', drunkard: '酒鬼',
+    watcher: '观者', postman: '邮差', walker: '行者', quack: '庸医', spy: '间谍', clown: '小丑', warlock: '术士',
   };
-  // 阵营判断（与推理杀模式的角色池一致；变身者视为坏人阵营）
-  const GOOD_ROLES = ['文员', '侦探', '村民', '法医', '守卫', '观者', '邮差', '行者'];
-  const NEUTRAL_ROLES = ['赌徒', '小偷', '庸医', '间谍'];
-  const camp = p.roleBackup ? 'evil' : (GOOD_ROLES.includes(p.role) ? 'good' : NEUTRAL_ROLES.includes(p.role) ? 'neutral' : 'evil');
-  const mood = CAMP_MOOD[camp] || '';
-  const prompt = `中世纪悬疑风格人物半身头像插画，${roleText}职业主题，${mood}，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`;
-  const result = await image.generateImage(`${req.params.id}:portrait:${name}`, prompt, { size: '512x512' });
-  if (!result) return res.json({ disabled: true });
-  res.json({ b64: result.b64 });
+  const roleKey = p.roleBackup || p.role;
+  const role = ROLE_CN[roleKey] || roleKey;
+  const dir = path.join(__dirname, 'assets', 'portraits');
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.startsWith(role + '-') && f.endsWith('.png')).sort();
+  } catch { /* 资产目录不存在 */ }
+  if (!files.length) return res.json({ disabled: true });
+  // 确定性随机：同一存档同一角色固定选同一张
+  let h = 0;
+  const key = req.params.id + ':' + name;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const file = files[h % files.length];
+  try {
+    const b64 = fs.readFileSync(path.join(dir, file)).toString('base64');
+    res.json({ b64 });
+  } catch {
+    res.json({ disabled: true });
+  }
 });
 
 // 一键清空存档（仅删除当前登录用户名下的全部存档，不影响他人数据）
