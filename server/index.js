@@ -598,11 +598,6 @@ app.post('/api/games/:id/action', async (req, res) => {
 
 // 生产模式：托管前端构建产物
 const dist = path.join(__dirname, '..', 'frontend', 'dist');
-// index.html 禁用缓存：避免浏览器缓存旧页面、继续引用旧版 JS/CSS（带 hash 的资源文件本身可长缓存）
-app.get('/', (req, res, next) => {
-  res.set('Cache-Control', 'no-cache');
-  res.sendFile(path.join(dist, 'index.html'));
-});
 app.use(express.static(dist));
 
 app.listen(PORT, () => {
