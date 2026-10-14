@@ -447,6 +447,11 @@ async function loadPortrait(name) {
   delete next[name];
   portraitLoading.value = next;
 }
+// 终局弹窗打开时自动加载全部角色立绘（资产读取秒出、零成本，无需逐个点击）
+watch(showEndModal, (v) => {
+  if (!v || portraitDisabled) return;
+  for (const r of d.value.roles || []) loadPortrait(r.name);
+});
 let pendingEndModal = false;
 watch(() => state.gameOver, (v) => {
   if (!v) { showEndModal.value = false; pendingEndModal = false; return; }

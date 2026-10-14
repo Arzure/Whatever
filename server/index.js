@@ -505,11 +505,20 @@ app.post('/api/games/:id/portrait', (req, res) => {
   };
   const roleKey = p.roleBackup || p.role;
   const role = ROLE_CN[roleKey] || roleKey;
+  // 女性名字的角色优先用女性版立绘（文件名带『女』标记）；无女性版资产时回退普通版
+  const FEMALE_NAMES = ['林晚', '周舟', '苏晴', '孟瑶', '何欢', '许诺'];
+  const isFemale = FEMALE_NAMES.includes(name);
   const dir = path.join(__dirname, 'assets', 'portraits');
   let files = [];
   try {
     files = fs.readdirSync(dir).filter((f) => f.startsWith(role + '-') && f.endsWith('.png')).sort();
   } catch { /* 资产目录不存在 */ }
+  if (isFemale) {
+    const femaleFiles = files.filter((f) => /-女\d\.png$/.test(f));
+    if (femaleFiles.length) files = femaleFiles;
+  } else {
+    files = files.filter((f) => !/-女\d\.png$/.test(f));
+  }
   if (!files.length) return res.json({ disabled: true });
   // 确定性随机：同一存档同一角色固定选同一张
   let h = 0;

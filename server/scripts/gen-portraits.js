@@ -1,6 +1,6 @@
 /**
  * 立绘资产生成脚本（一次性运行，可断点续传）。
- * 为 17 个角色各生成 VARIANTS 张 512x512 带阵营气质的半身头像，
+ * 为 17 个角色各生成 VARIANTS 张（男性/中性）+ FEMALE_VARIANTS 张（女性，文件名带『女』）512x512 带阵营气质的半身头像，
  * 存入 server/assets/portraits/{role}-{n}.png，供游戏运行时随机抽取。
  * 用法：node server/scripts/gen-portraits.js
  */
@@ -10,7 +10,8 @@ const { loadEnv } = require('../config');
 loadEnv();
 
 const OUT_DIR = path.join(__dirname, '..', 'assets', 'portraits');
-const VARIANTS = 3; // 每个角色生成几张
+const VARIANTS = 3; // 每个角色生成几张（男性/中性版）
+const FEMALE_VARIANTS = 2; // 每个角色女性版张数（控制成本）
 const SIZE = '512x512';
 
 // 角色池（与 server/modes/deduction.js 一致）
@@ -69,7 +70,13 @@ async function main() {
     for (let v = 1; v <= VARIANTS; v++) {
       const file = path.join(OUT_DIR, `${r.name}-${v}.png`);
       if (fs.existsSync(file) && fs.statSync(file).size > 1000) continue; // 断点续传：已存在跳过
-      tasks.push({ ...r, v, file });
+      tasks.push({ ...r, v, file, female: false });
+    }
+    // 女性版立绘：文件名带『女』标记，运行时按角色名性别选取
+    for (let v = 1; v <= FEMALE_VARIANTS; v++) {
+      const file = path.join(OUT_DIR, `${r.name}-女${v}.png`);
+      if (fs.existsSync(file) && fs.statSync(file).size > 1000) continue;
+      tasks.push({ ...r, v, file, female: true });
     }
   }
   if (!tasks.length) { console.log('全部资产已存在，无需生成。'); return; }
@@ -81,7 +88,7 @@ async function main() {
   async function worker() {
     while (idx < tasks.length) {
       const t = tasks[idx++];
-      const prompt = `中世纪悬疑风格人物半身头像插画，${t.name}职业主题，${CAMP_MOOD[t.camp]}，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`;
+      const prompt = `中世纪悬疑风格人物半身头像插画，${t.name}职业主题，${t.female ? '女性人物，' : ''}${CAMP_MOOD[t.camp]}，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`;
       try {
         const buf = await generate(prompt);
         fs.writeFileSync(t.file, buf);

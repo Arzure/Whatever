@@ -244,6 +244,7 @@ async function deleteSave(s) {
 }
 .save-modal-body .save-item {
   margin-bottom: 8px;
+  padding: 10px 12px; /* 放宽纵向点击区域，手机端易点 */
 }
 .save-clear-all {
   width: 100%;
