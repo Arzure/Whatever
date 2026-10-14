@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, provide, ref } from 'vue';
+import { onMounted, provide, ref, computed } from 'vue';
 import { useGame } from './composables/useGame';
 import { getAuthToken, getAuthUser, setAuth, api } from './api';
 import HomeView from './components/HomeView.vue';
@@ -44,6 +44,11 @@ function logout() {
   authUser.value = null;
 }
 
+// 顶栏用户名：超长截断（最多 5 个字符，超出以省略号显示，完整名悬停可见）
+const displayUsername = computed(() => {
+  const n = authUser.value?.username || '';
+  return n.length > 5 ? n.slice(0, 5) + '…' : n;
+});
 // —— 账号设置 ——
 const showSettings = ref(false);
 function onRenamed(user) {
@@ -96,7 +101,7 @@ async function deleteSave(s) {
       <div class="app-shell">
         <header class="app-bar">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
-          <span class="app-bar-user">👤 {{ authUser.username }}</span>
+          <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
           <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
           <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
           <button class="app-bar-logout" @click="logout">退出登录</button>
@@ -276,7 +281,9 @@ async function deleteSave(s) {
     padding: 6px 8px;
   }
   .app-bar-user {
-    display: none;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .app-bar-home,
   .app-bar-logout {
