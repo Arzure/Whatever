@@ -5,14 +5,10 @@ import { api } from '../api';
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw } = inject('game');
 
 const playerName = ref('');
-const adventureSection = ref(null);
-// 文字冒险入口：平滑滚动到表单区并短暂高亮
-function scrollToAdventure() {
-  const el = adventureSection.value;
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  el.classList.add('block-flash');
-  setTimeout(() => el.classList.remove('block-flash'), 1600);
+// 文字冒险表单：点击入口后展开（默认收起，保持首页简洁美观）
+const adventureOpen = ref(false);
+function toggleAdventure() {
+  adventureOpen.value = !adventureOpen.value;
 }
 const modeId = ref('deduction');
 const themeId = ref('');
@@ -119,7 +115,7 @@ const canStart = computed(() => {
           </span>
           <span class="play-arrow">›</span>
         </div>
-        <div class="play-entry" @click="scrollToAdventure" role="button" tabindex="0" @keydown.enter="scrollToAdventure">
+        <div class="play-entry" :class="{ open: adventureOpen }" @click="toggleAdventure" role="button" tabindex="0" @keydown.enter="toggleAdventure">
           <span class="play-icon">⚔️</span>
           <span class="play-text">
             <b>文字冒险</b>
@@ -129,11 +125,13 @@ const canStart = computed(() => {
         </div>
       </div>
 
-      <!-- 文字冒险区块：专属标语 -->
-      <p class="mode-slogan">⚔️ 文字冒险 · 你的每一个选择都将改变命运</p>
+      <!-- 文字冒险表单：点击入口展开（默认收起） -->
+      <Transition name="adventure">
+        <div v-if="adventureOpen" class="adventure-panel">
+          <p class="mode-slogan">⚔️ 文字冒险 · 你的每一个选择都将改变命运</p>
 
-      <!-- 游戏模式 -->
-      <section class="block" ref="adventureSection">
+          <!-- 游戏模式 -->
+          <section class="block">
         <h2>选择模式</h2>
         <div class="mode-list">
           <button
@@ -229,6 +227,8 @@ const canStart = computed(() => {
       <p v-if="needGenre" class="hint small">探案模式会由 AI 即时设计一桩命案，请先选择题材</p>
 
       <p v-if="state.error" class="error">{{ state.error }}</p>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -341,13 +341,31 @@ const canStart = computed(() => {
   color: var(--text-dim);
   flex-shrink: 0;
 }
-/* 文字冒险表单区：入口点击后的短暂高亮 */
-.block-flash {
-  animation: block-glow 1.6s ease;
+/* 文字冒险表单展开过渡：淡入 + 上滑 */
+.adventure-enter-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
-@keyframes block-glow {
-  0%, 100% { box-shadow: none; }
-  25% { box-shadow: 0 0 0 3px rgba(212, 161, 44, 0.35); border-radius: 10px; }
+.adventure-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.adventure-enter-from,
+.adventure-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.adventure-panel {
+  margin-top: 4px;
+}
+/* 入口卡片展开态：金色边框提示 */
+.play-entry.open {
+  border-color: var(--accent);
+}
+/* 箭头随展开旋转 90 度 */
+.play-arrow {
+  transition: transform 0.25s ease;
+}
+.play-arrow.open {
+  transform: rotate(90deg);
 }
 /* 手机端：双入口纵向堆叠 */
 @media (max-width: 480px) {
