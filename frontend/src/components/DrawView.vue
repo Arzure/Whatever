@@ -105,6 +105,19 @@ function download(item) {
   a.click();
 }
 
+// 在线预览：点击图片打开全屏浮层
+const previewItem = ref(null);
+function openPreview(item) {
+  previewItem.value = item;
+}
+function closePreview() {
+  previewItem.value = null;
+}
+// 删除画廊中的图片
+function removeItem(i) {
+  history.value.splice(i, 1);
+}
+
 // 把历史图作为编辑参考图（连续创作）
 function useAsRef(item) {
   if (refImages.value.length >= 5) { error.value = '参考图至多 5 张'; return; }
@@ -206,15 +219,37 @@ function useAsRef(item) {
 
         <div v-if="history.length" class="gallery">
           <div v-for="(item, i) in history" :key="item.ts + '-' + i" class="gallery-item">
-            <img :src="item.src" :alt="item.prompt" loading="lazy" @click="download(item)" title="点击下载" />
+            <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
               <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}</span>
-              <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
+              <div class="gallery-actions">
+                <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
+                <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>
+                <button class="gallery-ref-btn danger" @click="removeItem(i)" title="从画廊删除">🗑 删除</button>
+              </div>
             </div>
           </div>
         </div>
         <p v-else class="gallery-empty">尚无生成结果，输入提示词开始创作吧</p>
+
+        <!-- 全屏预览浮层：点击图片打开，点遮罩或 ✕ 关闭 -->
+        <Transition name="ovl">
+          <div v-if="previewItem" class="preview-overlay" @click.self="closePreview">
+            <div class="preview-box">
+              <button class="preview-close" @click="closePreview">✕</button>
+              <img :src="previewItem.src" :alt="previewItem.prompt" class="preview-img" />
+              <div class="preview-meta">
+                <span class="gallery-prompt">{{ previewItem.prompt }}</span>
+                <span class="gallery-info">{{ previewItem.mode === 'edit' ? '编辑' : '生成' }} · {{ previewItem.model }} · {{ previewItem.size }}</span>
+              </div>
+              <div class="preview-actions">
+                <button class="gallery-ref-btn" @click="useAsRef(previewItem)">以此图编辑</button>
+                <button class="gallery-ref-btn" @click="download(previewItem)">⬇ 下载</button>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </main>
     </div>
   </div>
@@ -504,6 +539,78 @@ function useAsRef(item) {
 .gallery-ref-btn:hover {
   border-color: var(--accent);
   color: var(--accent-2);
+}
+.gallery-ref-btn.danger:hover {
+  border-color: #f85149;
+  color: #f85149;
+}
+.gallery-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* 全屏预览浮层 */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.preview-box {
+  position: relative;
+  max-width: min(92vw, 1000px);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+  align-self: center;
+}
+.preview-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+.preview-close:hover {
+  color: #f85149;
+}
+.preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: center;
+}
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+/* 预览浮层过渡 */
+.ovl-enter-active,
+.ovl-leave-active {
+  transition: opacity 0.2s ease;
+}
+.ovl-enter-from,
+.ovl-leave-to {
+  opacity: 0;
 }
 .gallery-empty {
   text-align: center;
