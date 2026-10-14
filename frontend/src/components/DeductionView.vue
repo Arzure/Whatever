@@ -451,13 +451,11 @@ async function loadPortrait(name) {
   portraitLoading.value = next;
 }
 // 终局弹窗打开时自动加载全部角色立绘（资产读取秒出、零成本，无需逐个点击）
-watch(showEndModal, (v) => {
-  if (!v || portraitDisabled) return;
-  for (const r of d.value.roles || []) loadPortrait(r.name);
-});
 let pendingEndModal = false;
 watch(() => state.gameOver, (v) => {
   if (!v) { showEndModal.value = false; pendingEndModal = false; return; }
+  // 游戏结束瞬间即预取全部立绘（与终局插画并行）——弹窗打开时立绘已就绪，无需等待
+  if (!portraitDisabled) for (const r of d.value.roles || []) loadPortrait(r.name);
   if (execResult.value) pendingEndModal = true;
   else showEndModal.value = true;
 }, { immediate: true });
@@ -1020,7 +1018,6 @@ watch(() => state.history.length, scrollToBottom);
             :key="r.name"
             class="curtain-card"
             :style="{ animationDelay: (1.6 + i * 0.22) + 's' }"
-            :title="portraits[r.name] ? '' : '点击生成角色立绘'"
             @click="loadPortrait(r.name)"
           >
             <img v-if="portraits[r.name]" :src="portraits[r.name]" class="curtain-portrait" :alt="r.name + ' 立绘'" />
@@ -1783,6 +1780,12 @@ watch(() => state.history.length, scrollToBottom);
   overflow-x: hidden;
   max-height: 88vh; /* 十人局卡片较多时允许纵向滚动，避免最后一行被裁切 */
   overflow-y: auto;
+  /* 隐藏滚动条：卡片入场动画期间内容高度变化会让滚动条时隐时现，影响观感；滚动功能保留 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.end-modal::-webkit-scrollbar {
+  display: none;
 }
 .end-art-btn {
   margin: 4px 0 8px;

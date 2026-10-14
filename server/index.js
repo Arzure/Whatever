@@ -536,6 +536,15 @@ app.post('/api/games/:id/ending-art', (req, res) => {
 // 角色立绘（推理杀终局）：从预生成资产库随机抽取（点击秒出、零生图费用）
 // 资产由 server/scripts/gen-portraits.js 一次性生成：每角色多张带阵营气质的 512x512 半身头像；
 // 选择方式：按『存档id+角色名』哈希确定 variant——同一局同一角色固定同一张，不同局随机换新保持新鲜感
+// 性能：文件内容内存缓存（避免每次请求重复读盘）
+const portraitFileCache = new Map(); // 文件名 -> base64
+function readPortraitCached(file) {
+  if (portraitFileCache.has(file)) return portraitFileCache.get(file);
+  const b64 = fs.readFileSync(file).toString('base64');
+  if (portraitFileCache.size > 200) portraitFileCache.clear(); // 简单上限保护
+  portraitFileCache.set(file, b64);
+  return b64;
+}
 app.post('/api/games/:id/portrait', (req, res) => {
   const found = findGame(req, res);
   if (!found) return;
@@ -575,7 +584,7 @@ app.post('/api/games/:id/portrait', (req, res) => {
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   const file = files[h % files.length];
   try {
-    const b64 = fs.readFileSync(path.join(dir, file)).toString('base64');
+    const b64 = readPortraitCached(path.join(dir, file));
     res.json({ b64 });
   } catch {
     res.json({ disabled: true });
