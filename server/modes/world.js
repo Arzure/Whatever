@@ -370,7 +370,7 @@ function summarize(game) {
 
 module.exports = {
   modeId: 'world',
-  modeName: '大世界模式',
+  modeName: '大世界',
   needsTheme: true,
   newGame,
   processAction,

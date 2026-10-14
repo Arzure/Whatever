@@ -958,7 +958,7 @@ function equipItem(game, itemName) {
 
 module.exports = {
   modeId: 'detective',
-  modeName: '探案模式',
+  modeName: '探案',
   needsTheme: false,
   needsGenre: true,
   needsLLM: true,

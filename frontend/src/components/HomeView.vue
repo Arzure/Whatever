@@ -84,42 +84,6 @@ const canStart = computed(() => {
   if (needGenre.value && !genreId.value) return false;
   return true;
 });
-
-// —— 存档选择弹窗：首页仅显示入口按钮，点击后浮层内选择存档 ——
-const showSaves = ref(false);
-// —— 存档删除（带二次确认） ——
-const deletingId = ref('');
-const deletingAll = ref(false);
-async function deleteAllSaves() {
-  if (deletingAll.value || deletingId.value) return;
-  const n = state.saves.length;
-  if (!n) return;
-  if (!confirm(`确定清空全部 ${n} 个存档吗？此操作不可恢复，且只影响当前账号。`)) return;
-  deletingAll.value = true;
-  state.error = '';
-  try {
-    await api.deleteAllSaves();
-    await refreshSaves();
-  } catch (e) {
-    state.error = e.message;
-  } finally {
-    deletingAll.value = false;
-  }
-}
-async function deleteSave(s) {
-  if (deletingId.value) return;
-  if (!confirm(`确定删除存档「${s.playerName}」吗？此操作不可恢复。`)) return;
-  deletingId.value = s.id;
-  state.error = '';
-  try {
-    await api.deleteSave(s.id);
-    await refreshSaves();
-  } catch (e) {
-    state.error = e.message;
-  } finally {
-    deletingId.value = '';
-  }
-}
 </script>
 
 <template>
@@ -225,42 +189,7 @@ async function deleteSave(s) {
       <p v-if="needGenre" class="hint small">探案模式会由 AI 即时设计一桩命案，请先选择题材</p>
 
       <p v-if="state.error" class="error">{{ state.error }}</p>
-
-      <div class="save-entry">
-        <button v-if="state.saves.length" class="btn save-btn" @click="showSaves = true">📂 存档（{{ state.saves.length }}）</button>
-        <p v-else class="hint">尚无存档，从第一场冒险开始吧</p>
-      </div>
     </div>
-
-    <!-- 存档选择浮层：点击存档按钮后弹出 -->
-    <Transition name="ovl">
-      <div v-if="showSaves" class="save-overlay" @click.self="showSaves = false">
-        <div class="save-modal">
-          <div class="save-modal-head">
-            <h3>📂 继续冒险</h3>
-            <button class="save-modal-close" @click="showSaves = false">✕</button>
-          </div>
-          <div class="save-modal-body">
-            <div v-for="s in state.saves" :key="s.id" class="save-item" @click="showSaves = false; loadSave(s.id)">
-              <span class="save-name">{{ s.playerName }}</span>
-              <span class="save-meta">
-                <em v-if="s.caseTitle">{{ s.caseTitle }}</em>
-                <em v-else-if="s.themeName">{{ s.themeName }}</em>
-                <template v-if="s.caseTitle || s.themeName"> · </template>
-                <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
-                {{ new Date(s.updatedAt).toLocaleString() }}
-              </span>
-              <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
-                {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
-              </button>
-            </div>
-            <button class="save-clear-all" :disabled="deletingAll" @click="deleteAllSaves">
-              {{ deletingAll ? '清空中…' : `🗑 清空全部存档（${state.saves.length}）` }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 

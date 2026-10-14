@@ -71,7 +71,7 @@ onMounted(probe);
   <div v-if="showInput" class="access-gate">
     <div class="gate-card">
       <h2>🔐 访问口令</h2>
-      <p class="gate-tip">此游戏需要访问口令才能进入，请输入后继续。</p>
+      <p class="gate-tip">请输入访问口令后继续。</p>
       <input
         v-model="input"
         type="password"

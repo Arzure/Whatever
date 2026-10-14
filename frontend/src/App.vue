@@ -53,6 +53,40 @@ function onDeleted() {
   showSettings.value = false;
   authUser.value = null;
 }
+// —— 存档选择浮层（顶栏入口，与账号设置/退出登录同栏） ——
+const showSaves = ref(false);
+const deletingId = ref('');
+const deletingAll = ref(false);
+async function deleteAllSaves() {
+  if (deletingAll.value || deletingId.value) return;
+  const n = game.state.saves.length;
+  if (!n) return;
+  if (!confirm(`确定清空全部 ${n} 个存档吗？此操作不可恢复，且只影响当前账号。`)) return;
+  deletingAll.value = true;
+  game.state.error = '';
+  try {
+    await api.deleteAllSaves();
+    await game.refreshSaves();
+  } catch (e) {
+    game.state.error = e.message;
+  } finally {
+    deletingAll.value = false;
+  }
+}
+async function deleteSave(s) {
+  if (deletingId.value) return;
+  if (!confirm(`确定删除存档「${s.playerName}」吗？此操作不可恢复。`)) return;
+  deletingId.value = s.id;
+  game.state.error = '';
+  try {
+    await api.deleteSave(s.id);
+    await game.refreshSaves();
+  } catch (e) {
+    game.state.error = e.message;
+  } finally {
+    deletingId.value = '';
+  }
+}
 </script>
 <template>
   <AccessGate>
@@ -63,6 +97,7 @@ function onDeleted() {
         <header class="app-bar">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user">👤 {{ authUser.username }}</span>
+          <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
           <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
           <button class="app-bar-logout" @click="logout">退出登录</button>
         </header>
@@ -75,6 +110,35 @@ function onDeleted() {
         </div>
       </div>
       <AccountSettings v-if="showSettings" :user="authUser" @close="showSettings = false" @renamed="onRenamed" @deleted="onDeleted" />
+      <!-- 存档选择浮层（顶栏入口） -->
+      <Transition name="ovl">
+        <div v-if="showSaves" class="save-overlay" @click.self="showSaves = false">
+          <div class="save-modal">
+            <div class="save-modal-head">
+              <h3>📂 继续冒险</h3>
+              <button class="save-modal-close" @click="showSaves = false">✕</button>
+            </div>
+            <div class="save-modal-body">
+              <div v-for="s in game.state.saves" :key="s.id" class="save-item" @click="showSaves = false; game.loadSave(s.id)">
+                <span class="save-name">{{ s.playerName }}</span>
+                <span class="save-meta">
+                  <em v-if="s.caseTitle">{{ s.caseTitle }}</em>
+                  <em v-else-if="s.themeName">{{ s.themeName }}</em>
+                  <template v-if="s.caseTitle || s.themeName"> · </template>
+                  <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
+                  {{ new Date(s.updatedAt).toLocaleString() }}
+                </span>
+                <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
+                  {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
+                </button>
+              </div>
+              <button class="save-clear-all" :disabled="deletingAll" @click="deleteAllSaves">
+                {{ deletingAll ? '清空中…' : `🗑 清空全部存档（${game.state.saves.length}）` }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </template>
   </AccessGate>
 </template>
@@ -128,6 +192,69 @@ function onDeleted() {
 .app-bar-home:hover {
   border-color: #58a6ff;
   color: #58a6ff;
+}
+/* —— 存档选择浮层（顶栏入口，样式与原首页浮层一致） —— */
+.save-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.save-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.save-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.save-modal-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.save-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.save-modal-body {
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.save-modal-body .save-item {
+  margin-bottom: 8px;
+}
+.save-clear-all {
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 6px;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 8px;
+  background: rgba(248, 81, 73, 0.08);
+  color: #f85149;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.save-clear-all:hover:not(:disabled) {
+  border-color: #f85149;
+  background: rgba(248, 81, 73, 0.16);
 }
 .app-bar-logout {
   background: none;
