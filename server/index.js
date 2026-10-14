@@ -506,7 +506,7 @@ app.post('/api/games/:id/portrait', (req, res) => {
   const roleKey = p.roleBackup || p.role;
   const role = ROLE_CN[roleKey] || roleKey;
   // 女性名字的角色优先用女性版立绘（文件名带『女』标记）；无女性版资产时回退普通版
-  const FEMALE_NAMES = ['林晚', '周舟', '苏晴', '孟瑶', '何欢', '许诺'];
+  const FEMALE_NAMES = ['婉清', '苏晴', '孟瑶', '语嫣', '许诺'];
   const isFemale = FEMALE_NAMES.includes(name);
   const dir = path.join(__dirname, 'assets', 'portraits');
   let files = [];

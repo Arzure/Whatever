@@ -16,7 +16,7 @@ const { parseActionJson } = require('../engine');
 const MODE_ID = 'wolf';
 const MODE_NAME = '狼人杀';
 const ROLES = { wolf: '狼人', seer: '预言家', villager: '村民' };
-const AI_NAMES = ['林晚', '周舟', '苏晴', '阿澈', '孟瑶', '老陈', '何欢', '顾言', '许诺', '程野'];
+const AI_NAMES = ['林晚', '婉清', '苏晴', '阿澈', '孟瑶', '老陈', '语嫣', '顾言', '许诺', '程野'];
 const MAX_SPEECH = 500;
 const MAX_HISTORY = 80;
 
