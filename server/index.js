@@ -519,9 +519,10 @@ app.post('/api/games/:id/ending-art', (req, res) => {
   const silhouettes = survivors
     .map((s) => path.join(dir, `${s.role}-剪-${s.gender}.png`))
     .filter((p) => fs.existsSync(p));
-  // 合成：调用 Python 脚本（Pillow）把剪影叠放在背景上
+  // 合成：调用 Python 脚本（Pillow）把剪影叠放在背景上（按胜负着色：胜利暖金/失败冷银蓝，与暗背景强对比）
   const { execFile } = require('child_process');
-  const args = [path.join(__dirname, 'scripts', 'compose_ending.py'), path.join(dir, bg), ...silhouettes];
+  const flag = w.winner === 'good' ? '--win' : '--lose';
+  const args = [path.join(__dirname, 'scripts', 'compose_ending.py'), path.join(dir, bg), flag, ...silhouettes];
   execFile('python3', args, { maxBuffer: 32 * 1024 * 1024 }, (err, stdout) => {
     if (err) {
       console.log('[ending] 合成失败：', err.message);
