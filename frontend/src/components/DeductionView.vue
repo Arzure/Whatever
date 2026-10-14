@@ -84,6 +84,21 @@ const dayGroups = computed(() => {
     c = c.trim();
     if (!c) return;
     if (/^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) return;
+    // 拆分合并发言：服务端可能把全天发言合并在一条消息里（『大家的发言如下：\n「A」：…\n「B」：…』），
+    // 按行首「名字」：标记拆成独立消息，使发言卡片化（专属色竖条/首字徽章/阵营着色）逐条生效
+    const segRe = /(?:^|\n)「([^」]+)」：/g;
+    const segs = [];
+    let sm;
+    while ((sm = segRe.exec(c)) !== null) segs.push({ idx: sm.index });
+    if (segs.length > 1 || (segs.length === 1 && segs[0].idx > 0)) {
+      const head = c.slice(0, segs[0].idx).trim();
+      if (head) cur.msgs.push({ role: 'assistant', content: head });
+      for (let i = 0; i < segs.length; i++) {
+        const to = i + 1 < segs.length ? segs[i + 1].idx : c.length;
+        cur.msgs.push({ role: 'assistant', content: c.slice(segs[i].idx, to).trim() });
+      }
+      return;
+    }
     cur.msgs.push({ role: 'assistant', content: c });
   };
   for (const msg of state.history || []) {
