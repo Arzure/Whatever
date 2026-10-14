@@ -245,6 +245,15 @@ async function deleteSave(s) {
 .save-modal-body .save-item {
   margin-bottom: 8px;
   padding: 10px 12px; /* 放宽纵向点击区域，手机端易点 */
+  border: 1px solid var(--border); /* 边框环绕，条目更清晰 */
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.save-modal-body .save-item:hover {
+  border-color: var(--accent);
+  background: rgba(212, 161, 44, 0.06);
 }
 .save-clear-all {
   width: 100%;
