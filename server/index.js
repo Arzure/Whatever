@@ -9,6 +9,7 @@ const { authenticate, userFromRequest } = require('./auth');
 const themes = require('./themes');
 const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
+const draw = require('./draw');
 
 loadEnv();
 
@@ -114,6 +115,23 @@ function llmMissing(res) {
 
 // —— 账号体系 ——
 // 注册（成功即视为登录，返回令牌）
+// —— 绘图玩法（生图工作台）：独立于文字冒险，不入存档体系 ——
+// 模型与参数清单（UI 配置基础）
+app.get('/api/draw/options', (req, res) => {
+  res.json({
+    enabled: draw.isImageEnabled(),
+    models: draw.PRESET_MODELS,
+    sizes: draw.PRESET_SIZES,
+    defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
+  });
+});
+// 生图代理：透传全部可配置参数
+app.post('/api/draw/generate', async (req, res) => {
+  const result = await draw.generate(req.body || {});
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
 app.post('/api/auth/register', (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');

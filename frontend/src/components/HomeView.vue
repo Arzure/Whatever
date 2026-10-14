@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject, Transition } from 'vue';
 import { api } from '../api';
 
-const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave } = inject('game');
+const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw } = inject('game');
 
 const playerName = ref('');
 const modeId = ref('deduction');
@@ -99,6 +99,16 @@ const canStart = computed(() => {
       </h1>
       <p class="subtitle">AI 驱动的文字冒险世界 · 你的每一个选择都将改变命运</p>
       <div class="title-divider" aria-hidden="true"></div>
+
+      <!-- 玩法选择：绘图工作台（独立入口，非文字冒险） -->
+      <div class="play-entry" @click="openDraw()" role="button" tabindex="0" @keydown.enter="openDraw()">
+        <span class="play-icon">🎨</span>
+        <span class="play-text">
+          <b>绘图工作台</b>
+          <em>AI 生图画廊 · 自由配置模型与参数，即刻创作</em>
+        </span>
+        <span class="play-arrow">›</span>
+      </div>
 
       <!-- 游戏模式 -->
       <section class="block">
@@ -252,6 +262,48 @@ const canStart = computed(() => {
   letter-spacing: 1px;
 }
 /* 标题区装饰分隔线：金色渐变细线，两端淡出 */
+/* 绘图玩法入口：独立卡片，与文字冒险表单并列 */
+.play-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(212, 161, 44, 0.08), rgba(60, 90, 160, 0.08)), var(--panel-2);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.play-entry:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.play-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+.play-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.play-text b {
+  font-size: 15px;
+  color: var(--text);
+}
+.play-text em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.play-arrow {
+  margin-left: auto;
+  font-size: 20px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
 .title-divider {
   height: 1px;
   margin: 18px auto 26px;

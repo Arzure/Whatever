@@ -170,6 +170,11 @@ export function useGame() {
     await refreshSaves();
   }
 
+  // 绘图工作台：独立玩法，不入存档体系
+  function openDraw() {
+    state.view = 'draw';
+  }
+
   function restart() {
     state.view = 'home';
     state.player = null;
@@ -369,6 +374,7 @@ export function useGame() {
     startGame,
     loadSave,
     backToHome,
+    openDraw,
     restart,
     submitAction,
     useItem,

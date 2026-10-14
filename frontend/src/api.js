@@ -111,6 +111,8 @@ export const api = {
   // 终局插画（推理杀，未配置 IMAGE_MODEL 时返回 disabled）
   endingArt: (gameId) => request(`/games/${gameId}/ending-art`, { method: 'POST' }),
   portrait: (gameId, name) => request(`/games/${gameId}/portrait`, { method: 'POST', body: JSON.stringify({ name }) }),
+  drawOptions: () => request('/draw/options'),
+  drawGenerate: (params) => request('/draw/generate', { method: 'POST', body: JSON.stringify(params) }),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),
