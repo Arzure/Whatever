@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { api } from '../api';
 
 // —— 模式：文生图 / 图片编辑（图生图） ——
@@ -34,6 +34,11 @@ onMounted(async () => {
 });
 
 const effectiveModel = () => (model.value === '__custom__' ? customModel.value.trim() : model.value);
+// 选中模型的介绍文案（下拉只显示纯型号名，介绍在下方单独一行）
+const modelDesc = computed(() => {
+  const m = options.value.models.find((x) => x.id === model.value);
+  return m ? m.desc : '';
+});
 
 // 参考图上传：转 Data URL
 function onPickImages(e) {
@@ -128,10 +133,11 @@ function useAsRef(item) {
         <label class="field">
           <span class="field-label">模型</span>
           <select v-model="model" class="field-input">
-            <option v-for="m in options.models" :key="m.id" :value="m.id">{{ m.desc }}</option>
+            <option v-for="m in options.models" :key="m.id" :value="m.id">{{ m.id }}</option>
             <option value="__custom__">自定义模型…</option>
           </select>
           <input v-if="model === '__custom__'" v-model="customModel" class="field-input" placeholder="输入模型 ID" />
+          <span v-if="modelDesc" class="model-desc">{{ modelDesc }}</span>
         </label>
 
         <label class="field">
@@ -314,6 +320,13 @@ function useAsRef(item) {
   color: var(--text-dim);
   margin: 4px 0 0;
   line-height: 1.5;
+}
+/* 选中模型的介绍文案 */
+.model-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-top: 2px;
 }
 /* 自定义尺寸输入 */
 .size-custom {

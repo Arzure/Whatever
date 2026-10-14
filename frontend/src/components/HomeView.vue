@@ -260,12 +260,9 @@ const canStart = computed(() => {
   letter-spacing: 6px;
   text-align: center;
   margin: 0;
-  /* 渐变金色文字（拉大对比保证清晰）；仅用 1px 轻投影做立体感——大模糊光晕会让文字发虚 */
-  background: linear-gradient(180deg, #faf0d2 0%, var(--accent-2) 50%, #9a6f1f 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  /* 实心金色文字：渐变透明文字多次反馈看不清，改用纯色+轻投影保证绝对清晰 */
+  color: #e8c15a;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 .title-char {
   display: inline-block;

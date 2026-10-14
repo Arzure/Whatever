@@ -21,10 +21,10 @@ function isImageEnabled() {
   return !!(process.env.IMAGE_API_KEY || process.env.LLM_API_KEY);
 }
 
-// 预设模型清单（官方文档确认的生图模型；描述只保留型号名，介绍性文案不放模型名里）
+// 预设模型清单（官方文档确认的生图模型；desc 为介绍文案，前端在选中模型下方单独显示）
 const PRESET_MODELS = [
-  { id: 'sensenova-u1.5-fast', desc: 'sensenova-u1.5-fast' },
-  { id: 'sensenova-u1.5-lite', desc: 'sensenova-u1.5-lite' },
+  { id: 'sensenova-u1.5-fast', desc: '加速版：即时创作，高效修改，兼顾质量与速度' },
+  { id: 'sensenova-u1.5-lite', desc: '生成与编辑一体：强化参考图创作与视觉表现，构图光影细节更佳' },
 ];
 
 // 官方建议分辨率（2K/4K 档位）+ auto
