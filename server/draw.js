@@ -21,10 +21,10 @@ function isImageEnabled() {
   return !!(process.env.IMAGE_API_KEY || process.env.LLM_API_KEY);
 }
 
-// 预设模型清单（官方文档确认的生图模型）
+// 预设模型清单（官方文档确认的生图模型；描述只保留型号名，介绍性文案不放模型名里）
 const PRESET_MODELS = [
-  { id: 'sensenova-u1.5-fast', desc: 'U1.5 Fast · 加速版，即时创作，高效修改' },
-  { id: 'sensenova-u1.5-lite', desc: 'U1.5 Lite · 生成与编辑一体，强化参考图与视觉表现' },
+  { id: 'sensenova-u1.5-fast', desc: 'sensenova-u1.5-fast' },
+  { id: 'sensenova-u1.5-lite', desc: 'sensenova-u1.5-lite' },
 ];
 
 // 官方建议分辨率（2K/4K 档位）+ auto
@@ -41,7 +41,22 @@ function buildBody(params, cfg) {
   if (!model || !/^[A-Za-z0-9._-]+$/.test(model)) return { error: '无效的模型名' };
   const prompt = String(params.prompt || '').trim().slice(0, 2000);
   if (!prompt) return { error: '提示词不能为空' };
-  const size = PRESET_SIZES.includes(params.size) ? params.size : 'auto';
+  // 尺寸：预设档位，或自定义 WIDTHxHEIGHT（512-4096、32 的倍数、比例 ≤3:1，官方规则）
+  let size = 'auto';
+  if (params.size && params.size !== 'auto') {
+    const m = String(params.size).match(/^(\d+)x(\d+)$/);
+    if (m) {
+      const w = Number(m[1]), h = Number(m[2]);
+      const valid = w >= 512 && w <= 4096 && h >= 512 && h <= 4096
+        && w % 32 === 0 && h % 32 === 0 && w / h <= 3 && h / w <= 3;
+      if (!valid) return { error: '尺寸无效：宽高需为 512-4096 的 32 倍数，比例不超过 3:1' };
+      size = `${w}x${h}`;
+    } else if (PRESET_SIZES.includes(params.size)) {
+      size = params.size;
+    } else {
+      return { error: '尺寸格式无效' };
+    }
+  }
   const watermark = params.watermark === false ? false : true; // 官方建议显式传入
   const promptExtend = params.promptExtend === false ? false : true;
   const outputFormat = OUTPUT_FORMATS.includes(params.outputFormat) ? params.outputFormat : 'png';

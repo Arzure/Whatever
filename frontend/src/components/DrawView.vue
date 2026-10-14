@@ -10,6 +10,8 @@ const prompt = ref('');
 const model = ref('');
 const customModel = ref(''); // 自定义模型输入（补充预设清单）
 const size = ref('auto');
+const customW = ref(1024);
+const customH = ref(1024); // 自定义尺寸（512-4096、32 的倍数）
 const outputFormat = ref('png');
 const watermark = ref(false);
 const promptExtend = ref(true);
@@ -62,7 +64,7 @@ async function run() {
     const params = {
       model: m,
       prompt: p,
-      size: size.value,
+      size: size.value === '__custom__' ? `${customW.value}x${customH.value}` : size.value,
       outputFormat: outputFormat.value,
       watermark: watermark.value,
       promptExtend: promptExtend.value,
@@ -136,7 +138,14 @@ function useAsRef(item) {
           <span class="field-label">尺寸（auto 自动适配）</span>
           <select v-model="size" class="field-input">
             <option v-for="s in options.sizes" :key="s" :value="s">{{ s }}</option>
+            <option value="__custom__">自定义…</option>
           </select>
+          <div v-if="size === '__custom__'" class="size-custom">
+            <input v-model.number="customW" type="number" min="512" max="4096" step="32" class="field-input" />
+            <span class="size-x">×</span>
+            <input v-model.number="customH" type="number" min="512" max="4096" step="32" class="field-input" />
+          </div>
+          <span v-if="size === '__custom__'" class="field-tip">宽高 512-4096、32 的倍数、比例 ≤3:1</span>
         </label>
 
         <label class="field">
@@ -305,6 +314,20 @@ function useAsRef(item) {
   color: var(--text-dim);
   margin: 4px 0 0;
   line-height: 1.5;
+}
+/* 自定义尺寸输入 */
+.size-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.size-custom .field-input {
+  flex: 1;
+  min-width: 0;
+}
+.size-x {
+  color: var(--text-dim);
+  font-size: 13px;
 }
 .draw-main {
   flex: 1;
