@@ -567,7 +567,9 @@ app.post('/api/games/:id/portrait', (req, res) => {
   // 女性名字的角色优先用女性版立绘（文件名带『女』标记）；无女性版资产时回退普通版
   const FEMALE_NAMES = ['婉清', '苏晴', '孟瑶', '语嫣', '许诺'];
   const isFemale = FEMALE_NAMES.includes(name);
-  const dir = path.join(__dirname, 'assets', 'portraits');
+  // 优先读 96x96 小图（显示仅 44px 圆形头像，小图体积约 5%，省流量加速显示）；无小图回退 512 原图
+  const dirSmall = path.join(__dirname, 'assets', 'portraits-small');
+  const dir = fs.existsSync(dirSmall) ? dirSmall : path.join(__dirname, 'assets', 'portraits');
   let files = [];
   try {
     files = fs.readdirSync(dir).filter((f) => f.startsWith(role + '-') && f.endsWith('.png')).sort();

@@ -13,10 +13,11 @@ import base64
 import io
 import sys
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 WIN_COLOR = (238, 200, 106)   # 胜利剪影色：暖金（亮度约 196）
 LOSE_COLOR = (158, 190, 232)  # 失败剪影色：冷银蓝（亮度约 182）
+OUTLINE_COLOR = (16, 20, 28)  # 描边色：深色——亮色剪影配深描边，任何背景上都清晰
 
 
 def recolor(im, color):
@@ -28,6 +29,18 @@ def recolor(im, color):
             if a > 0:
                 px[x, y] = (*color, a)
     return im
+
+
+def add_outline(im, color=OUTLINE_COLOR):
+    """为剪影加描边：alpha 通道膨胀 2px 作为描边蒙版，深色描边垫在剪影下层。"""
+    alpha = im.getchannel('A')
+    dilated = alpha.filter(ImageFilter.MaxFilter(5))  # 膨胀约 2px
+    outline = Image.new('RGBA', im.size, (*color, 255))
+    outline.putalpha(dilated)
+    merged = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    merged.paste(outline, (0, 0), outline)  # 描边垫底
+    merged.paste(im, (0, 0), im)  # 剪影在上（覆盖描边内部）
+    return merged
 
 
 def compose(bg_path, silhouette_paths, color):
@@ -47,7 +60,7 @@ def compose(bg_path, silhouette_paths, color):
             ratio = target_h / im.height
             nw = max(1, int(im.width * ratio))
             im = im.resize((nw, target_h), Image.LANCZOS)
-            imgs.append(recolor(im, color))  # 重新着色为亮色
+            imgs.append(add_outline(recolor(im, color)))  # 重新着色为亮色并加深色描边
         # 等距排布：总宽度不超过背景的 88%，超出则整体等比压缩
         total_w = sum(im.width for im in imgs)
         max_w = int(W * 0.88)
