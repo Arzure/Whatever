@@ -11,7 +11,7 @@ loadEnv();
 
 const OUT_DIR = path.join(__dirname, '..', 'assets', 'portraits');
 const VARIANTS = 3; // 每个角色生成几张（男性/中性版）
-const FEMALE_VARIANTS = 2; // 每个角色女性版张数（控制成本）
+const FEMALE_VARIANTS = 3; // 每个角色女性版张数（与男性版一致）
 const SIZE = '512x512';
 
 // 角色池（与 server/modes/deduction.js 一致）
