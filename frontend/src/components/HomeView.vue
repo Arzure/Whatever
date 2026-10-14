@@ -5,6 +5,15 @@ import { api } from '../api';
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw } = inject('game');
 
 const playerName = ref('');
+const adventureSection = ref(null);
+// 文字冒险入口：平滑滚动到表单区并短暂高亮
+function scrollToAdventure() {
+  const el = adventureSection.value;
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.classList.add('block-flash');
+  setTimeout(() => el.classList.remove('block-flash'), 1600);
+}
 const modeId = ref('deduction');
 const themeId = ref('');
 const customTheme = ref(null); // 由纯文本导入生成的世界观
@@ -91,7 +100,7 @@ const canStart = computed(() => {
     <div class="home-card">
       <h1 class="title">
         <span
-          v-for="(ch, i) in '文字冒险'"
+          v-for="(ch, i) in '万象工坊'"
           :key="i"
           class="title-char"
           :style="{ animationDelay: (0.15 + i * 0.12) + 's' }"
@@ -100,21 +109,31 @@ const canStart = computed(() => {
       <p class="subtitle">AI 驱动的创作世界 · Powered by AI</p>
       <div class="title-divider" aria-hidden="true"></div>
 
-      <!-- 玩法选择：绘图工作台（独立入口，非文字冒险） -->
-      <div class="play-entry" @click="openDraw()" role="button" tabindex="0" @keydown.enter="openDraw()">
-        <span class="play-icon">🎨</span>
-        <span class="play-text">
-          <b>绘图工作台</b>
-          <em>AI 生图画廊 · 自由配置模型与参数，即刻创作</em>
-        </span>
-        <span class="play-arrow">›</span>
+      <!-- 双入口并列：绘图工作台 / 文字冒险 -->
+      <div class="play-grid">
+        <div class="play-entry" @click="openDraw()" role="button" tabindex="0" @keydown.enter="openDraw()">
+          <span class="play-icon">🎨</span>
+          <span class="play-text">
+            <b>绘图工作台</b>
+            <em>文生图 · 图片编辑 · 自由配置模型与参数</em>
+          </span>
+          <span class="play-arrow">›</span>
+        </div>
+        <div class="play-entry" @click="scrollToAdventure" role="button" tabindex="0" @keydown.enter="scrollToAdventure">
+          <span class="play-icon">⚔️</span>
+          <span class="play-text">
+            <b>文字冒险</b>
+            <em>推理杀 · 探案 · 狼人杀 · 大世界</em>
+          </span>
+          <span class="play-arrow">›</span>
+        </div>
       </div>
 
       <!-- 文字冒险区块：专属标语 -->
       <p class="mode-slogan">⚔️ 文字冒险 · 你的每一个选择都将改变命运</p>
 
       <!-- 游戏模式 -->
-      <section class="block">
+      <section class="block" ref="adventureSection">
         <h2>选择模式</h2>
         <div class="mode-list">
           <button
@@ -241,12 +260,12 @@ const canStart = computed(() => {
   letter-spacing: 6px;
   text-align: center;
   margin: 0;
-  /* 渐变金色文字；光晕用 text-shadow（filter 会破坏 background-clip:text 的渐变渲染，导致文字不可见） */
-  background: linear-gradient(180deg, #f5e6c4 0%, var(--accent-2) 55%, #b8862e 100%);
+  /* 渐变金色文字（拉大对比保证清晰）；仅用 1px 轻投影做立体感——大模糊光晕会让文字发虚 */
+  background: linear-gradient(180deg, #faf0d2 0%, var(--accent-2) 50%, #9a6f1f 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 22px rgba(212, 161, 44, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 .title-char {
   display: inline-block;
@@ -261,10 +280,9 @@ const canStart = computed(() => {
   color: var(--text);
   text-align: center;
   margin: 14px 0 0;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 2px;
-  text-shadow: 0 0 12px rgba(212, 161, 44, 0.2);
 }
 /* 文字冒险区块专属标语 */
 .mode-slogan {
@@ -275,13 +293,19 @@ const canStart = computed(() => {
   margin: 0 0 14px;
 }
 /* 标题区装饰分隔线：金色渐变细线，两端淡出 */
-/* 绘图玩法入口：独立卡片，与文字冒险表单并列 */
+/* 双入口并列网格：绘图工作台 / 文字冒险 */
+.play-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+/* 玩法入口卡片 */
 .play-entry {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 22px;
+  gap: 10px;
+  padding: 13px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(212, 161, 44, 0.08), rgba(60, 90, 160, 0.08)), var(--panel-2);
@@ -316,6 +340,20 @@ const canStart = computed(() => {
   font-size: 20px;
   color: var(--text-dim);
   flex-shrink: 0;
+}
+/* 文字冒险表单区：入口点击后的短暂高亮 */
+.block-flash {
+  animation: block-glow 1.6s ease;
+}
+@keyframes block-glow {
+  0%, 100% { box-shadow: none; }
+  25% { box-shadow: 0 0 0 3px rgba(212, 161, 44, 0.35); border-radius: 10px; }
+}
+/* 手机端：双入口纵向堆叠 */
+@media (max-width: 480px) {
+  .play-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .title-divider {
   height: 1px;
