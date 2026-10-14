@@ -957,7 +957,7 @@ watch(() => state.history.length, scrollToBottom);
         <div class="night-event-icon" :class="nightEvent.peaceful ? 'peaceful' : 'death'">{{ nightEvent.peaceful ? '🌙' : '💀' }}</div>
         <h3 class="night-event-title">第 {{ nightEvent.round }} 天 · 天亮了</h3>
         <p v-if="nightEvent.peaceful" class="night-event-text">昨夜风平浪静，是个平安夜。</p>
-        <p v-else class="night-event-text">昨夜，黑暗夺走了<span v-for="(n, i) in nightEvent.deaths" :key="n" class="night-event-dead" :style="{ animationDelay: (0.6 + i * 0.3) + 's' }">「{{ n }}」</span>的生命——尸体在清晨被发现，身份未知。</p>
+        <p v-else class="night-event-text">昨夜，黑暗夺走了<span v-for="(n, i) in nightEvent.deaths" :key="n" class="night-event-dead" :style="{ animationDelay: (1.5 + i * 0.3) + 's' }">「{{ n }}」</span>的生命——尸体在清晨被发现，身份未知。</p>
         <button class="btn primary" @click="nightEvent = null">知道了</button>
       </div>
     </div>

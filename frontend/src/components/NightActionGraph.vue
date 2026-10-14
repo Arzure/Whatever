@@ -104,15 +104,43 @@ const graph = computed(() => {
       const path = `M ${a.x - 16} ${a.y - NODE_HH - EDGE_PAD} C ${a.x - 44} ${a.y - 78}, ${a.x + 44} ${a.y - 78}, ${a.x + 16} ${a.y - NODE_HH - EDGE_PAD}`;
       return { ...e, path, lx: a.x, ly: a.y - 72, color, order: i };
     }
-    // 控制点：以两框中心连线的『垂直方向』偏移形成弧度。
-    // 关键：方向按参与者名字的固定先后规范化——这样 A→B 与 B→A 会分居连线两侧，
-    // 不会像原来那样两条反向线走同一条弧、完全重叠。
+    // 控制点：以两框中心连线的『垂直方向』偏移形成弧度（A→B 与 B→A 的垂线方向天然相反，两条线分居两侧）。
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     const ndx = b.x - a.x, ndy = b.y - a.y;
     const nlen = Math.hypot(ndx, ndy) || 1;
     const nx = -ndy / nlen, ny = ndx / nlen; // 连线的垂线单位向量
-    const bend = Math.min(nlen * 0.16, 80); // 弧度随距离自适应，封顶避免过大
-    const c = { x: mx + nx * bend, y: my + ny * bend };
+    const baseBend = Math.min(nlen * 0.16, 80); // 弧度随距离自适应，封顶避免过大
+    // 避让中间人物：曲线不得穿过连线双方之外的第三方人物框（修复『保护线穿过周舟』类问题）。
+    // 候选方案：正/反两侧 × 逐级加大弧度；采样贝塞尔曲线检测碰撞，取首个无碰撞方案；
+    // 全部碰撞时保留碰撞人数最少的方案（尽力避让）。
+    const others = nodes.filter((n) => n !== a && n !== b);
+    const hitCount = (ctrl) => {
+      const s0 = boxEdgePoint(a, ctrl), t0 = boxEdgePoint(b, ctrl);
+      let cnt = 0;
+      for (const n of others) {
+        const hw = NODE_HW + EDGE_PAD, hh = NODE_HH + EDGE_PAD;
+        for (let k = 1; k < 12; k++) {
+          const p = quadPoint(s0, ctrl, t0, k / 12);
+          if (Math.abs(p.x - n.x) <= hw && Math.abs(p.y - n.y) <= hh) { cnt++; break; }
+        }
+      }
+      return cnt;
+    };
+    let c = { x: mx + nx * baseBend, y: my + ny * baseBend };
+    let bestHits = others.length ? hitCount(c) : 0;
+    if (bestHits > 0) {
+      const cands = [];
+      for (const dir of [1, -1]) {
+        for (const mul of [1, 1.8, 2.6, 3.4]) {
+          cands.push({ x: mx + nx * dir * baseBend * mul, y: my + ny * dir * baseBend * mul });
+        }
+      }
+      for (const cand of cands) {
+        const h = hitCount(cand);
+        if (h < bestHits) { bestHits = h; c = cand; }
+        if (bestHits === 0) break;
+      }
+    }
     // 起止点：沿『中心→控制点』方向与人物框边缘求交（避免线条压在框上）
     const s = boxEdgePoint(a, c);
     const t = boxEdgePoint(b, c);
