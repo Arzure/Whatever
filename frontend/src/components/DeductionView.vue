@@ -81,29 +81,36 @@ const dayGroups = computed(() => {
       const endMatch = rest.match(/—— 第 \d+ 天 ——|—— 游戏结束 ——/);
       c = (c.slice(0, execStart) + (endMatch ? rest.slice(endMatch.index) : '')).trim();
     }
-    // 过滤：服务端附加的裁决提示文本（裁决入口由界面按钮与阶段提示承担，不应混入角色发言——
-    // 此前该文本跟在末位发言者之后，被拆分逻辑并入其卡片内容）
+    // 分离：服务端附加的裁决提示文本——保留为独立消息（不带「名字」前缀，走纯文本渲染），
+    // 避免被拆分逻辑并入末位发言者卡片；裁决信息本身是有效提示，不应丢弃
+    let adjudicateTip = '';
     const adjIdx = c.search(/——\s*现在由你裁决|所有人都沉默了。现在由你裁决/);
-    if (adjIdx >= 0) c = c.slice(0, adjIdx).trim();
+    if (adjIdx >= 0) {
+      adjudicateTip = c.slice(adjIdx).trim();
+      c = c.slice(0, adjIdx).trim();
+    }
     c = c.trim();
-    if (!c) return;
-    if (/^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) return;
+    if (c && /^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) c = ''; // 纯天标记消息跳过（改由夜事件弹窗展示）
     // 拆分合并发言：服务端可能把全天发言合并在一条消息里（『大家的发言如下：\n「A」：…\n「B」：…』），
     // 按行首「名字」：标记拆成独立消息，使发言卡片化（专属色竖条/首字徽章/阵营着色）逐条生效
-    const segRe = /(?:^|\n)「([^」]+)」：/g;
-    const segs = [];
-    let sm;
-    while ((sm = segRe.exec(c)) !== null) segs.push({ idx: sm.index });
-    if (segs.length > 1 || (segs.length === 1 && segs[0].idx > 0)) {
-      const head = c.slice(0, segs[0].idx).trim();
-      if (head) cur.msgs.push({ role: 'assistant', content: head });
-      for (let i = 0; i < segs.length; i++) {
-        const to = i + 1 < segs.length ? segs[i + 1].idx : c.length;
-        cur.msgs.push({ role: 'assistant', content: c.slice(segs[i].idx, to).trim() });
+    if (c) {
+      const segRe = /(?:^|\n)「([^」]+)」：/g;
+      const segs = [];
+      let sm;
+      while ((sm = segRe.exec(c)) !== null) segs.push({ idx: sm.index });
+      if (segs.length > 1 || (segs.length === 1 && segs[0].idx > 0)) {
+        const head = c.slice(0, segs[0].idx).trim();
+        if (head) cur.msgs.push({ role: 'assistant', content: head });
+        for (let i = 0; i < segs.length; i++) {
+          const to = i + 1 < segs.length ? segs[i + 1].idx : c.length;
+          cur.msgs.push({ role: 'assistant', content: c.slice(segs[i].idx, to).trim() });
+        }
+      } else {
+        cur.msgs.push({ role: 'assistant', content: c });
       }
-      return;
     }
-    cur.msgs.push({ role: 'assistant', content: c });
+    // 裁决提示作为独立消息追加（无角色前缀，渲染为普通提示而非发言卡片）
+    if (adjudicateTip) cur.msgs.push({ role: 'assistant', content: adjudicateTip });
   };
   for (const msg of state.history || []) {
     const content = String(msg.content || '');
