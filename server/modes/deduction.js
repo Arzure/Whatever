@@ -16,7 +16,7 @@ const { parseActionJson } = require('../engine');
 
 const MODE_ID = 'deduction';
 const MODE_NAME = '推理杀';
-const AI_NAMES = ['林晚', '婉清', '苏晴', '阿澈', '孟瑶', '老陈', '语嫣', '顾言', '许诺', '程野'];
+const AI_NAMES = ['林晚', '婉清', '苏晴', '陆离', '孟瑶', '老陈', '语嫣', '顾言', '许诺', '程野'];
 const MAX_SPEECH = 240;
 const MAX_HISTORY = 80;
 const GAME_SIZE = 7;
