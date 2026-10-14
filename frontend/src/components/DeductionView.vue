@@ -423,18 +423,30 @@ watch(() => state.gameOver, async (v) => {
     if (r && r.b64) endingArt.value = `data:image/png;base64,${r.b64}`;
   } catch (e) { /* 插画失败不影响游戏 */ }
 }, { immediate: true });
-// 角色立绘：点击谢幕卡片按需生成（控制成本），生成后替换卡片徽章
+// 角色立绘：游玩中发言卡片出现即自动加载（首字徽章升级为立绘）；终局谢幕卡片点击也可触发；带缓存
 const portraits = ref({});
-const portraitLoading = ref('');
+const portraitLoadingSet = new Set(); // 并发去重（多角色同时加载）
+let portraitDisabled = false; // 服务端未配置图像模型时置位，避免反复无效请求
 async function loadPortrait(name) {
-  if (portraitLoading.value || portraits.value[name] || !state.gameId) return;
-  portraitLoading.value = name;
+  if (portraitDisabled || portraitLoadingSet.has(name) || portraits.value[name] || !state.gameId) return;
+  portraitLoadingSet.add(name);
   try {
     const r = await api.portrait(state.gameId, name);
     if (r && r.b64) portraits.value = { ...portraits.value, [name]: `data:image/png;base64,${r.b64}` };
+    else if (r && r.disabled) portraitDisabled = true;
   } catch (e) { /* 失败静默 */ }
-  portraitLoading.value = '';
+  portraitLoadingSet.delete(name);
 }
+// 游玩中：发言卡片出现即自动加载该角色立绘（生成时机提前到发言阶段）
+watch(displayGroups, (groups) => {
+  if (portraitDisabled) return;
+  for (const g of groups) {
+    for (const m of g.msgs) {
+      const sp = parseSpeaker(m.content);
+      if (sp) loadPortrait(sp.name);
+    }
+  }
+}, { immediate: true });
 let pendingEndModal = false;
 watch(() => state.gameOver, (v) => {
   if (!v) { showEndModal.value = false; pendingEndModal = false; return; }
@@ -851,7 +863,7 @@ watch(() => state.history.length, scrollToBottom);
             >
               <div class="msg-content">
                 <template v-if="parseSpeaker(msg.content)">
-                  <span class="msg-avatar" :style="{ background: playerColor(parseSpeaker(msg.content).name) }">{{ parseSpeaker(msg.content).name.slice(0, 1) }}</span>
+                  <span class="msg-avatar" :style="{ background: playerColor(parseSpeaker(msg.content).name) }"><img v-if="portraits[parseSpeaker(msg.content).name]" :src="portraits[parseSpeaker(msg.content).name]" class="msg-avatar-img" :alt="parseSpeaker(msg.content).name + ' 立绘'" /><template v-else>{{ parseSpeaker(msg.content).name.slice(0, 1) }}</template></span>
                   <span class="speaker" :style="{ color: playerColor(parseSpeaker(msg.content).name) }">「{{ parseSpeaker(msg.content).name }}」：</span><template v-for="(seg, j) in parseSpeech(parseSpeaker(msg.content).rest)" :key="j"><span v-if="seg.cls" :class="seg.cls">{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template><span v-if="claimConflictsOf(parseSpeaker(msg.content).name).length" class="conflict-flag" :title="'与 ' + claimConflictsOf(parseSpeaker(msg.content).name).join('、') + ' 身份对跳'">⚠ 对跳</span>
                 </template>
                 <template v-else>
@@ -2054,6 +2066,13 @@ watch(() => state.history.length, scrollToBottom);
   margin-right: 6px;
   vertical-align: middle;
   flex-shrink: 0;
+  overflow: hidden; /* 立绘图片圆形裁剪 */
+}
+.msg-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 /* 死者卡片：变灰 + 💀 角标 + 轻微倾斜（视觉上退出对话） */
 .msg-card.msg-dead .msg-content {

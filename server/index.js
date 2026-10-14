@@ -472,20 +472,24 @@ app.post('/api/games/:id/ending-art', async (req, res) => {
   res.json({ b64: result.b64 });
 });
 
-// 角色立绘（推理杀终局）：按需生成单个角色立绘，前端按钮触发（控制成本）；带缓存
+// 角色立绘（推理杀）：游玩中即可生成（发言卡片首字徽章升级为立绘）；带缓存
+// 防剧透：游玩中立绘用身份中立提示词（不泄露角色身份）；终局且未缓存时才用角色主题提示词；
+// 两种情况共用同一缓存键——同一角色全程同一张立绘，也避免重复扣费
 app.post('/api/games/:id/portrait', async (req, res) => {
   const found = findGame(req, res);
   if (!found) return;
   const { game } = found;
   if (game.mode !== 'deduction') return res.status(400).json({ error: '该模式不支持角色立绘' });
   const w = game.deduction;
-  if (!(w.phase === 'win' || w.phase === 'lose')) return res.status(400).json({ error: '游戏尚未结束' });
   if (!image.isImageEnabled()) return res.json({ disabled: true });
   const name = String(req.body?.name || '').trim();
   const p = w.players.find((x) => x.name === name);
   if (!p) return res.status(404).json({ error: '角色不存在' });
+  const ended = w.phase === 'win' || w.phase === 'lose';
   const roleText = p.roleBackup ? `${p.roleBackup}变身狼人` : p.role;
-  const prompt = `中世纪悬疑风格人物头像插画，${roleText}主题，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`;
+  const prompt = ended
+    ? `中世纪悬疑风格人物头像插画，${roleText}主题，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`
+    : `中世纪悬疑风格人物头像插画，${name}，一位神秘的村庄居民，暗色调，深蓝金色配色，扁平插画风格，圆形构图，无文字`;
   const result = await image.generateImage(`${req.params.id}:portrait:${name}`, prompt);
   if (!result) return res.json({ disabled: true });
   res.json({ b64: result.b64 });
