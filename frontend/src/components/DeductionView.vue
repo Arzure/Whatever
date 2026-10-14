@@ -414,28 +414,38 @@ let pendingNightEvent = null;
 
 // —— 终局结算弹窗（时序：处刑结果弹窗显示期间暂存，关闭后再弹出） ——
 const showEndModal = ref(false);
-// 终局插画：游戏结束后自动请求（未配置 IMAGE_MODEL 时后端返回 disabled，静默跳过）
+// 终局海报：改为点击按钮按需生成（节约成本）；未配置 IMAGE_MODEL 时后端返回 disabled，隐藏按钮
 const endingArt = ref('');
-watch(() => state.gameOver, async (v) => {
-  if (!v || !state.gameId) { endingArt.value = ''; portraits.value = {}; return; }
+const endingArtLoading = ref(false);
+let endingArtDisabled = false;
+watch(() => state.gameOver, (v) => {
+  if (!v || !state.gameId) { endingArt.value = ''; endingArtLoading.value = false; endingArtDisabled = false; portraits.value = {}; }
+}, { immediate: true });
+async function loadEndingArt() {
+  if (endingArtDisabled || endingArtLoading.value || endingArt.value || !state.gameId) return;
+  endingArtLoading.value = true;
   try {
     const r = await api.endingArt(state.gameId);
     if (r && r.b64) endingArt.value = `data:image/png;base64,${r.b64}`;
-  } catch (e) { /* 插画失败不影响游戏 */ }
-}, { immediate: true });
+    else if (r && r.disabled) endingArtDisabled = true;
+  } catch (e) { /* 失败静默 */ }
+  endingArtLoading.value = false;
+}
 // 角色立绘：终局谢幕卡片点击按需生成（控制成本），生成后替换卡片徽章；带缓存
 const portraits = ref({});
-const portraitLoadingSet = new Set(); // 并发去重（多角色同时点击）
+const portraitLoading = ref({}); // 加载中标记（响应式，模板显示 …）
 let portraitDisabled = false; // 服务端未配置图像模型时置位，避免反复无效请求
 async function loadPortrait(name) {
-  if (portraitDisabled || portraitLoadingSet.has(name) || portraits.value[name] || !state.gameId) return;
-  portraitLoadingSet.add(name);
+  if (portraitDisabled || portraitLoading.value[name] || portraits.value[name] || !state.gameId) return;
+  portraitLoading.value = { ...portraitLoading.value, [name]: true };
   try {
     const r = await api.portrait(state.gameId, name);
     if (r && r.b64) portraits.value = { ...portraits.value, [name]: `data:image/png;base64,${r.b64}` };
     else if (r && r.disabled) portraitDisabled = true;
   } catch (e) { /* 失败静默 */ }
-  portraitLoadingSet.delete(name);
+  const next = { ...portraitLoading.value };
+  delete next[name];
+  portraitLoading.value = next;
 }
 let pendingEndModal = false;
 watch(() => state.gameOver, (v) => {
@@ -985,7 +995,9 @@ watch(() => state.history.length, scrollToBottom);
     <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
       <div class="review-modal end-modal">
         <div class="end-modal-glow" aria-hidden="true"></div>
-        <img v-if="endingArt" :src="endingArt" class="end-art" alt="本局终局插画" />
+        <img v-if="endingArt" :src="endingArt" class="end-art" alt="本局终局海报" />
+        <button v-else-if="!endingArtDisabled && !endingArtLoading" class="btn primary end-art-btn" @click="loadEndingArt">🎨 生成终局海报</button>
+        <div v-else-if="endingArtLoading" class="end-art-loading">🎨 海报生成中，约 10 秒…</div>
         <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
         <h3 class="end-modal-title">
           <span
@@ -1006,7 +1018,7 @@ watch(() => state.history.length, scrollToBottom);
             @click="loadPortrait(r.name)"
           >
             <img v-if="portraits[r.name]" :src="portraits[r.name]" class="curtain-portrait" :alt="r.name + ' 立绘'" />
-            <span v-else class="curtain-badge" :class="roleClass(r.roleBackup || r.role)">{{ portraitLoading === r.name ? '…' : r.name.slice(0, 1) }}</span>
+            <span v-else class="curtain-badge" :class="roleClass(r.roleBackup || r.role)">{{ portraitLoading[r.name] ? '…' : r.name.slice(0, 1) }}</span>
             <span class="curtain-name">{{ r.name }}</span>
             <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}</b>
           </div>
@@ -1762,7 +1774,18 @@ watch(() => state.history.length, scrollToBottom);
 }
 .end-modal {
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  max-height: 88vh; /* 十人局卡片较多时允许纵向滚动，避免最后一行被裁切 */
+  overflow-y: auto;
+}
+.end-art-btn {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
+.end-art-loading {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 8px 0;
 }
 /* 胜利光晕：金色光圈扩散 + 持续脉动 */
 .end-modal-glow {
@@ -1817,7 +1840,7 @@ watch(() => state.history.length, scrollToBottom);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   margin: 12px 0 4px;
   position: relative;
   z-index: 2;
@@ -1826,11 +1849,11 @@ watch(() => state.history.length, scrollToBottom);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 10px;
+  padding: 6px 7px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0;
   animation: curtain-slide 0.6s cubic-bezier(0.34, 1.3, 0.64, 1) both;
 }
