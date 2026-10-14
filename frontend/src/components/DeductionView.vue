@@ -1831,8 +1831,8 @@ watch(() => state.history.length, scrollToBottom);
 /* 终局插画：渐显入场 */
 .end-art {
   width: 100%;
-  max-height: 300px;
-  object-fit: contain; /* 完整显示整图——cover 会裁掉底部剪影区域（剪影在图下方 55%） */
+  max-height: 200px;
+  object-fit: cover;
   border-radius: 10px;
   margin-bottom: 10px;
   position: relative;

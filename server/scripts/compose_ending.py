@@ -45,21 +45,17 @@ def add_outline(im, color=OUTLINE_COLOR):
 
 def compose(bg_path, silhouette_paths, color):
     bg = Image.open(bg_path).convert('RGBA')
-    # 裁剪为 4:3 横版（居中偏上，保留天空与地平线）——横版比例与弹窗宽度匹配，
-    # contain 完整显示时铺满宽度无留白（正方形会在宽弹窗左右留白）
-    W0, H0 = bg.size
-    target_h = int(W0 * 3 / 4)  # 4:3
-    if H0 > target_h:
-        top = max(0, int(H0 * 0.18))  # 偏上裁剪：保留更多天空，剪掉过暗的地面底部
-        bg = bg.crop((0, top, W0, min(H0, top + target_h)))
-    W, H = bg.size
+    W, H = bg.size  # 背景保持原样，不裁剪（前端显示多少还是多少）
     n = len(silhouette_paths)
     if not n:
         out = bg  # 无剪影：直接返回背景
     else:
-        # 剪影目标高度：背景的 55%；最多 10 人时略缩小避免拥挤
-        target_h = int(H * (0.55 if n <= 5 else 0.48))
-        bottom_margin = int(H * 0.04)
+        # 剪影叠放在 cover 显示的可见区域内：
+        # 前端显示框约 336x200（object-fit:cover 居中裁切），正方形图上下各裁约 20%，
+        # 可见带为 y 20%-80%；剪影放在可见带内（高度 40%，底边位于 76% 高度处），
+        # 任何窗口宽度下都完整可见——不能贴图片底部（会被 cover 裁掉）
+        target_h = int(H * 0.40)
+        bottom_margin = int(H * 0.24)  # 底边位于 (1-0.40-0.24)=0.36H 处起，至 0.76H，可见带内
         imgs = []
         for p in silhouette_paths:
             im = Image.open(p).convert('RGBA')
