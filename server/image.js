@@ -27,11 +27,13 @@ function isImageEnabled() {
  * 生成插画。返回 { b64 } 或 null（未启用/失败均返回 null，绝不抛错影响游戏）。
  * @param {string} cacheKey 缓存键（存档id:主题）
  * @param {string} prompt 生图提示词（调用方负责固定风格前缀）
+ * @param {object} [opts] 可选项：size 分辨率（如 '512x512'，默认 1024x1024）
  */
-async function generateImage(cacheKey, prompt) {
+async function generateImage(cacheKey, prompt, opts) {
   if (!isImageEnabled()) return null;
   if (imageCache.has(cacheKey)) return { b64: imageCache.get(cacheKey) };
   const cfg = imageConfig();
+  const size = (opts && opts.size) || '1024x1024';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -45,7 +47,7 @@ async function generateImage(cacheKey, prompt) {
         model: cfg.model,
         prompt,
         n: 1,
-        size: '1024x1024',
+        size,
         response_format: 'b64_json',
         watermark: false, // 显式传入：公测期免费去水印，避免默认值变更影响
         prompt_extend: true, // 提示词自动润色
