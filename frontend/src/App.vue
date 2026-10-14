@@ -269,4 +269,21 @@ async function deleteSave(s) {
   color: #f85149;
   border-color: #f85149;
 }
+/* 手机端顶栏：隐藏用户名 + 收紧间距，按钮紧凑单行不换行 */
+@media (max-width: 768px) {
+  .app-bar {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+  .app-bar-user {
+    display: none;
+  }
+  .app-bar-home,
+  .app-bar-logout {
+    padding: 4px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
 </style>
