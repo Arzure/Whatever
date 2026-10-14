@@ -113,6 +113,7 @@ export const api = {
   portrait: (gameId, name) => request(`/games/${gameId}/portrait`, { method: 'POST', body: JSON.stringify({ name }) }),
   drawOptions: () => request('/draw/options'),
   drawGenerate: (params) => request('/draw/generate', { method: 'POST', body: JSON.stringify(params) }),
+  drawEdit: (params) => request('/draw/edit', { method: 'POST', body: JSON.stringify(params) }),
   listModes: () => request('/modes'),
   listThemes: () => request('/themes'),
   listGenres: () => request('/genres'),

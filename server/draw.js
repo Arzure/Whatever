@@ -1,10 +1,13 @@
 /**
  * 绘图玩法（生图工作台）：独立于文字冒险的生图代理。
- * 透传全部可配置参数到 SenseNova /images/generations 接口；
+ * 依据 SenseNova 官方文档实现两个接口：
+ * 1. 文生图 POST /v1/images/generations（仅 prompt）；
+ * 2. 图片编辑 POST /v1/images/edits（参考图 + 编辑提示词，图生图）。
+ * 参数严格对齐官方：n 仅支持 1；size 为 2K/4K 建议档位或 auto；
+ * output_format 支持 png/jpeg/webp；不支持 negative_prompt 与 seed（官方无此参数）。
  * 复用 IMAGE_API_KEY / LLM_API_KEY 配置；未配置时返回 disabled。
- * 注意：绘图结果不入存档体系（轻量会话，前端自行管理历史）。
  */
-const REQUEST_TIMEOUT_MS = 120000; // 多张图生成较慢
+const REQUEST_TIMEOUT_MS = 180000; // 2K/4K 大图生成较慢
 
 function imageConfig() {
   return {
@@ -18,49 +21,52 @@ function isImageEnabled() {
   return !!(process.env.IMAGE_API_KEY || process.env.LLM_API_KEY);
 }
 
-// 预设模型清单（官方文档确认的生图模型；UI 支持自定义输入补充）
+// 预设模型清单（官方文档确认的生图模型）
 const PRESET_MODELS = [
-  { id: 'sensenova-u1.5-fast', desc: 'U1.5 Fast · 图片创作加速版，即时创作，高效修改' },
-  { id: 'sensenova-u1.5-lite', desc: 'U1.5 Lite · 图片创作，生成与编辑一体，支持参考图' },
+  { id: 'sensenova-u1.5-fast', desc: 'U1.5 Fast · 加速版，即时创作，高效修改' },
+  { id: 'sensenova-u1.5-lite', desc: 'U1.5 Lite · 生成与编辑一体，强化参考图与视觉表现' },
 ];
 
-// 支持的尺寸（正方形/横版/竖版常见档位）
-const PRESET_SIZES = ['512x512', '768x768', '1024x1024', '768x1344', '1344x768'];
+// 官方建议分辨率（2K/4K 档位）+ auto
+const PRESET_SIZES = [
+  'auto', '2048x2048', '2720x1536', '1536x2720', '1664x2496', '2496x1664', '4096x4096',
+];
 
-/**
- * 生图：透传全部参数。返回 { b64s: [...] } 或 { disabled } / { error }
- * 参数校验：n 1-4；size 白名单；模型名格式校验（防注入）。
- */
-async function generate(params) {
-  const cfg = imageConfig();
-  if (!isImageEnabled()) return { disabled: true };
+// 输出格式（官方支持）
+const OUTPUT_FORMATS = ['png', 'jpeg', 'webp'];
+
+/** 公共参数组装与校验 */
+function buildBody(params, cfg) {
   const model = String(params.model || cfg.model || '').trim();
   if (!model || !/^[A-Za-z0-9._-]+$/.test(model)) return { error: '无效的模型名' };
   const prompt = String(params.prompt || '').trim().slice(0, 2000);
   if (!prompt) return { error: '提示词不能为空' };
-  const negativePrompt = String(params.negativePrompt || '').trim().slice(0, 1000);
-  const n = Math.min(4, Math.max(1, Number(params.n) || 1));
-  const size = PRESET_SIZES.includes(params.size) ? params.size : '1024x1024';
-  const watermark = params.watermark === false ? false : true;
+  const size = PRESET_SIZES.includes(params.size) ? params.size : 'auto';
+  const watermark = params.watermark === false ? false : true; // 官方建议显式传入
   const promptExtend = params.promptExtend === false ? false : true;
-  const seed = Number.isFinite(Number(params.seed)) && params.seed !== '' && params.seed !== null ? Number(params.seed) : undefined;
-
-  const body = {
-    model,
-    prompt,
-    n,
-    size,
-    response_format: 'b64_json',
-    watermark,
-    prompt_extend: promptExtend,
+  const outputFormat = OUTPUT_FORMATS.includes(params.outputFormat) ? params.outputFormat : 'png';
+  return {
+    body: {
+      model,
+      prompt,
+      n: 1, // 官方限制：生成数量仅支持 1
+      size,
+      watermark,
+      prompt_extend: promptExtend,
+      output_format: outputFormat,
+      response_format: 'b64_json', // 前端直接展示，不用 24h 失效的临时 url
+    },
   };
-  if (negativePrompt) body.negative_prompt = negativePrompt;
-  if (seed !== undefined) body.seed = seed;
+}
 
+/** 调用接口并解析响应 */
+async function callApi(path, body) {
+  const cfg = imageConfig();
+  if (!isImageEnabled()) return { disabled: true };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const res = await fetch(`${cfg.baseUrl}/images/generations`, {
+    const res = await fetch(`${cfg.baseUrl}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
       body: JSON.stringify(body),
@@ -68,17 +74,44 @@ async function generate(params) {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      return { error: `生图请求失败（${res.status}）：${text.slice(0, 200)}` };
+      return { error: `请求失败（${res.status}）：${text.slice(0, 200)}` };
     }
     const data = await res.json();
     const b64s = (data?.data || []).map((d) => d?.b64_json).filter(Boolean);
     if (!b64s.length) return { error: '响应中无图片数据' };
     return { b64s };
   } catch (err) {
-    return { error: `生图异常：${err.message}` };
+    return { error: `请求异常：${err.message}` };
   } finally {
     clearTimeout(timer);
   }
 }
 
-module.exports = { generate, isImageEnabled, PRESET_MODELS, PRESET_SIZES };
+/** 文生图：仅文本 prompt */
+async function generate(params) {
+  const r = buildBody(params, imageConfig());
+  if (r.error) return r;
+  return callApi('/images/generations', r.body);
+}
+
+/**
+ * 图片编辑（图生图）：参考图 + 编辑提示词。
+ * images：Data URL 数组（data:image/png;base64,...），第 1 张为主编辑图，至多 5 张。
+ */
+async function edit(params) {
+  const r = buildBody(params, imageConfig());
+  if (r.error) return r;
+  const images = Array.isArray(params.images) ? params.images : [];
+  if (!images.length) return { error: '图片编辑至少需要上传一张参考图' };
+  if (images.length > 5) return { error: '参考图至多支持 5 张' };
+  for (const img of images) {
+    if (typeof img !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(img)) {
+      return { error: '图片格式无效（需 Data URL：png/jpeg/webp）' };
+    }
+    if (img.length > 12 * 1024 * 1024) return { error: '单张图片过大（Base64 超过 12MB）' };
+  }
+  r.body.images = images.map((image_url) => ({ image_url }));
+  return callApi('/images/edits', r.body);
+}
+
+module.exports = { generate, edit, isImageEnabled, PRESET_MODELS, PRESET_SIZES, OUTPUT_FORMATS };

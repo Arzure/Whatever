@@ -2,18 +2,22 @@
 import { onMounted, ref } from 'vue';
 import { api } from '../api';
 
-// —— 配置项（全部 UI 化） ——
+// —— 模式：文生图 / 图片编辑（图生图） ——
+const mode = ref('generate');
+
+// —— 配置项（严格对齐官方接口参数） ——
 const prompt = ref('');
-const negativePrompt = ref('');
 const model = ref('');
 const customModel = ref(''); // 自定义模型输入（补充预设清单）
-const size = ref('1024x1024');
-const count = ref(1);
-const seed = ref('');
+const size = ref('auto');
+const outputFormat = ref('png');
 const watermark = ref(false);
 const promptExtend = ref(true);
 
-const options = ref({ enabled: false, models: [], sizes: [], defaultModel: '' });
+// 图片编辑：参考图（Data URL，第 1 张为主编辑图，至多 5 张）
+const refImages = ref([]);
+
+const options = ref({ enabled: false, models: [], sizes: [], outputFormats: [], defaultModel: '' });
 const generating = ref(false);
 const error = ref('');
 const history = ref([]); // 本次会话生成历史（前端管理，不入存档）
@@ -23,35 +27,60 @@ onMounted(async () => {
     const r = await api.drawOptions();
     options.value = r;
     model.value = r.defaultModel || (r.models[0] && r.models[0].id) || '';
-    if (r.sizes && r.sizes.length) size.value = r.sizes[2] || r.sizes[0];
+    if (r.sizes && r.sizes.length) size.value = r.sizes[0];
   } catch (e) { /* 静默 */ }
 });
 
 const effectiveModel = () => (model.value === '__custom__' ? customModel.value.trim() : model.value);
 
-async function generate() {
+// 参考图上传：转 Data URL
+function onPickImages(e) {
+  const files = Array.from(e.target.files || []);
+  for (const f of files) {
+    if (refImages.value.length >= 5) { error.value = '参考图至多 5 张'; return; }
+    if (f.size > 8 * 1024 * 1024) { error.value = `图片「${f.name}」超过 8MB`; continue; }
+    const reader = new FileReader();
+    reader.onload = () => { refImages.value.push(reader.result); };
+    reader.readAsDataURL(f);
+  }
+  e.target.value = '';
+}
+function removeImage(i) {
+  refImages.value.splice(i, 1);
+}
+
+async function run() {
   if (generating.value) return;
   const p = prompt.value.trim();
-  if (!p) { error.value = '请输入提示词'; return; }
+  if (!p) { error.value = mode.value === 'generate' ? '请输入提示词' : '请输入编辑指令'; return; }
   const m = effectiveModel();
   if (!m) { error.value = '请选择或输入模型名'; return; }
+  if (mode.value === 'edit' && !refImages.value.length) { error.value = '图片编辑至少需要上传一张参考图'; return; }
   error.value = '';
   generating.value = true;
   try {
-    const r = await api.drawGenerate({
+    const params = {
       model: m,
       prompt: p,
-      negativePrompt: negativePrompt.value.trim(),
-      n: count.value,
       size: size.value,
-      seed: seed.value === '' ? null : Number(seed.value),
+      outputFormat: outputFormat.value,
       watermark: watermark.value,
       promptExtend: promptExtend.value,
-    });
+    };
+    const r = mode.value === 'generate'
+      ? await api.drawGenerate(params)
+      : await api.drawEdit({ ...params, images: refImages.value });
     if (r && r.b64s) {
       const ts = Date.now();
       for (const b64 of r.b64s) {
-        history.value.unshift({ src: `data:image/png;base64,${b64}`, prompt: p, model: m, size: size.value, ts });
+        history.value.unshift({
+          src: `data:image/${outputFormat.value};base64,${b64}`,
+          prompt: p,
+          model: m,
+          size: size.value,
+          mode: mode.value,
+          ts,
+        });
       }
     } else if (r && r.error) {
       error.value = r.error;
@@ -65,8 +94,15 @@ async function generate() {
 function download(item) {
   const a = document.createElement('a');
   a.href = item.src;
-  a.download = `draw-${item.ts}.png`;
+  a.download = `draw-${item.ts}.${outputFormat.value}`;
   a.click();
+}
+
+// 把历史图作为编辑参考图（连续创作）
+function useAsRef(item) {
+  if (refImages.value.length >= 5) { error.value = '参考图至多 5 张'; return; }
+  refImages.value.push(item.src);
+  mode.value = 'edit';
 }
 </script>
 
@@ -81,30 +117,33 @@ function download(item) {
           服务端未配置图像 API Key（IMAGE_API_KEY 或 LLM_API_KEY），绘图功能不可用。
         </div>
 
+        <!-- 模式切换：文生图 / 图片编辑 -->
+        <div class="mode-switch">
+          <button :class="{ active: mode === 'generate' }" @click="mode = 'generate'">✨ 文生图</button>
+          <button :class="{ active: mode === 'edit' }" @click="mode = 'edit'">🖼️ 图片编辑</button>
+        </div>
+
         <label class="field">
           <span class="field-label">模型</span>
           <select v-model="model" class="field-input">
             <option v-for="m in options.models" :key="m.id" :value="m.id">{{ m.desc }}</option>
             <option value="__custom__">自定义模型…</option>
           </select>
-          <input v-if="model === '__custom__'" v-model="customModel" class="field-input" placeholder="输入模型 ID（如 sensenova-u1.5-fast）" />
+          <input v-if="model === '__custom__'" v-model="customModel" class="field-input" placeholder="输入模型 ID" />
         </label>
 
         <label class="field">
-          <span class="field-label">尺寸</span>
+          <span class="field-label">尺寸（auto 自动适配）</span>
           <select v-model="size" class="field-input">
             <option v-for="s in options.sizes" :key="s" :value="s">{{ s }}</option>
           </select>
         </label>
 
         <label class="field">
-          <span class="field-label">生成数量（1-4）</span>
-          <input v-model.number="count" type="number" min="1" max="4" class="field-input" />
-        </label>
-
-        <label class="field">
-          <span class="field-label">种子（留空随机）</span>
-          <input v-model="seed" type="number" class="field-input" placeholder="随机" />
+          <span class="field-label">输出格式</span>
+          <select v-model="outputFormat" class="field-input">
+            <option v-for="f in options.outputFormats" :key="f" :value="f">{{ f }}</option>
+          </select>
         </label>
 
         <label class="field row">
@@ -115,15 +154,37 @@ function download(item) {
           <input v-model="promptExtend" type="checkbox" id="pe" />
           <span for="pe">提示词自动润色</span>
         </label>
+
+        <p class="field-tip">官方限制：每次生成 1 张；尺寸为 32 倍数（512-4096）。</p>
       </aside>
 
       <!-- 右侧：提示词与结果 -->
       <main class="draw-main">
+        <!-- 图片编辑：参考图上传区 -->
+        <div v-if="mode === 'edit'" class="ref-area">
+          <div class="ref-list">
+            <div v-for="(img, i) in refImages" :key="i" class="ref-item">
+              <img :src="img" alt="参考图" />
+              <button class="ref-remove" @click="removeImage(i)">✕</button>
+              <span v-if="i === 0" class="ref-main">主图</span>
+            </div>
+            <label class="ref-add" title="上传参考图（至多 5 张）">
+              ＋
+              <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden @change="onPickImages" />
+            </label>
+          </div>
+          <p class="ref-tip">第 1 张为主编辑图，其余为参考图（至多 5 张）；编辑指令尽量保留未指定修改的主体元素。</p>
+        </div>
+
         <div class="prompt-area">
-          <textarea v-model="prompt" class="prompt-input" rows="3" placeholder="描述你想生成的画面…（支持中文）"></textarea>
-          <textarea v-model="negativePrompt" class="prompt-input neg" rows="2" placeholder="负面提示词：不希望出现的元素（可选）"></textarea>
-          <button class="btn primary generate-btn" :disabled="generating || !options.enabled" @click="generate">
-            {{ generating ? '生成中…（多张约需 1-2 分钟）' : '✨ 开始生成' }}
+          <textarea
+            v-model="prompt"
+            class="prompt-input"
+            rows="3"
+            :placeholder="mode === 'generate' ? '描述你想生成的画面…（支持中文）' : '描述期望的最终画面，如：背景换成一望无际的冰川上…'"
+          ></textarea>
+          <button class="btn primary generate-btn" :disabled="generating || !options.enabled" @click="run">
+            {{ generating ? '生成中…（2K/4K 大图可能需要 1-3 分钟）' : (mode === 'generate' ? '✨ 开始生成' : '🖼️ 开始编辑') }}
           </button>
           <p v-if="error" class="error">{{ error }}</p>
         </div>
@@ -133,7 +194,8 @@ function download(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="download(item)" title="点击下载" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.model }} · {{ item.size }}</span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}</span>
+              <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
             </div>
           </div>
         </div>
@@ -171,7 +233,7 @@ function download(item) {
   top: 20px;
 }
 .draw-panel-title {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   font-size: 17px;
   color: var(--accent-2);
   text-align: center;
@@ -185,6 +247,28 @@ function download(item) {
   border-radius: 8px;
   background: rgba(248, 81, 73, 0.06);
   margin-bottom: 12px;
+}
+/* 模式切换 */
+.mode-switch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.mode-switch button {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mode-switch button.active {
+  border-color: var(--accent);
+  color: var(--accent-2);
+  background: rgba(212, 161, 44, 0.08);
 }
 .field {
   display: flex;
@@ -216,9 +300,88 @@ function download(item) {
   outline: none;
   border-color: var(--accent);
 }
+.field-tip {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
 .draw-main {
   flex: 1;
   min-width: 0;
+}
+/* 参考图上传区 */
+.ref-area {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.ref-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ref-item {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ref-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ref-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+}
+.ref-main {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  text-align: center;
+  background: rgba(212, 161, 44, 0.85);
+  color: #1b1f24;
+  padding: 1px 0;
+}
+.ref-add {
+  width: 88px;
+  height: 88px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.ref-add:hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+.ref-tip {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 10px 0 0;
 }
 .prompt-area {
   background: var(--panel);
@@ -243,10 +406,6 @@ function download(item) {
   outline: none;
   border-color: var(--accent);
 }
-.prompt-input.neg {
-  margin-top: 10px;
-  font-size: 13px;
-}
 .generate-btn {
   margin-top: 12px;
   width: 100%;
@@ -260,7 +419,7 @@ function download(item) {
 }
 .gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 14px;
 }
 .gallery-item {
@@ -283,7 +442,7 @@ function download(item) {
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 .gallery-prompt {
   font-size: 12px;
@@ -295,6 +454,20 @@ function download(item) {
 .gallery-info {
   font-size: 11px;
   color: var(--text-dim);
+}
+.gallery-ref-btn {
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.gallery-ref-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
 }
 .gallery-empty {
   text-align: center;

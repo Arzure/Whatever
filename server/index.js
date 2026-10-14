@@ -16,6 +16,8 @@ loadEnv();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// 绘图路由单独放宽请求体上限：图片编辑需上传参考图 Base64（5 张可达数十 MB）
+app.use('/api/draw', express.json({ limit: '40mb' }));
 app.use(express.json({ limit: '64kb' }));
 
 // CORS：Access-Control-Allow-Origin 取 FRONTEND_ORIGIN（默认 localhost:5173）。
@@ -122,12 +124,19 @@ app.get('/api/draw/options', (req, res) => {
     enabled: draw.isImageEnabled(),
     models: draw.PRESET_MODELS,
     sizes: draw.PRESET_SIZES,
+    outputFormats: draw.OUTPUT_FORMATS,
     defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
   });
 });
-// 生图代理：透传全部可配置参数
+// 文生图代理：透传官方支持的全部参数
 app.post('/api/draw/generate', async (req, res) => {
   const result = await draw.generate(req.body || {});
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+// 图片编辑代理（图生图）：参考图 + 编辑提示词
+app.post('/api/draw/edit', async (req, res) => {
+  const result = await draw.edit(req.body || {});
   if (result.error) return res.status(400).json({ error: result.error });
   res.json(result);
 });
