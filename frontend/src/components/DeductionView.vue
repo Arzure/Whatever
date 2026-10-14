@@ -81,6 +81,10 @@ const dayGroups = computed(() => {
       const endMatch = rest.match(/—— 第 \d+ 天 ——|—— 游戏结束 ——/);
       c = (c.slice(0, execStart) + (endMatch ? rest.slice(endMatch.index) : '')).trim();
     }
+    // 过滤：服务端附加的裁决提示文本（裁决入口由界面按钮与阶段提示承担，不应混入角色发言——
+    // 此前该文本跟在末位发言者之后，被拆分逻辑并入其卡片内容）
+    const adjIdx = c.search(/——\s*现在由你裁决|所有人都沉默了。现在由你裁决/);
+    if (adjIdx >= 0) c = c.slice(0, adjIdx).trim();
     c = c.trim();
     if (!c) return;
     if (/^—— 第 \d+ 天 ——\s*\n*\s*天亮了。?\s*$/.test(c)) return;
