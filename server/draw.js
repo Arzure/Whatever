@@ -18,11 +18,9 @@ function isImageEnabled() {
   return !!(process.env.IMAGE_API_KEY || process.env.LLM_API_KEY);
 }
 
-// 预设模型清单（官方文档禁止自动抓取，基于已知模型 + 常见命名；UI 支持自定义输入补充）
+// 预设模型清单（官方文档禁止自动抓取，只保留实际验证过的型号；UI 支持自定义输入补充）
 const PRESET_MODELS = [
   { id: 'sensenova-u1.5-fast', desc: 'U1.5 快速版（默认，速度快）' },
-  { id: 'sensenova-u1.5', desc: 'U1.5 标准版（质量优先）' },
-  { id: 'sensenova-v6', desc: 'V6 版本' },
 ];
 
 // 支持的尺寸（正方形/横版/竖版常见档位）

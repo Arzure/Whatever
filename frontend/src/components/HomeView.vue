@@ -97,7 +97,7 @@ const canStart = computed(() => {
           :style="{ animationDelay: (0.15 + i * 0.12) + 's' }"
         >{{ ch }}</span>
       </h1>
-      <p class="subtitle">AI 驱动的文字冒险世界 · 你的每一个选择都将改变命运</p>
+      <p class="subtitle">AI 驱动的创作世界 · 冒险与绘图，皆由你定义</p>
       <div class="title-divider" aria-hidden="true"></div>
 
       <!-- 玩法选择：绘图工作台（独立入口，非文字冒险） -->
@@ -109,6 +109,9 @@ const canStart = computed(() => {
         </span>
         <span class="play-arrow">›</span>
       </div>
+
+      <!-- 文字冒险区块：专属标语 -->
+      <p class="mode-slogan">⚔️ 文字冒险 · 你的每一个选择都将改变命运</p>
 
       <!-- 游戏模式 -->
       <section class="block">
@@ -238,12 +241,12 @@ const canStart = computed(() => {
   letter-spacing: 6px;
   text-align: center;
   margin: 0;
-  /* 渐变金色文字 + 柔和光晕 */
+  /* 渐变金色文字；光晕用 text-shadow（filter 会破坏 background-clip:text 的渐变渲染，导致文字不可见） */
   background: linear-gradient(180deg, #f5e6c4 0%, var(--accent-2) 55%, #b8862e 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 18px rgba(212, 161, 44, 0.35));
+  text-shadow: 0 0 22px rgba(212, 161, 44, 0.3);
 }
 .title-char {
   display: inline-block;
@@ -255,11 +258,21 @@ const canStart = computed(() => {
 }
 
 .subtitle {
-  color: var(--text-dim);
+  color: var(--text);
   text-align: center;
-  margin: 12px 0 0;
-  font-size: 14px;
+  margin: 14px 0 0;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-shadow: 0 0 12px rgba(212, 161, 44, 0.2);
+}
+/* 文字冒险区块专属标语 */
+.mode-slogan {
+  color: var(--accent-2);
+  text-align: center;
+  font-size: 13px;
   letter-spacing: 1px;
+  margin: 0 0 14px;
 }
 /* 标题区装饰分隔线：金色渐变细线，两端淡出 */
 /* 绘图玩法入口：独立卡片，与文字冒险表单并列 */
