@@ -45,6 +45,13 @@ def add_outline(im, color=OUTLINE_COLOR):
 
 def compose(bg_path, silhouette_paths, color):
     bg = Image.open(bg_path).convert('RGBA')
+    # 裁剪为 4:3 横版（居中偏上，保留天空与地平线）——横版比例与弹窗宽度匹配，
+    # contain 完整显示时铺满宽度无留白（正方形会在宽弹窗左右留白）
+    W0, H0 = bg.size
+    target_h = int(W0 * 3 / 4)  # 4:3
+    if H0 > target_h:
+        top = max(0, int(H0 * 0.18))  # 偏上裁剪：保留更多天空，剪掉过暗的地面底部
+        bg = bg.crop((0, top, W0, min(H0, top + target_h)))
     W, H = bg.size
     n = len(silhouette_paths)
     if not n:
