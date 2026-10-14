@@ -89,8 +89,16 @@ const canStart = computed(() => {
 <template>
   <div class="home">
     <div class="home-card">
-      <h1 class="title">⚔️ 文字冒险</h1>
+      <h1 class="title">
+        <span
+          v-for="(ch, i) in '文字冒险'"
+          :key="i"
+          class="title-char"
+          :style="{ animationDelay: (0.15 + i * 0.12) + 's' }"
+        >{{ ch }}</span>
+      </h1>
       <p class="subtitle">AI 驱动的文字冒险世界 · 你的每一个选择都将改变命运</p>
+      <div class="title-divider" aria-hidden="true"></div>
 
       <!-- 游戏模式 -->
       <section class="block">
@@ -216,17 +224,39 @@ const canStart = computed(() => {
 }
 
 .title {
-  font-size: 34px;
-  color: var(--accent-2);
-  letter-spacing: 2px;
+  font-size: 38px;
+  letter-spacing: 6px;
   text-align: center;
+  margin: 0;
+  /* 渐变金色文字 + 柔和光晕 */
+  background: linear-gradient(180deg, #f5e6c4 0%, var(--accent-2) 55%, #b8862e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 18px rgba(212, 161, 44, 0.35));
+}
+.title-char {
+  display: inline-block;
+  animation: title-reveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes title-reveal {
+  0% { opacity: 0; transform: translateY(14px) scale(0.8); filter: blur(4px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 
 .subtitle {
   color: var(--text-dim);
   text-align: center;
-  margin: 10px 0 24px;
+  margin: 12px 0 0;
   font-size: 14px;
+  letter-spacing: 1px;
+}
+/* 标题区装饰分隔线：金色渐变细线，两端淡出 */
+.title-divider {
+  height: 1px;
+  margin: 18px auto 26px;
+  width: 72%;
+  background: linear-gradient(90deg, transparent, rgba(212, 161, 44, 0.55), transparent);
 }
 
 .block {
