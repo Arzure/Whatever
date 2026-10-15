@@ -22,7 +22,8 @@ const refImages = ref([]);
 const options = ref({ enabled: false, models: [], sizes: [], outputFormats: [], defaultModel: '' });
 const generating = ref(false);
 const error = ref('');
-const history = ref([]); // 本次会话生成历史（前端管理，不入存档）
+const history = ref([]); // 生成历史（服务端持久化，24 小时过期，跨设备可见）
+const promptHistory = ref([]); // 提示词历史（持续保留，点选填入）
 
 onMounted(async () => {
   try {
@@ -31,7 +32,39 @@ onMounted(async () => {
     model.value = r.defaultModel || (r.models[0] && r.models[0].id) || '';
     if (r.sizes && r.sizes.length) size.value = r.sizes[0];
   } catch (e) { /* 静默 */ }
+  // 加载服务端历史（24 小时内）与提示词历史
+  try {
+    const h = await api.drawHistory();
+    if (h && h.rows) {
+      history.value = h.rows.map((row) => ({
+        id: row.id,
+        src: row.url,
+        prompt: row.prompt,
+        model: row.model,
+        size: row.size,
+        actual: row.actual,
+        mode: row.mode,
+        ts: row.created_at,
+        persisted: true,
+      }));
+    }
+  } catch (e) { /* 未登录或失败时静默，仅会话内历史 */ }
+  try {
+    const p = await api.drawPrompts();
+    if (p && p.rows) promptHistory.value = p.rows;
+  } catch (e) { /* 静默 */ }
 });
+
+// 提示词历史：点选填入输入框
+function usePrompt(p) {
+  prompt.value = p.prompt;
+}
+async function removePrompt(id) {
+  try {
+    await api.drawPromptDelete(id);
+    promptHistory.value = promptHistory.value.filter((x) => x.id !== id);
+  } catch (e) { /* 静默 */ }
+}
 
 const effectiveModel = () => (model.value === '__custom__' ? customModel.value.trim() : model.value);
 // 选中模型的介绍文案（下拉只显示纯型号名，介绍在下方单独一行）
@@ -87,6 +120,7 @@ async function run() {
           size: size.value,
           mode: mode.value,
           ts,
+          persisted: true, // 服务端已落盘（24 小时保留）
         });
         // 读取实际分辨率（auto 尺寸的实际输出不确定）——从响应式代理对象更新以触发视图刷新
         const stored = history.value[0];
@@ -94,6 +128,11 @@ async function run() {
         img.onload = () => { stored.actual = `${img.width}×${img.height}`; };
         img.src = stored.src;
       }
+      // 刷新提示词历史（本次提示词已入库）
+      try {
+        const ph = await api.drawPrompts();
+        if (ph && ph.rows) promptHistory.value = ph.rows;
+      } catch (e) { /* 静默 */ }
     } else if (r && r.error) {
       error.value = r.error;
     }
@@ -118,9 +157,13 @@ function openPreview(item) {
 function closePreview() {
   previewItem.value = null;
 }
-// 删除画廊中的图片
-function removeItem(i) {
+// 删除画廊中的图片（服务端持久化的同步删除服务端记录）
+async function removeItem(i) {
+  const item = history.value[i];
   history.value.splice(i, 1);
+  if (item && item.id && item.persisted) {
+    try { await api.drawHistoryDelete(item.id); } catch (e) { /* 静默 */ }
+  }
 }
 
 // 把历史图作为编辑参考图（连续创作）
@@ -216,6 +259,16 @@ function useAsRef(item) {
             rows="3"
             :placeholder="mode === 'generate' ? '描述你想生成的画面…（支持中文）' : '描述期望的最终画面，如：背景换成一望无际的冰川上…'"
           ></textarea>
+          <!-- 提示词历史：点选填入，可删除（持续保留） -->
+          <div v-if="promptHistory.length" class="prompt-history">
+            <span class="prompt-history-label">历史提示词：</span>
+            <div class="prompt-history-list">
+              <span v-for="ph in promptHistory" :key="ph.id" class="prompt-tag">
+                <span class="prompt-tag-text" :title="ph.prompt" @click="usePrompt(ph)">{{ ph.prompt }}</span>
+                <button class="prompt-tag-del" @click="removePrompt(ph.id)" title="删除该提示词">✕</button>
+              </span>
+            </div>
+          </div>
           <button class="btn primary generate-btn" :disabled="generating || !options.enabled" @click="run">
             {{ generating ? '生成中…（2K/4K 大图可能需要 1-3 分钟）' : (mode === 'generate' ? '✨ 开始生成' : '🖼️ 开始编辑') }}
           </button>
@@ -227,7 +280,7 @@ function useAsRef(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template></span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · ⏳ 保留 24 小时</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>
@@ -360,6 +413,55 @@ function useAsRef(item) {
   color: var(--text-dim);
   margin: 4px 0 0;
   line-height: 1.5;
+}
+/* 提示词历史标签 */
+.prompt-history {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prompt-history-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.prompt-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.prompt-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.prompt-tag-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 3px 6px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.prompt-tag-text:hover {
+  color: var(--accent-2);
+}
+.prompt-tag-del {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 3px 6px 3px 0;
+  cursor: pointer;
+}
+.prompt-tag-del:hover {
+  color: #f85149;
 }
 /* 选中模型的介绍文案 */
 .model-desc {

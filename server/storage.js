@@ -18,6 +18,25 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS draw_history (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  model TEXT NOT NULL,
+  size TEXT NOT NULL,
+  actual TEXT,
+  prompt TEXT NOT NULL,
+  file TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_draw_history_user ON draw_history(user_id, created_at);
+CREATE TABLE IF NOT EXISTS draw_prompts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(user_id, prompt)
+);
 CREATE TABLE IF NOT EXISTS saves (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -121,6 +140,38 @@ function renameUser(userId, newName) {
 function updatePassword(userId, newPassword) {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), userId);
 }
+// —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库） ——
+const DRAW_TTL_MS = 24 * 60 * 60 * 1000;
+function saveDrawHistory(userId, item) {
+  db.prepare('INSERT OR REPLACE INTO draw_history (id, user_id, mode, model, size, actual, prompt, file, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    item.id, userId, item.mode, item.model, item.size, item.actual || null, item.prompt, item.file, Date.now(),
+  );
+}
+function listDrawHistory(userId) {
+  const cutoff = Date.now() - DRAW_TTL_MS;
+  // 惰性清理：查询时顺带删除过期记录（文件由调用方清理）
+  const expired = db.prepare('SELECT file FROM draw_history WHERE user_id = ? AND created_at < ?').all(userId, cutoff);
+  db.prepare('DELETE FROM draw_history WHERE user_id = ? AND created_at < ?').run(userId, cutoff);
+  return { rows: db.prepare('SELECT id, mode, model, size, actual, prompt, file, created_at FROM draw_history WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC').all(userId, cutoff), expired };
+}
+function deleteDrawHistory(userId, id) {
+  const row = db.prepare('SELECT file FROM draw_history WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!row) return null;
+  db.prepare('DELETE FROM draw_history WHERE id = ? AND user_id = ?').run(id, userId);
+  return row.file;
+}
+// —— 提示词历史（持续保留，UNIQUE 去重） ——
+function saveDrawPrompt(userId, prompt) {
+  db.prepare('INSERT OR IGNORE INTO draw_prompts (id, user_id, prompt, created_at) VALUES (?, ?, ?, ?)').run(
+    `${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, userId, prompt, Date.now(),
+  );
+}
+function listDrawPrompts(userId) {
+  return db.prepare('SELECT id, prompt, created_at FROM draw_prompts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(userId);
+}
+function deleteDrawPrompt(userId, id) {
+  db.prepare('DELETE FROM draw_prompts WHERE id = ? AND user_id = ?').run(id, userId);
+}
 function deleteUserCascade(userId) {
   // 事务：先删该用户全部存档，再删用户本身——要么全成功要么全回滚
   const tx = db.transaction(() => {
@@ -147,4 +198,10 @@ module.exports = {
   deleteAllSaves,
   listSaves,
   countSaves,
+  saveDrawHistory,
+  listDrawHistory,
+  deleteDrawHistory,
+  saveDrawPrompt,
+  listDrawPrompts,
+  deleteDrawPrompt,
 };

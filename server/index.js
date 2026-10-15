@@ -128,17 +128,90 @@ app.get('/api/draw/options', (req, res) => {
     defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
   });
 });
-// 文生图代理：透传官方支持的全部参数
+// 生图结果落盘入库（历史 24 小时过期）+ 提示词记录（持续保留）；保存失败不影响生图主流程
+function saveDrawResult(req, result, modeTag) {
+  try {
+    const user = userFromRequest(req);
+    if (!user || !result || !Array.isArray(result.b64s)) return;
+    const p = req.body || {};
+    const model = String(p.model || '');
+    const size = String(p.size || 'auto');
+    const prompt = String(p.prompt || '').trim().slice(0, 2000);
+    const ext = ['png', 'jpeg', 'webp'].includes(p.outputFormat) ? p.outputFormat : 'png';
+    for (const b64 of result.b64s) {
+      const id = `dw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const file = `${id}.${ext}`;
+      fs.writeFileSync(path.join(DRAW_DIR, file), Buffer.from(b64, 'base64'));
+      // PNG 头解析实际分辨率（宽高在固定偏移 16/20）；其他格式留空由前端图片加载时读取
+      let actual = null;
+      try {
+        const buf = Buffer.from(b64, 'base64');
+        if (buf.length > 24 && buf[0] === 0x89 && buf[1] === 0x50) actual = `${buf.readUInt32BE(16)}×${buf.readUInt32BE(20)}`;
+      } catch { /* 忽略 */ }
+      storage.saveDrawHistory(user.id, { id, mode: modeTag, model, size, actual, prompt, file });
+    }
+    if (prompt) storage.saveDrawPrompt(user.id, prompt);
+  } catch (e) {
+    console.log('[draw] 历史保存失败（不影响生图）：', e.message);
+  }
+}
+// 文生图代理：透传官方支持的全部参数；成功后保存历史与提示词
 app.post('/api/draw/generate', async (req, res) => {
   const result = await draw.generate(req.body || {});
   if (result.error) return res.status(400).json({ error: result.error });
+  saveDrawResult(req, result, 'generate');
   res.json(result);
 });
-// 图片编辑代理（图生图）：参考图 + 编辑提示词
+// 图片编辑代理（图生图）：参考图 + 编辑提示词；成功后保存历史与提示词
 app.post('/api/draw/edit', async (req, res) => {
   const result = await draw.edit(req.body || {});
   if (result.error) return res.status(400).json({ error: result.error });
+  saveDrawResult(req, result, 'edit');
   res.json(result);
+});
+
+// —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库）与提示词历史（持续保留） ——
+const DRAW_DIR = path.join(__dirname, '..', 'data', 'draw');
+fs.mkdirSync(DRAW_DIR, { recursive: true });
+// 历史列表：登录用户自己的记录；查询时惰性清理过期记录与文件
+app.get('/api/draw/history', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const { rows, expired } = storage.listDrawHistory(user.id);
+  for (const e of expired) { try { fs.unlinkSync(path.join(DRAW_DIR, path.basename(e.file))); } catch { /* 文件可能已不存在 */ } }
+  res.json({
+    rows: rows.map((r) => ({ ...r, url: `/api/draw/file/${path.basename(r.file)}` })),
+    ttlHours: 24,
+  });
+});
+// 图片文件访问：仅限本用户自己的历史图片
+app.get('/api/draw/file/:name', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const name = path.basename(String(req.params.name || ''));
+  const row = storage.db.prepare('SELECT 1 FROM draw_history WHERE user_id = ? AND file = ?').get(user.id, name);
+  if (!row) return res.status(404).json({ error: '图片不存在或已过期' });
+  res.sendFile(path.join(DRAW_DIR, name));
+});
+// 删除单条历史（同时删除文件）
+app.delete('/api/draw/history/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const file = storage.deleteDrawHistory(user.id, req.params.id);
+  if (file) { try { fs.unlinkSync(path.join(DRAW_DIR, path.basename(file))); } catch { /* 忽略 */ } }
+  res.json({ ok: true });
+});
+// 提示词历史：列表与删除（持续保留，UNIQUE 去重）
+app.get('/api/draw/prompts', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  res.json({ rows: storage.listDrawPrompts(user.id) });
+});
+app.delete('/api/draw/prompts/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  storage.deleteDrawPrompt(user.id, req.params.id);
+  res.json({ ok: true });
 });
 
 app.post('/api/auth/register', (req, res) => {
