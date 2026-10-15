@@ -165,11 +165,36 @@ async function run() {
   generating.value = false;
 }
 
+// 下载：先选格式（PNG/JPEG/WebP），画布转换后保存——无论原图什么格式都按所选格式导出
+const downloadMenu = ref(null); // 待下载项（非空时显示格式选择浮层）
 function download(item) {
-  const a = document.createElement('a');
-  a.href = item.src;
-  a.download = `draw-${item.ts}.${outputFormat.value}`;
-  a.click();
+  downloadMenu.value = item;
+}
+async function downloadAs(fmt) {
+  const item = downloadMenu.value;
+  downloadMenu.value = null;
+  if (!item) return;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = item.src; });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (fmt === 'jpeg') { // JPEG 无透明通道：先铺白底避免透明区域变黑
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(img, 0, 0);
+    const url = canvas.toDataURL(`image/${fmt}`, 0.92);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `draw-${item.ts}.${fmt}`;
+    a.click();
+  } catch (e) {
+    error.value = '下载失败：图片转换出错';
+  }
 }
 
 // 在线预览：点击图片打开全屏浮层
@@ -308,7 +333,7 @@ function useAsRef(item) {
               <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · {{ formatExpiry(item.ts) }}</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
-                <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>
+                <button class="gallery-ref-btn" @click="download(item)" title="选择格式下载">⬇ 下载</button>
                 <button class="gallery-ref-btn danger" @click="removeItem(i)" title="从画廊删除">🗑 删除</button>
               </div>
             </div>
@@ -330,6 +355,20 @@ function useAsRef(item) {
                 <button class="gallery-ref-btn" @click="useAsRef(previewItem)">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(previewItem)">⬇ 下载</button>
               </div>
+            </div>
+          </div>
+        </Transition>
+        <!-- 下载格式选择浮层：选格式后画布转换保存 -->
+        <Transition name="ovl">
+          <div v-if="downloadMenu" class="preview-overlay" @click.self="downloadMenu = null">
+            <div class="fmt-box">
+              <p class="fmt-title">选择下载格式</p>
+              <div class="fmt-grid">
+                <button class="fmt-btn" @click="downloadAs('png')">PNG<br /><small>无损 · 体积大</small></button>
+                <button class="fmt-btn" @click="downloadAs('jpeg')">JPEG<br /><small>通用 · 体积小</small></button>
+                <button class="fmt-btn" @click="downloadAs('webp')">WebP<br /><small>均衡 · 推荐</small></button>
+              </div>
+              <button class="fmt-cancel" @click="downloadMenu = null">取消</button>
             </div>
           </div>
         </Transition>
@@ -736,6 +775,55 @@ function useAsRef(item) {
   display: flex;
   gap: 8px;
   justify-content: center;
+}
+/* 下载格式选择浮层 */
+.fmt-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  width: min(320px, 90vw);
+}
+.fmt-title {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text);
+}
+.fmt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.fmt-btn {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 4px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.fmt-btn small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.fmt-btn:hover {
+  border-color: var(--accent);
+}
+.fmt-cancel {
+  width: 100%;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px;
+}
+.fmt-cancel:hover {
+  color: var(--text);
 }
 /* 预览浮层过渡 */
 .ovl-enter-active,
