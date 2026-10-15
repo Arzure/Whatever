@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch, inject, Transition } from 'vue';
 import { api } from '../api';
 import NightActionGraph from './NightActionGraph.vue';
+import EndModal from './EndModal.vue';
 
 const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject('game');
 
@@ -996,43 +997,21 @@ watch(() => state.history.length, scrollToBottom);
     </div>
     </Transition>
 
-    <!-- 终局结算弹窗：胜负结算 + 逐夜行动回顾入口 -->
-    <Transition name="ovl">
-    <div v-if="showEndModal && state.gameOver" class="review-overlay end-modal-overlay" @click.self="showEndModal = false">
-      <div class="review-modal end-modal">
-        <div class="end-modal-glow" aria-hidden="true"></div>
-        <img v-if="endingArt" :src="endingArt" class="end-art" alt="本局终局海报" />
-        <div class="end-modal-icon" :class="d.winner === 'good' ? 'win' : 'lose'">{{ d.winner === 'good' ? '🌅' : '🐺' }}</div>
-        <h3 class="end-modal-title">
-          <span
-            v-for="(ch, i) in (d.winner === 'good' ? '狼人全部落网，好人获胜！' : '狼人潜伏到最后，好人失败…')"
-            :key="i"
-            class="end-title-char"
-            :style="{ animationDelay: (0.8 + i * 0.08) + 's' }"
-          >{{ ch }}</span>
-        </h3>
-        <!-- 谢幕演出：角色卡片依次滑入排列成终局阵容（胜利时） -->
-        <div v-if="d.roles" class="end-curtain-call" :class="d.winner === 'good' ? 'win' : 'lose'">
-          <div
-            v-for="(r, i) in d.roles"
-            :key="r.name"
-            class="curtain-card"
-            :style="{ animationDelay: (1.6 + i * 0.22) + 's' }"
-            @click="loadPortrait(r.name)"
-          >
-            <img v-if="portraits[r.name]" :src="portraits[r.name]" class="curtain-portrait" :alt="r.name + ' 立绘'" />
-            <span v-else class="curtain-badge" :class="roleClass(r.roleBackup || r.role)">{{ portraitLoading[r.name] ? '…' : r.name.slice(0, 1) }}</span>
-            <span class="curtain-name">{{ r.name }}</span>
-            <b :class="roleClass(r.roleBackup || r.role)">{{ r.roleBackup || r.role }}</b>
-          </div>
-        </div>
-        <div class="end-modal-actions">
-          <button v-if="nightLogs.length" class="btn review-btn" @click="showNightReview = true">📜 逐夜行动回顾</button>
-          <button class="btn primary" @click="restart">🔄 再开一局</button>
-        </div>
-      </div>
-    </div>
-    </Transition>
+    <!-- 终局结算弹窗（独立组件 EndModal）：胜负结算 + 谢幕演出 + 逐夜回顾入口 -->
+    <EndModal
+      :show="showEndModal"
+      :game-over="state.gameOver"
+      :winner="d.winner"
+      :roles="d.roles"
+      :ending-art="endingArt"
+      :portraits="portraits"
+      :portrait-loading="portraitLoading"
+      :has-night-logs="nightLogs.length > 0"
+      @close="showEndModal = false"
+      @load-portrait="loadPortrait"
+      @review="showNightReview = true"
+      @restart="restart"
+    />
 
     <!-- 终局：逐夜行动回顾浮层（每夜一张关系图 + 对齐后的说明文字） -->
     <Transition name="ovl">
