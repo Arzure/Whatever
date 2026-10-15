@@ -197,6 +197,7 @@ app.get('/api/draw/history', (req, res) => {
   res.json({
     rows: rows.map((r) => ({ ...r, url: signDrawFile(user.id, path.basename(r.file)) })),
     ttlHours: 24,
+    expiredCount: expired.length, // 本次访问清理的过期图片数量（前端据此提示用户）
   });
 });
 // 图片文件访问：短期签名校验（img 标签无 JWT 头，靠 URL 签名鉴权；仍按用户隔离）

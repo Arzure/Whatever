@@ -24,6 +24,7 @@ const generating = ref(false);
 const error = ref('');
 const history = ref([]); // 生成历史（服务端持久化，24 小时过期，跨设备可见）
 const promptHistory = ref([]); // 提示词历史（持续保留，点选填入）
+const expiredCount = ref(0); // 本次访问清理的过期图片数量（服务端返回）
 
 onMounted(async () => {
   try {
@@ -36,6 +37,7 @@ onMounted(async () => {
   try {
     const h = await api.drawHistory();
     if (h && h.rows) {
+      expiredCount.value = h.expiredCount || 0;
       history.value = h.rows.map((row) => ({
         id: row.id,
         src: row.url,
@@ -292,6 +294,8 @@ function useAsRef(item) {
           <p v-if="error" class="error">{{ error }}</p>
         </div>
 
+        <!-- 过期清理提示：登录时服务端自动清理了超过保留期的图片 -->
+        <p v-if="expiredCount > 0" class="expired-tip">{{ expiredCount }} 张图片已超过 24 小时保留期，自动清理</p>
         <div v-if="history.length" class="gallery">
           <div v-for="(item, i) in history" :key="item.ts + '-' + i" class="gallery-item">
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
@@ -741,6 +745,14 @@ function useAsRef(item) {
   color: var(--text-dim);
   font-size: 13px;
   padding: 60px 0;
+}
+/* 过期清理提示：轻量灰字，不干扰主内容 */
+.expired-tip {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+  margin: 0 0 12px;
+  opacity: 0.8;
 }
 /* 手机端：参数面板收起为顶部区块 */
 @media (max-width: 768px) {
