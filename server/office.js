@@ -85,41 +85,20 @@ function buildInfographicPrompt(content, layoutId, styleId) {
 
 /**
  * 组装简历图生成提示词（移植 sn-image-resume 固定三段式布局规则）。
+ * 实测验证：提示词必须精简——布局规则篇幅过长会超出图像模型对文字指令的遵循能力（乱码），
+ * 简历内容必须是提示词主体；同时关闭 prompt_extend（扩展改写会丢失具体内容）。
  * resumeContent：用户简历文本；style：可选风格描述（自由文本）。
  */
 function buildResumePrompt(resumeContent, style) {
-  const styleLine = style && style.trim()
-    ? `Requested visual style: ${style.trim()}. Translate this style onto the fixed layout skeleton (change the skin, not the structure).`
-    : 'No explicit style instruction. Infer an appropriate professional visual style from the resume content.';
+  const styleLine = style && style.trim() ? `风格：${style.trim()}。` : '风格：现代专业设计。';
   return [
-    'Create a tall designed portfolio-resume image (a designed personal portfolio-resume landing page, not a generic infographic).',
-    'All text content in the image must be in the same language as the resume content below (Chinese if the resume is in Chinese).',
+    '一张竖版设计感简历海报图，三段式布局：顶部大字姓名与职位，中部简历信息模块（教育/经历/技能/联系方式），底部服务分类卡片。',
     styleLine,
-    '## Fixed Layout Skeleton (must follow, top to bottom, three stacked zones)',
-    '### Zone 1: Cover / Hero (about 30-38% of page height)',
-    '- A very large bold display title (the person name / identity), split across two lines if needed, upper-left to center-left',
-    '- A short subtitle or role label near the title',
-    '- A large portrait or figure cutout on the right side, backed by rounded rectangular or circular color blocks',
-    '- A few small decorative doodles, icons, or quote marks lightly scattered around the title area',
-    '- The title must be the most visually dominant element; the portrait the second',
-    '### Zone 2: About / Resume Information (about 34-42% of page height)',
-    '- Left side: a medium portrait block in a rounded frame, with a dedicated contact card box beneath it (contact items as a clean vertical list with small icons)',
-    '- Right side: greeting heading + profile summary paragraph, then a labeled education block, a grouped skills/tools module, and a structured work/project experience block',
-    '- Break information into clearly designed submodules (labeled paragraphs, aligned info rows, compact timeline entries, icon-backed tool lists, grouped tags); avoid dense walls of text',
-    '### Zone 3: Table of Contents / Category Navigation (about 20-28% of page height)',
-    '- A large centered section heading, optionally with faint oversized ghost text behind it',
-    '- A row of 3-5 large rounded category cards, each with one icon, one short label, and optional small subtitle; unified visual style, like bold navigation buttons',
-    '### Dividers',
-    '- Separate the three zones with elegant dividers: thin lines, circular arrow markers, section labels, or spacing bands; zones must not visually collapse',
-    '## Rules',
-    '- Text rarely floats on blank background: attach important content to visible panels, strips, cards, or backing surfaces',
-    '- Balanced left-right weight, strong focal hierarchy, clean alignment, pleasing negative space',
-    '- Map the actual resume content into the modules: name/identity into hero, contacts into the left contact card, summary into intro block, education/experience/skills into their submodules, projects/specialties into the bottom category cards',
-    '- Do not invent resume details the user did not provide; only reorganize, condense, and visually map provided information',
-    '- Typography hierarchy: main title > name/role > section headings > module labels > body text; keep text large and legible',
+    '图片中的所有文字必须严格使用下面给出的内容，逐字一致，不得改写、不得虚构：',
     '---',
-    'Resume content:',
     resumeContent,
+    '---',
+    '要求：文字清晰可读、排版整洁、留白充足、层级分明。',
   ].join('\n');
 }
 

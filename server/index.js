@@ -197,7 +197,7 @@ app.post('/api/office/infographic', async (req, res) => {
   if (!content) return res.status(400).json({ error: '请填写信息图内容' });
   if (content.length > 4000) return res.status(400).json({ error: '内容过长（限 4000 字）' });
   const prompt = office.buildInfographicPrompt(content, p.layout, p.style);
-  const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp' }); // 办公生成图不带水印；WebP 输出体积约为 PNG 的 1/5-1/3，加载提速
+  const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false }); // 不带水印；WebP 输出；关闭提示词扩展（实测：扩展改写会丢失简历具体内容）
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
@@ -211,7 +211,7 @@ app.post('/api/office/resume', async (req, res) => {
   if (!content) return res.status(400).json({ error: '请填写简历内容' });
   if (content.length > 4000) return res.status(400).json({ error: '简历内容过长（限 4000 字）' });
   const prompt = office.buildResumePrompt(content, p.style);
-  const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp' }); // 办公生成图不带水印；WebP 输出体积约为 PNG 的 1/5-1/3，加载提速
+  const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false }); // 不带水印；WebP 输出；关闭提示词扩展（实测：扩展改写会丢失简历具体内容）
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词

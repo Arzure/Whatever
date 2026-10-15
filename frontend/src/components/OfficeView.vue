@@ -152,7 +152,7 @@ async function generate() {
           rows="8"
           :placeholder="tab === 'infographic'
             ? '示例：\n主题：2026 年 AI 发展趋势\n要点：\n1. 多模态成为主流…\n2. Agent 能力快速进化…\n3. 端侧模型普及…'
-            : '示例：\n姓名：张三\n职位：前端工程师\n教育：XX大学 计算机科学\n经历：A公司 高级前端（2022-2026）…\n技能：Vue / TypeScript / Node.js\n联系方式：zhangsan@example.com'"
+            : '示例（每行一个条目，内容会逐字渲染到图中）：\n姓名：李华\n职位：后端工程师\n教育：上海交通大学 软件工程 2018-2022\n经历：字节跳动 后端工程师 2022-2026\n技能：Java Spring MySQL Redis Docker\n邮箱：lihua@example.com'"
           :maxlength="4000"
         ></textarea>
         <div class="char-count">{{ content.length }} / 4000</div>
