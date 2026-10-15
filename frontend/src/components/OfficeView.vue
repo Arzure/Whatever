@@ -17,6 +17,31 @@ const result = ref(null); // 生成结果：改用历史记录的签名 URL 显�
 const history = ref([]); // 办公助手生成历史（仅信息图/简历图）
 const preview = ref(''); // 灯箱预览的图片 URL（空串关闭）
 
+// 历史剩余时限：按生成时间动态计算（每分钟刷新时钟），与绘图工作台逻辑一致
+const nowTick = ref(Date.now());
+const TTL_MS = 24 * 60 * 60 * 1000;
+let tickTimer = null;
+onMounted(() => {
+  tickTimer = setInterval(() => { nowTick.value = Date.now(); }, 60 * 1000);
+});
+onUnmounted(() => { if (tickTimer) clearInterval(tickTimer); });
+function formatExpiry(ts) {
+  const remain = TTL_MS - (nowTick.value - ts);
+  if (remain <= 0) return '已过期';
+  const totalMin = Math.floor(remain / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}小时${m}分后过期` : `${m}分后过期`;
+}
+
+// 下载历史图片（签名 URL 直接另存）
+function downloadHistory(r) {
+  const a = document.createElement('a');
+  a.href = r.url;
+  a.download = `${r.mode}-${r.id}.png`;
+  a.click();
+}
+
 async function loadHistory() {
   try {
     const h = await api.drawHistory();
@@ -182,20 +207,22 @@ async function generate() {
         <img class="result-img" :src="result.url" alt="生成结果" @click="preview = result.url" />
       </div>
 
-      <!-- 办公助手生成历史：仅显示信息图/简历图，就地查看与删除 -->
+      <!-- 办公助手生成历史：条目化显示，逻辑与绘图工作台画廊一致 -->
       <div v-if="history.length" class="history">
-        <label class="field-label">生成历史（{{ history.length }} 张，24 小时保留）</label>
-        <div class="history-grid">
-          <div v-for="r in history" :key="r.id" class="history-item">
-            <img :src="r.url" class="history-img" loading="lazy" :alt="r.mode === 'infographic' ? '信息图' : '简历图'" @click="preview = r.url" />
-            <div class="history-meta">
-              <span class="history-mode">{{ r.mode === 'infographic' ? '📈 信息图' : '📄 简历图' }}</span>
-              <span class="history-model" :title="r.model">{{ r.model }}</span>
-              <button class="history-del" @click="removeHistory(r.id)">删除</button>
+        <label class="field-label">生成历史</label>
+        <div v-for="r in history" :key="r.id" class="history-item">
+          <img :src="r.url" class="history-img" loading="lazy" :alt="r.prompt" @click="preview = r.url" title="点击预览大图" />
+          <div class="history-meta">
+            <span class="history-prompt" :title="r.prompt">{{ r.prompt }}</span>
+            <span class="history-info">{{ r.mode === 'infographic' ? '信息图' : '简历图' }} · {{ r.model }} · {{ r.size }}<template v-if="r.actual"> · {{ r.actual }}</template> · {{ formatExpiry(r.created_at) }}</span>
+            <div class="history-actions">
+              <button class="history-btn" @click="downloadHistory(r)">⬇ 下载</button>
+              <button class="history-btn danger" @click="removeHistory(r.id)">🗑 删除</button>
             </div>
           </div>
         </div>
       </div>
+      <p v-else class="history-empty">尚无生成结果</p>
     </div>
 
     <!-- 灯箱预览：点击图片放大查看，点任意处关闭 -->
@@ -360,53 +387,70 @@ async function generate() {
 .history {
   margin-top: 22px;
 }
-.history-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+.history-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 40px 0;
 }
 .history-item {
+  display: flex;
+  gap: 12px;
   border: 1px solid var(--border, #444);
   border-radius: 10px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.2);
+  margin-bottom: 12px;
 }
 .history-img {
-  width: 100%;
-  display: block;
-  aspect-ratio: 3 / 4;
+  width: 140px;
+  flex-shrink: 0;
   object-fit: cover;
   cursor: zoom-in;
 }
 .history-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.history-mode {
-  flex-shrink: 0;
-}
-.history-model {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.history-prompt {
+  font-size: 13px;
+  color: var(--text, #eee);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
-.history-del {
-  flex-shrink: 0;
+.history-info {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.history-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+.history-btn {
   background: none;
-  border: none;
-  color: #ff7d7d;
-  font-size: 11px;
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  color: var(--text, #eee);
+  font-size: 12px;
+  padding: 4px 10px;
   cursor: pointer;
-  padding: 0;
 }
-.history-del:hover {
-  text-decoration: underline;
+.history-btn:hover {
+  border-color: #7c6cf0;
+}
+.history-btn.danger {
+  color: #ff7d7d;
+}
+.history-btn.danger:hover {
+  border-color: #ff7d7d;
 }
 .result-img {
   cursor: zoom-in;
