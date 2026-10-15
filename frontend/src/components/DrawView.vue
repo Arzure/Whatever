@@ -297,7 +297,7 @@ function useAsRef(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · ⏳ {{ formatExpiry(item.ts) }}</template></span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · {{ formatExpiry(item.ts) }}</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>

@@ -43,6 +43,8 @@ app.use('/api', (req, res, next) => {
   const token = process.env.ACCESS_TOKEN || '';
   if (!token) return next(); // 未启用口令校验
   if (req.path === '/health') return next(); // 健康检查放行（中间件挂载在 /api，此处为相对路径）
+  // 绘图历史图片放行：浏览器 img 标签不携带口令头；该路由自带 HMAC 签名鉴权（绑定用户与文件名），安全性足够
+  if (req.path.startsWith('/draw/file/')) return next();
   const ip = req.ip || 'unknown';
   const rec = accessFails.get(ip);
   if (rec && rec.lockedUntil && rec.lockedUntil > Date.now()) {
@@ -178,7 +180,7 @@ fs.mkdirSync(DRAW_DIR, { recursive: true });
 // 签名参数让图片访问既保持按用户隔离又可被 img 直接加载
 const crypto = require('crypto');
 function signDrawFile(userId, name) {
-  const exp = Date.now() + 2 * 60 * 60 * 1000; // 签名 2 小时有效（覆盖 24h 内的会话刷新场景，过期重新拉列表即得新签名）
+  const exp = Date.now() + 25 * 60 * 60 * 1000; // 签名有效期略长于图片保留期（24h）：账号登录拉取列表后，图片未过期就能一直显示
   const sig = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
   return `/api/draw/file/${name}?uid=${userId}&exp=${exp}&sig=${sig}`;
 }
