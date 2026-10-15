@@ -174,22 +174,37 @@ app.post('/api/draw/edit', async (req, res) => {
 const DRAW_DIR = path.join(__dirname, '..', 'data', 'draw');
 fs.mkdirSync(DRAW_DIR, { recursive: true });
 // 历史列表：登录用户自己的记录；查询时惰性清理过期记录与文件
+// 图片 URL 带短期签名（2 小时有效）：浏览器 img 标签请求不携带 JWT 头，
+// 签名参数让图片访问既保持按用户隔离又可被 img 直接加载
+const crypto = require('crypto');
+function signDrawFile(userId, name) {
+  const exp = Date.now() + 2 * 60 * 60 * 1000; // 签名 2 小时有效（覆盖 24h 内的会话刷新场景，过期重新拉列表即得新签名）
+  const sig = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
+  return `/api/draw/file/${name}?uid=${userId}&exp=${exp}&sig=${sig}`;
+}
+function verifyDrawFileSig(userId, name, exp, sig) {
+  if (!userId || !exp || !sig || Number(exp) < Date.now()) return false;
+  const expect = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
+  return expect === sig;
+}
 app.get('/api/draw/history', (req, res) => {
   const user = userFromRequest(req);
   if (!user) return res.status(401).json({ error: '请先登录' });
   const { rows, expired } = storage.listDrawHistory(user.id);
   for (const e of expired) { try { fs.unlinkSync(path.join(DRAW_DIR, path.basename(e.file))); } catch { /* 文件可能已不存在 */ } }
   res.json({
-    rows: rows.map((r) => ({ ...r, url: `/api/draw/file/${path.basename(r.file)}` })),
+    rows: rows.map((r) => ({ ...r, url: signDrawFile(user.id, path.basename(r.file)) })),
     ttlHours: 24,
   });
 });
-// 图片文件访问：仅限本用户自己的历史图片
+// 图片文件访问：短期签名校验（img 标签无 JWT 头，靠 URL 签名鉴权；仍按用户隔离）
 app.get('/api/draw/file/:name', (req, res) => {
-  const user = userFromRequest(req);
-  if (!user) return res.status(401).json({ error: '请先登录' });
   const name = path.basename(String(req.params.name || ''));
-  const row = storage.db.prepare('SELECT 1 FROM draw_history WHERE user_id = ? AND file = ?').get(user.id, name);
+  const { uid, exp, sig } = req.query;
+  if (!verifyDrawFileSig(String(uid || ''), name, String(exp || ''), String(sig || ''))) {
+    return res.status(401).json({ error: '签名无效或已过期' });
+  }
+  const row = storage.db.prepare('SELECT 1 FROM draw_history WHERE user_id = ? AND file = ?').get(String(uid), name);
   if (!row) return res.status(404).json({ error: '图片不存在或已过期' });
   res.sendFile(path.join(DRAW_DIR, name));
 });
