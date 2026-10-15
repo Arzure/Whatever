@@ -38,7 +38,8 @@ onMounted(async () => {
     const h = await api.drawHistory();
     if (h && h.rows) {
       expiredCount.value = h.expiredCount || 0;
-      history.value = h.rows.map((row) => ({
+      // 只显示绘图工作台自己的生成记录（generate/edit），办公助手的图（infographic/resume）在办公助手页面查看
+      history.value = h.rows.filter((row) => row.mode !== 'infographic' && row.mode !== 'resume').map((row) => ({
         id: row.id,
         src: row.url,
         prompt: row.prompt,
@@ -136,7 +137,8 @@ async function run() {
         const h = await api.drawHistory();
         if (h && h.rows) {
           expiredCount.value = h.expiredCount || 0;
-          history.value = h.rows.map((row) => ({
+          // 同上：只显示绘图工作台自己的生成记录
+          history.value = h.rows.filter((row) => row.mode !== 'infographic' && row.mode !== 'resume').map((row) => ({
             id: row.id,
             src: row.url,
             prompt: row.prompt,
