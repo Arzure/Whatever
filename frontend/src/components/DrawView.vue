@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { api } from '../api';
 
 // —— 模式：文生图 / 图片编辑（图生图） ——
@@ -58,6 +58,23 @@ onMounted(async () => {
 // 提示词历史：点选填入输入框
 function usePrompt(p) {
   prompt.value = p.prompt;
+}
+
+// 历史剩余时限：按生成时间动态计算（每分钟刷新时钟），显示如『23小时22分后过期』
+const nowTick = ref(Date.now());
+const TTL_MS = 24 * 60 * 60 * 1000;
+let tickTimer = null;
+onMounted(() => {
+  tickTimer = setInterval(() => { nowTick.value = Date.now(); }, 60 * 1000);
+});
+onUnmounted(() => { if (tickTimer) clearInterval(tickTimer); });
+function formatExpiry(ts) {
+  const remain = TTL_MS - (nowTick.value - ts);
+  if (remain <= 0) return '已过期';
+  const totalMin = Math.floor(remain / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}小时${m}分后过期` : `${m}分后过期`;
 }
 async function removePrompt(id) {
   try {
@@ -280,7 +297,7 @@ function useAsRef(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · ⏳ 保留 24 小时</template></span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · ⏳ {{ formatExpiry(item.ts) }}</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>
