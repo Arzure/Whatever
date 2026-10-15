@@ -638,6 +638,8 @@ function useAsRef(item) {
 }
 .gallery-item img {
   width: 100%;
+  height: 200px; /* 缩略图统一高度：外框按缩略图尺寸设计，不随长图拉伸 */
+  object-fit: cover; /* 超出部分裁切，保持画面填满 */
   display: block;
   cursor: zoom-in;
 }

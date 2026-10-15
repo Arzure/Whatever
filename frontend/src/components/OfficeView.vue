@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { api } from '../api';
 
 // 办公助手（阶段 1）：信息图 + 简历图。提示词体系由服务端组装，前端只负责选项与展示
