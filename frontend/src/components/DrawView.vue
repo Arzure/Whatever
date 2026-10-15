@@ -198,7 +198,7 @@ function useAsRef(item) {
     <div class="draw-layout">
       <!-- 左侧：参数面板 -->
       <aside class="draw-panel">
-        <h2 class="draw-panel-title">🎨 生图工作台</h2>
+        <h2 class="draw-panel-title">🎨 绘图工作台</h2>
 
         <div v-if="!options.enabled" class="draw-disabled">
           服务端未配置图像 API Key（IMAGE_API_KEY 或 LLM_API_KEY），绘图功能不可用。

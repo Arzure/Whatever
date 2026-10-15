@@ -196,7 +196,7 @@ app.post('/api/office/infographic', async (req, res) => {
   if (!content) return res.status(400).json({ error: '请填写信息图内容' });
   if (content.length > 4000) return res.status(400).json({ error: '内容过长（限 4000 字）' });
   const prompt = office.buildInfographicPrompt(content, p.layout, p.style);
-  const result = await draw.generate({ ...p, prompt });
+  const result = await draw.generate({ ...p, prompt, watermark: false }); // 办公生成图不带水印
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
   saveDrawResult(req, result, 'infographic');
@@ -209,7 +209,7 @@ app.post('/api/office/resume', async (req, res) => {
   if (!content) return res.status(400).json({ error: '请填写简历内容' });
   if (content.length > 4000) return res.status(400).json({ error: '简历内容过长（限 4000 字）' });
   const prompt = office.buildResumePrompt(content, p.style);
-  const result = await draw.generate({ ...p, prompt });
+  const result = await draw.generate({ ...p, prompt, watermark: false }); // 办公生成图不带水印
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
   saveDrawResult(req, result, 'resume');

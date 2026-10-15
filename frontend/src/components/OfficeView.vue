@@ -14,6 +14,23 @@ const model = ref('');
 const busy = ref(false);
 const error = ref('');
 const result = ref(null); // { b64s: [dataUrl...] }
+const history = ref([]); // 办公助手生成历史（仅信息图/简历图）
+
+async function loadHistory() {
+  try {
+    const h = await api.drawHistory();
+    history.value = (h.rows || []).filter((r) => r.mode === 'infographic' || r.mode === 'resume');
+  } catch { /* 历史加载失败不阻塞主流程 */ }
+}
+
+async function removeHistory(id) {
+  try {
+    await api.drawHistoryDelete(id);
+    history.value = history.value.filter((r) => r.id !== id);
+  } catch (e) {
+    error.value = e.message;
+  }
+}
 
 onMounted(async () => {
   try {
@@ -25,6 +42,7 @@ onMounted(async () => {
   } catch (e) {
     error.value = e.message;
   }
+  loadHistory();
 });
 
 function switchTab(t) {
@@ -48,6 +66,7 @@ async function generate() {
       ? { content: content.value.trim(), layout: layoutId.value, style: styleId.value, size: size.value, model: model.value }
       : { content: content.value.trim(), style: resumeStyle.value.trim(), size: size.value, model: model.value };
     result.value = await (tab.value === 'infographic' ? api.officeInfographic(params) : api.officeResume(params));
+    await loadHistory(); // 生成成功后刷新历史画廊
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -135,12 +154,13 @@ async function generate() {
         <button class="generate" :disabled="busy" @click="generate">
           {{ busy ? '生成中…（大图约需 10-60 秒）' : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
         </button>
+        <p class="model-line">当前模型：{{ model }}</p>
         <p v-if="error" class="error">{{ error }}</p>
       </div>
 
       <!-- 生成结果 -->
       <div v-if="result && result.b64s && result.b64s.length" class="result">
-        <label class="field-label">生成结果（已存入绘图历史，24 小时保留）</label>
+        <label class="field-label">生成结果（已存入历史，24 小时保留）</label>
         <img
           v-for="(b64, i) in result.b64s"
           :key="i"
@@ -148,6 +168,21 @@ async function generate() {
           :src="`data:image/png;base64,${b64}`"
           alt="生成结果"
         />
+      </div>
+
+      <!-- 办公助手生成历史：仅显示信息图/简历图，就地查看与删除 -->
+      <div v-if="history.length" class="history">
+        <label class="field-label">生成历史（{{ history.length }} 张，24 小时保留）</label>
+        <div class="history-grid">
+          <div v-for="r in history" :key="r.id" class="history-item">
+            <img :src="r.url" class="history-img" loading="lazy" :alt="r.mode === 'infographic' ? '信息图' : '简历图'" />
+            <div class="history-meta">
+              <span class="history-mode">{{ r.mode === 'infographic' ? '📈 信息图' : '📄 简历图' }}</span>
+              <span class="history-model" :title="r.model">{{ r.model }}</span>
+              <button class="history-del" @click="removeHistory(r.id)">删除</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -298,5 +333,62 @@ async function generate() {
   border-radius: 12px;
   margin-top: 10px;
   display: block;
+}
+.model-line {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 10px 0 0;
+}
+.history {
+  margin-top: 22px;
+}
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.history-item {
+  border: 1px solid var(--border, #444);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+}
+.history-img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.history-mode {
+  flex-shrink: 0;
+}
+.history-model {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-del {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #ff7d7d;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.history-del:hover {
+  text-decoration: underline;
 }
 </style>
