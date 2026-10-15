@@ -8,6 +8,7 @@ import DetectiveView from './components/DetectiveView.vue';
 import WolfView from './components/WolfView.vue';
 import DeductionView from './components/DeductionView.vue';
 import DrawView from './components/DrawView.vue';
+import OfficeView from './components/OfficeView.vue';
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -113,6 +114,7 @@ async function deleteSave(s) {
           <WolfView v-else-if="game.state.mode === 'wolf'" />
           <DeductionView v-else-if="game.state.mode === 'deduction'" />
           <DrawView v-else-if="game.state.view === 'draw'" />
+          <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
           <WorldView v-else />
         </div>
       </div>

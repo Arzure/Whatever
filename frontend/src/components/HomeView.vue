@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject, Transition } from 'vue';
 import { api } from '../api';
 
-const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw } = inject('game');
+const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice } = inject('game');
 
 const playerName = ref('');
 // 文字冒险表单：点击入口后展开（默认收起，保持首页简洁美观）
@@ -112,6 +112,14 @@ const canStart = computed(() => {
           <span class="play-text">
             <b>绘图工作台</b>
             <em>文生图 · 图片编辑 · 自由配置模型与参数</em>
+          </span>
+          <span class="play-arrow">›</span>
+        </div>
+        <div class="play-entry play-entry-wide" @click="openOffice()" role="button" tabindex="0" @keydown.enter="openOffice()">
+          <span class="play-icon">📊</span>
+          <span class="play-text">
+            <b>办公助手</b>
+            <em>信息图 · 简历图 · 一键生成专业视觉内容</em>
           </span>
           <span class="play-arrow">›</span>
         </div>
@@ -369,6 +377,10 @@ const canStart = computed(() => {
   .play-grid {
     grid-template-columns: 1fr;
   }
+}
+/* 办公助手入口：桌面端整行显示（第三入口），手机端随单列堆叠 */
+.play-entry-wide {
+  grid-column: 1 / -1;
 }
 .title-divider {
   height: 1px;

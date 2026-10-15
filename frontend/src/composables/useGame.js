@@ -175,6 +175,11 @@ export function useGame() {
     state.view = 'draw';
   }
 
+  // 办公助手：独立玩法（信息图/简历图），不入存档体系
+  function openOffice() {
+    state.view = 'office';
+  }
+
   function restart() {
     state.view = 'home';
     state.player = null;
@@ -375,6 +380,7 @@ export function useGame() {
     loadSave,
     backToHome,
     openDraw,
+    openOffice,
     restart,
     submitAction,
     useItem,

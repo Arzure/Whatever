@@ -10,6 +10,7 @@ const themes = require('./themes');
 const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
 const draw = require('./draw');
+const office = require('./office');
 
 loadEnv();
 
@@ -173,6 +174,45 @@ app.post('/api/draw/edit', async (req, res) => {
   const result = await draw.edit(req.body || {});
   if (result.error) return res.status(400).json({ error: result.error });
   saveDrawResult(req, result, 'edit');
+  res.json(result);
+});
+
+// —— 办公助手（阶段 1）：信息图 + 简历图；提示词体系移植自商汤开源技能，复用绘图管线，结果进绘图历史 ——
+// 配置：布局/风格清单与可用尺寸（前端选项渲染依据）
+app.get('/api/office/config', (req, res) => {
+  res.json({
+    enabled: draw.isImageEnabled(),
+    layouts: office.INFOGRAPHIC_LAYOUTS,
+    styles: office.INFOGRAPHIC_STYLES,
+    infographicSizes: office.INFOGRAPHIC_SIZES,
+    resumeSizes: office.RESUME_SIZES,
+    defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
+  });
+});
+// 信息图生成：内容 + 布局 + 风格 → 组装提示词 → 复用绘图管线
+app.post('/api/office/infographic', async (req, res) => {
+  const p = req.body || {};
+  const content = String(p.content || '').trim();
+  if (!content) return res.status(400).json({ error: '请填写信息图内容' });
+  if (content.length > 4000) return res.status(400).json({ error: '内容过长（限 4000 字）' });
+  const prompt = office.buildInfographicPrompt(content, p.layout, p.style);
+  const result = await draw.generate({ ...p, prompt });
+  if (result.error) return res.status(400).json({ error: result.error });
+  req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
+  saveDrawResult(req, result, 'infographic');
+  res.json(result);
+});
+// 简历图生成：简历文本 + 可选风格 → 固定三段式布局提示词 → 复用绘图管线
+app.post('/api/office/resume', async (req, res) => {
+  const p = req.body || {};
+  const content = String(p.content || '').trim();
+  if (!content) return res.status(400).json({ error: '请填写简历内容' });
+  if (content.length > 4000) return res.status(400).json({ error: '简历内容过长（限 4000 字）' });
+  const prompt = office.buildResumePrompt(content, p.style);
+  const result = await draw.generate({ ...p, prompt });
+  if (result.error) return res.status(400).json({ error: result.error });
+  req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
+  saveDrawResult(req, result, 'resume');
   res.json(result);
 });
 
