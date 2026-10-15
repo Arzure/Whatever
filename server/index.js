@@ -149,11 +149,32 @@ function saveDrawResult(req, result, modeTag) {
       const id = `dw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const file = `${id}.${ext}`;
       fs.writeFileSync(path.join(DRAW_DIR, file), Buffer.from(b64, 'base64'));
-      // PNG 头解析实际分辨率（宽高在固定偏移 16/20）；其他格式留空由前端图片加载时读取
+      // PNG 头解析实际分辨率（宽高在固定偏移 16/20）；WebP 解析 RIFF 头（VP8/VP8L/VP8X 三种编码）；其他格式留空由前端图片加载时读取
       let actual = null;
       try {
         const buf = Buffer.from(b64, 'base64');
-        if (buf.length > 24 && buf[0] === 0x89 && buf[1] === 0x50) actual = `${buf.readUInt32BE(16)}×${buf.readUInt32BE(20)}`;
+        if (buf.length > 24 && buf[0] === 0x89 && buf[1] === 0x50) {
+          actual = `${buf.readUInt32BE(16)}×${buf.readUInt32BE(20)}`;
+        } else if (buf.length > 30 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+          const chunk = buf.toString('ascii', 12, 16);
+          if (chunk === 'VP8X') {
+            // 扩展格式：画布宽高各 24 位（实际值-1），位于偏移 24/27
+            const w = 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16));
+            const h = 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16));
+            actual = `${w}×${h}`;
+          } else if (chunk === 'VP8 ') {
+            // 有损编码：同步码后宽高各 14 位，位于偏移 26/28
+            const w = buf.readUInt16LE(26) & 0x3fff;
+            const h = buf.readUInt16LE(28) & 0x3fff;
+            actual = `${w}×${h}`;
+          } else if (chunk === 'VP8L') {
+            // 无损编码：签名 0x2f 后打包 32 位（宽-1 / 高-1 各 14 位），位于偏移 21
+            const b = buf.readUInt32LE(21);
+            const w = (b & 0x3fff) + 1;
+            const h = ((b >> 14) & 0x3fff) + 1;
+            actual = `${w}×${h}`;
+          }
+        }
       } catch { /* 忽略 */ }
       storage.saveDrawHistory(user.id, { id, mode: modeTag, model, size, actual, prompt, file });
     }
