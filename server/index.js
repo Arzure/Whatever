@@ -183,8 +183,9 @@ fs.mkdirSync(DRAW_DIR, { recursive: true });
 // 图片 URL 带短期签名（2 小时有效）：浏览器 img 标签请求不携带 JWT 头，
 // 签名参数让图片访问既保持按用户隔离又可被 img 直接加载
 const crypto = require('crypto');
-function signDrawFile(userId, name) {
-  const exp = Date.now() + 25 * 60 * 60 * 1000; // 签名有效期略长于图片保留期（24h）：账号登录拉取列表后，图片未过期就能一直显示
+function signDrawFile(userId, name, createdAt) {
+  // exp 锚定图片创建时间（而非当前时间）：同一张图片在保留期内 URL 恒定不变，浏览器可按 URL 命中本地缓存
+  const exp = (Number(createdAt) || Date.now()) + 25 * 60 * 60 * 1000; // 签名有效期略长于图片保留期（24h）：账号登录拉取列表后，图片未过期就能一直显示
   const sig = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
   return `/api/draw/file/${name}?uid=${userId}&exp=${exp}&sig=${sig}`;
 }
@@ -199,7 +200,7 @@ app.get('/api/draw/history', (req, res) => {
   const { rows, expired } = storage.listDrawHistory(user.id);
   for (const e of expired) { try { fs.unlinkSync(path.join(DRAW_DIR, path.basename(e.file))); } catch { /* 文件可能已不存在 */ } }
   res.json({
-    rows: rows.map((r) => ({ ...r, url: signDrawFile(user.id, path.basename(r.file)) })),
+    rows: rows.map((r) => ({ ...r, url: signDrawFile(user.id, path.basename(r.file), r.created_at) })),
     ttlHours: 24,
     expiredCount: expired.length, // 本次访问清理的过期图片数量（前端据此提示用户）
   });
@@ -213,6 +214,8 @@ app.get('/api/draw/file/:name', (req, res) => {
   }
   const row = storage.db.prepare('SELECT 1 FROM draw_history WHERE user_id = ? AND file = ?').get(String(uid), name);
   if (!row) return res.status(404).json({ error: '图片不存在或已过期' });
+  // 允许浏览器本地缓存 24 小时（URL 已确定性签名，保留期内不变）：刷新/重进工作台直接命中缓存，不再回源消耗服务器流量
+  res.setHeader('Cache-Control', 'private, max-age=86400');
   res.sendFile(path.join(DRAW_DIR, name));
 });
 // 删除单条历史（同时删除文件）
