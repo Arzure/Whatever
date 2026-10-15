@@ -115,7 +115,7 @@ const canStart = computed(() => {
           </span>
           <span class="play-arrow">›</span>
         </div>
-        <div class="play-entry play-entry-wide" @click="openOffice()" role="button" tabindex="0" @keydown.enter="openOffice()">
+        <div class="play-entry" @click="openOffice()" role="button" tabindex="0" @keydown.enter="openOffice()">
           <span class="play-icon">📊</span>
           <span class="play-text">
             <b>办公助手</b>
@@ -298,10 +298,10 @@ const canStart = computed(() => {
   margin: 0 0 14px;
 }
 /* 标题区装饰分隔线：金色渐变细线，两端淡出 */
-/* 双入口并列网格：绘图工作台 / 文字冒险 */
+/* 三入口等宽网格：绘图工作台 / 文字冒险 / 办公助手 */
 .play-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 22px;
 }
@@ -372,15 +372,11 @@ const canStart = computed(() => {
 .play-arrow.open {
   transform: rotate(90deg);
 }
-/* 手机端：双入口纵向堆叠 */
+/* 手机端：三入口纵向堆叠 */
 @media (max-width: 480px) {
   .play-grid {
     grid-template-columns: 1fr;
   }
-}
-/* 办公助手入口：桌面端整行显示（第三入口），手机端随单列堆叠 */
-.play-entry-wide {
-  grid-column: 1 / -1;
 }
 .title-divider {
   height: 1px;
