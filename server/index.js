@@ -182,6 +182,7 @@ app.post('/api/draw/edit', async (req, res) => {
 app.get('/api/office/config', (req, res) => {
   res.json({
     enabled: draw.isImageEnabled(),
+    models: draw.PRESET_MODELS,
     layouts: office.INFOGRAPHIC_LAYOUTS,
     styles: office.INFOGRAPHIC_STYLES,
     infographicSizes: office.INFOGRAPHIC_SIZES,

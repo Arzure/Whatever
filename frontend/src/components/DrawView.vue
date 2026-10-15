@@ -130,23 +130,25 @@ async function run() {
       ? await api.drawGenerate(params)
       : await api.drawEdit({ ...params, images: refImages.value });
     if (r && r.b64s) {
-      const ts = Date.now();
-      for (const b64 of r.b64s) {
-        history.value.unshift({
-          src: `data:image/${outputFormat.value};base64,${b64}`,
-          prompt: p,
-          model: m,
-          size: size.value,
-          mode: mode.value,
-          ts,
-          persisted: true, // 服务端已落盘（24 小时保留）
-        });
-        // 读取实际分辨率（auto 尺寸的实际输出不确定）——从响应式代理对象更新以触发视图刷新
-        const stored = history.value[0];
-        const img = new Image();
-        img.onload = () => { stored.actual = `${img.width}×${img.height}`; };
-        img.src = stored.src;
-      }
+      // 生成结果改用服务端签名 URL 显示：重新拉取历史（服务端已落盘），
+      // 首次加载从服务器拉取并建立浏览器缓存，之后刷新直接命中缓存不再回源
+      try {
+        const h = await api.drawHistory();
+        if (h && h.rows) {
+          expiredCount.value = h.expiredCount || 0;
+          history.value = h.rows.map((row) => ({
+            id: row.id,
+            src: row.url,
+            prompt: row.prompt,
+            model: row.model,
+            size: row.size,
+            actual: row.actual,
+            mode: row.mode,
+            ts: row.created_at,
+            persisted: true,
+          }));
+        }
+      } catch (e) { /* 静默：历史拉取失败不影响生成结果展示 */ }
       // 刷新提示词历史（本次提示词已入库）
       try {
         const ph = await api.drawPrompts();

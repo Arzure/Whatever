@@ -7,8 +7,8 @@ node_modules/
 # 构建产物
 dist/
 
-# 游戏存档（本地数据）
-data/*.json
+# 运行时数据（用户数据库与生成图片，含敏感信息，不入库）
+data/
 
 # 系统文件
 .DS_Store

@@ -13,8 +13,9 @@ const size = ref('auto');
 const model = ref('');
 const busy = ref(false);
 const error = ref('');
-const result = ref(null); // { b64s: [dataUrl...] }
+const result = ref(null); // 生成结果：改用历史记录的签名 URL 显示（首次加载即建立浏览器缓存）
 const history = ref([]); // 办公助手生成历史（仅信息图/简历图）
+const preview = ref(''); // 灯箱预览的图片 URL（空串关闭）
 
 async function loadHistory() {
   try {
@@ -65,8 +66,11 @@ async function generate() {
     const params = tab.value === 'infographic'
       ? { content: content.value.trim(), layout: layoutId.value, style: styleId.value, size: size.value, model: model.value }
       : { content: content.value.trim(), style: resumeStyle.value.trim(), size: size.value, model: model.value };
-    result.value = await (tab.value === 'infographic' ? api.officeInfographic(params) : api.officeResume(params));
+    await (tab.value === 'infographic' ? api.officeInfographic(params) : api.officeResume(params));
     await loadHistory(); // 生成成功后刷新历史画廊
+    // 生成结果改用历史记录的签名 URL 显示：首次加载从服务器拉取并建立浏览器缓存，之后刷新直接命中缓存
+    const latest = history.value[0];
+    result.value = latest ? { url: latest.url, mode: latest.mode } : null;
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -151,6 +155,20 @@ async function generate() {
           >{{ s === 'auto' ? '自动' : s }}</button>
         </div>
 
+        <!-- 模型选择 -->
+        <label class="field-label">模型</label>
+        <div class="option-grid">
+          <button
+            v-for="m in config.models"
+            :key="m.id"
+            class="option"
+            :class="{ on: model === m.id }"
+            :title="m.desc"
+            @click="model = m.id"
+          >{{ m.id === 'sensenova-u1.5-fast' ? '⚡ 加速版' : '✨ 质量版' }}</button>
+        </div>
+        <p v-if="config.models?.find((m) => m.id === model)" class="option-desc">{{ config.models.find((m) => m.id === model).desc }}</p>
+
         <button class="generate" :disabled="busy" @click="generate">
           {{ busy ? '生成中…（大图约需 10-60 秒）' : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
         </button>
@@ -158,16 +176,10 @@ async function generate() {
         <p v-if="error" class="error">{{ error }}</p>
       </div>
 
-      <!-- 生成结果 -->
-      <div v-if="result && result.b64s && result.b64s.length" class="result">
+      <!-- 生成结果：签名 URL 显示，首次加载即建立浏览器缓存 -->
+      <div v-if="result && result.url" class="result">
         <label class="field-label">生成结果（已存入历史，24 小时保留）</label>
-        <img
-          v-for="(b64, i) in result.b64s"
-          :key="i"
-          class="result-img"
-          :src="`data:image/png;base64,${b64}`"
-          alt="生成结果"
-        />
+        <img class="result-img" :src="result.url" alt="生成结果" @click="preview = result.url" />
       </div>
 
       <!-- 办公助手生成历史：仅显示信息图/简历图，就地查看与删除 -->
@@ -175,7 +187,7 @@ async function generate() {
         <label class="field-label">生成历史（{{ history.length }} 张，24 小时保留）</label>
         <div class="history-grid">
           <div v-for="r in history" :key="r.id" class="history-item">
-            <img :src="r.url" class="history-img" loading="lazy" :alt="r.mode === 'infographic' ? '信息图' : '简历图'" />
+            <img :src="r.url" class="history-img" loading="lazy" :alt="r.mode === 'infographic' ? '信息图' : '简历图'" @click="preview = r.url" />
             <div class="history-meta">
               <span class="history-mode">{{ r.mode === 'infographic' ? '📈 信息图' : '📄 简历图' }}</span>
               <span class="history-model" :title="r.model">{{ r.model }}</span>
@@ -184,6 +196,11 @@ async function generate() {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 灯箱预览：点击图片放大查看，点任意处关闭 -->
+    <div v-if="preview" class="lightbox" @click="preview = ''">
+      <img :src="preview" class="lightbox-img" alt="预览" />
     </div>
   </div>
 </template>
@@ -390,5 +407,25 @@ async function generate() {
 }
 .history-del:hover {
   text-decoration: underline;
+}
+.result-img {
+  cursor: zoom-in;
+}
+/* 灯箱预览：全屏遮罩 + 图片自适应 */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+  padding: 20px;
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
 }
 </style>
