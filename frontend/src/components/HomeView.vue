@@ -305,12 +305,15 @@ const canStart = computed(() => {
   gap: 10px;
   margin-bottom: 22px;
 }
-/* 玩法入口卡片 */
+/* 玩法入口卡片：竖版布局（图标居顶、标题居中），三卡等宽对称 */
 .play-entry {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 13px 14px;
+  text-align: center;
+  gap: 6px;
+  padding: 20px 14px 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(212, 161, 44, 0.08), rgba(60, 90, 160, 0.08)), var(--panel-2);
@@ -322,18 +325,19 @@ const canStart = computed(() => {
   transform: translateY(-1px);
 }
 .play-icon {
-  font-size: 26px;
-  flex-shrink: 0;
+  font-size: 34px;
+  line-height: 1;
 }
 .play-text {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  min-width: 0;
+  align-items: center;
+  gap: 4px;
 }
 .play-text b {
   font-size: 15px;
   color: var(--text);
+  white-space: nowrap;
 }
 .play-text em {
   font-style: normal;
@@ -341,10 +345,11 @@ const canStart = computed(() => {
   color: var(--text-dim);
 }
 .play-arrow {
-  margin-left: auto;
-  font-size: 20px;
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 16px;
   color: var(--text-dim);
-  flex-shrink: 0;
 }
 /* 文字冒险表单展开过渡：淡入 + 上滑 */
 .adventure-enter-active {
