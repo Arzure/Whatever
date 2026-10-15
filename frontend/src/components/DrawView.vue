@@ -88,6 +88,11 @@ async function run() {
           mode: mode.value,
           ts,
         });
+        // 读取实际分辨率（auto 尺寸的实际输出不确定）——从响应式代理对象更新以触发视图刷新
+        const stored = history.value[0];
+        const img = new Image();
+        img.onload = () => { stored.actual = `${img.width}×${img.height}`; };
+        img.src = stored.src;
       }
     } else if (r && r.error) {
       error.value = r.error;
@@ -222,7 +227,7 @@ function useAsRef(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}</span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="下载图片">⬇ 下载</button>
@@ -241,7 +246,7 @@ function useAsRef(item) {
               <img :src="previewItem.src" :alt="previewItem.prompt" class="preview-img" />
               <div class="preview-meta">
                 <span class="gallery-prompt">{{ previewItem.prompt }}</span>
-                <span class="gallery-info">{{ previewItem.mode === 'edit' ? '编辑' : '生成' }} · {{ previewItem.model }} · {{ previewItem.size }}</span>
+                <span class="gallery-info">{{ previewItem.mode === 'edit' ? '编辑' : '生成' }} · {{ previewItem.model }} · {{ previewItem.size }}<template v-if="previewItem.actual"> · {{ previewItem.actual }}</template></span>
               </div>
               <div class="preview-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(previewItem)">以此图编辑</button>
