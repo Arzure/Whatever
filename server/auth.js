@@ -46,8 +46,9 @@ function verifyToken(token) {
   } catch (e) { return null; }
 }
 
-// —— 登录失败限速：5 次失败锁定 10 分钟（按用户名） ——
-const loginAttempts = new Map(); // username -> { fails, lockedUntil }
+// —— 登录失败限速：10 分钟窗口内连续失败 5 次锁定 10 分钟（按用户名） ——
+// 时间窗口：距上次失败超过 10 分钟则重新计数，只统计窗口内连续失败，避免历史失败累计误伤正常用户
+const loginAttempts = new Map(); // username -> { fails, lockedUntil, lastFail }
 const MAX_FAILS = 5;
 const LOCK_MS = 10 * 60 * 1000;
 function checkLock(username) {
@@ -58,9 +59,12 @@ function checkLock(username) {
   return false;
 }
 function recordFail(username) {
-  const rec = loginAttempts.get(username) || { fails: 0, lockedUntil: 0 };
+  const now = Date.now();
+  const rec = loginAttempts.get(username) || { fails: 0, lockedUntil: 0, lastFail: 0 };
+  if (rec.lastFail && now - rec.lastFail > LOCK_MS) rec.fails = 0; // 距上次失败超过窗口期，重新计数
   rec.fails += 1;
-  if (rec.fails >= MAX_FAILS) { rec.lockedUntil = Date.now() + LOCK_MS; rec.fails = 0; }
+  rec.lastFail = now;
+  if (rec.fails >= MAX_FAILS) { rec.lockedUntil = now + LOCK_MS; rec.fails = 0; rec.lastFail = 0; }
   loginAttempts.set(username, rec);
 }
 function clearFails(username) { loginAttempts.delete(username); }
