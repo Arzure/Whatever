@@ -12,7 +12,7 @@ const customModel = ref(''); // 自定义模型输入（补充预设清单）
 const size = ref('auto');
 const customW = ref(1024);
 const customH = ref(1024); // 自定义尺寸（512-4096、32 的倍数）
-const outputFormat = ref('png');
+const outputFormat = ref('webp'); // 默认 WebP：视觉质量几乎无损，体积约为 PNG 的 1/5-1/3，加载提速数倍
 const watermark = ref(false);
 const promptExtend = ref(true);
 

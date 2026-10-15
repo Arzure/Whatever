@@ -34,11 +34,12 @@ function formatExpiry(ts) {
   return h > 0 ? `${h}小时${m}分后过期` : `${m}分后过期`;
 }
 
-// 下载历史图片（签名 URL 直接另存）
+// 下载历史图片（签名 URL 直接另存，扩展名取实际文件名）
 function downloadHistory(r) {
   const a = document.createElement('a');
   a.href = r.url;
-  a.download = `${r.mode}-${r.id}.png`;
+  const ext = (r.file || '').split('.').pop() || 'png';
+  a.download = `${r.mode}-${r.id}.${ext}`;
   a.click();
 }
 
