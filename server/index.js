@@ -181,7 +181,7 @@ function saveDrawResult(req, result, modeTag) {
       } catch { /* 忽略 */ }
       storage.saveDrawHistory(user.id, { id, mode: modeTag, model, size, actual, prompt, file, bytes: buf.length });
     }
-    if (prompt) storage.saveDrawPrompt(user.id, prompt);
+    if (prompt) storage.saveDrawPrompt(user.id, prompt, p.promptSource); // 来源标记：办公内容不进绘图工作台的提示词历史
   } catch (e) {
     console.log('[draw] 历史保存失败（不影响生图）：', e.message);
   }
@@ -225,6 +225,7 @@ app.post('/api/office/infographic', async (req, res) => {
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
+  req.body.promptSource = 'office'; // 提示词记录标记办公来源（绘图工作台不再显示办公内容）
   saveDrawResult(req, result, 'infographic');
   res.json(result);
 });
@@ -239,6 +240,7 @@ app.post('/api/office/resume', async (req, res) => {
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
+  req.body.promptSource = 'office'; // 提示词记录标记办公来源（绘图工作台不再显示办公内容）
   saveDrawResult(req, result, 'resume');
   res.json(result);
 });
@@ -324,7 +326,8 @@ app.delete('/api/draw/history/:id', (req, res) => {
 app.get('/api/draw/prompts', (req, res) => {
   const user = userFromRequest(req);
   if (!user) return res.status(401).json({ error: '请先登录' });
-  res.json({ rows: storage.listDrawPrompts(user.id) });
+  const source = req.query.source === 'office' ? 'office' : 'draw'; // 按来源过滤：绘图/办公各自只看自己的提示词
+  res.json({ rows: storage.listDrawPrompts(user.id, source) });
 });
 app.delete('/api/draw/prompts/:id', (req, res) => {
   const user = userFromRequest(req);

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS draw_prompts (
   user_id TEXT NOT NULL,
   prompt TEXT NOT NULL,
   created_at INTEGER NOT NULL,
+  source TEXT,
   UNIQUE(user_id, prompt)
 );
 CREATE TABLE IF NOT EXISTS saves (
@@ -48,6 +49,8 @@ CREATE TABLE IF NOT EXISTS saves (
 );
 CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
 `);
+// 旧库迁移：draw_prompts 补充 source 字段（来源标记：draw 绘图 / office 办公）；旧记录视为绘图来源
+try { db.exec("ALTER TABLE draw_prompts ADD COLUMN source TEXT DEFAULT 'draw'"); } catch { /* 字段已存在 */ }
 // 旧库迁移：draw_history 补充 bytes 字段（文件大小，字节）；新库建表已含，重复执行会报错需忽略
 try { db.exec('ALTER TABLE draw_history ADD COLUMN bytes INTEGER'); } catch { /* 字段已存在 */ }
 
@@ -164,12 +167,16 @@ function deleteDrawHistory(userId, id) {
   return row.file;
 }
 // —— 提示词历史（持续保留，UNIQUE 去重） ——
-function saveDrawPrompt(userId, prompt) {
-  db.prepare('INSERT OR IGNORE INTO draw_prompts (id, user_id, prompt, created_at) VALUES (?, ?, ?, ?)').run(
-    `${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, userId, prompt, Date.now(),
+function saveDrawPrompt(userId, prompt, source) {
+  db.prepare('INSERT OR IGNORE INTO draw_prompts (id, user_id, prompt, created_at, source) VALUES (?, ?, ?, ?, ?)').run(
+    `${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, userId, prompt, Date.now(), source || 'draw',
   );
 }
-function listDrawPrompts(userId) {
+function listDrawPrompts(userId, source) {
+  // 按来源过滤：绘图工作台只看 draw，办公助手只看 office；不传则返回全部（兼容）
+  if (source) {
+    return db.prepare('SELECT id, prompt, created_at FROM draw_prompts WHERE user_id = ? AND source = ? ORDER BY created_at DESC LIMIT 50').all(userId, source);
+  }
   return db.prepare('SELECT id, prompt, created_at FROM draw_prompts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(userId);
 }
 function deleteDrawPrompt(userId, id) {

@@ -125,6 +125,16 @@ async function loadHistory() {
     const h = await api.drawHistory();
     history.value = (h.rows || []).filter((r) => r.mode === 'infographic' || r.mode === 'resume');
   } catch { /* 历史加载失败不阻塞主流程 */ }
+  try {
+    const p = await api.drawPrompts('office'); // 办公来源的提示词历史（与绘图工作台隔离）
+    promptHistory.value = (p.rows || []).slice(0, 10);
+  } catch { /* 静默 */ }
+}
+
+// 提示词历史：点选填入输入框
+const promptHistory = ref([]);
+function usePrompt(p) {
+  content.value = p.prompt;
 }
 
 async function removeHistory(id) {
@@ -218,6 +228,10 @@ async function generate() {
 
         <!-- 信息图 / 简历图面板 -->
         <template v-else>
+        <!-- 提示词历史：点选填入（仅办公来源） -->
+        <div v-if="promptHistory.length && tab !== 'chart'" class="prompt-tags">
+          <button v-for="p in promptHistory" :key="p.id" class="prompt-tag" :title="p.prompt" @click="usePrompt(p)">{{ p.prompt.slice(0, 18) }}…</button>
+        </div>
         <!-- 内容输入 -->
         <label class="field-label">{{ tab === 'infographic' ? '信息图内容（主题、要点、数据）' : '简历内容（姓名、经历、技能、联系方式等）' }}</label>
         <textarea
@@ -528,6 +542,30 @@ async function generate() {
   color: var(--text, #eee);
   white-space: pre-wrap;
   margin: 0;
+}
+/* 提示词历史标签 */
+.prompt-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.prompt-tag {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border, #444);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prompt-tag:hover {
+  border-color: #7c6cf0;
+  color: var(--text, #eee);
 }
 .history {
   margin-top: 22px;
