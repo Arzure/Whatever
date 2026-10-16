@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { api } from '../api';
 
 // 办公助手（阶段 1）：信息图 + 简历图。提示词体系由服务端组装，前端只负责选项与展示
-const tab = ref('infographic'); // infographic | resume
+const tab = ref('infographic'); // infographic | resume | chart
 const config = ref({ layouts: [], styles: [], infographicSizes: [], resumeSizes: [], defaultModel: '' });
 const content = ref(''); // 信息图内容 / 简历文本
 const layoutId = ref('');
@@ -16,6 +16,52 @@ const error = ref('');
 const result = ref(null); // 生成结果：改用历史记录的签名 URL 显示（首次加载即建立浏览器缓存）
 const history = ref([]); // 办公助手生成历史（仅信息图/简历图）
 const preview = ref(''); // 灯箱预览的图片 URL（空串关闭）
+// 图表解读：上传的图片 Data URL + 可选提问 + 解读结果
+const chartImage = ref('');
+const chartQuestion = ref('');
+const chartResult = ref('');
+const chartBusy = ref(false);
+
+// 图表解读：选择文件 → 转 Base64 Data URL 预览
+function onChartFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+    error.value = '仅支持 png/jpeg/webp 图片';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    error.value = '图片过大（超过 8MB）';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    chartImage.value = reader.result;
+    chartResult.value = '';
+    error.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+// 图表解读：调用多模态模型解读
+async function interpretChart() {
+  if (chartBusy.value) return;
+  if (!chartImage.value) {
+    error.value = '请先上传图表图片';
+    return;
+  }
+  chartBusy.value = true;
+  error.value = '';
+  chartResult.value = '';
+  try {
+    const r = await api.officeChart({ image: chartImage.value, question: chartQuestion.value.trim() });
+    chartResult.value = r.text || '';
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    chartBusy.value = false;
+  }
+}
 
 // 历史剩余时限：按生成时间动态计算（每分钟刷新时钟），与绘图工作台逻辑一致
 const nowTick = ref(Date.now());
@@ -149,9 +195,29 @@ async function generate() {
       <div class="tabs">
         <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
         <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
+        <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
       </div>
 
       <div class="panel">
+        <!-- 图表解读面板 -->
+        <template v-if="tab === 'chart'">
+          <label class="field-label">上传图表图片（png/jpeg/webp，8MB 内）</label>
+          <input type="file" accept="image/png,image/jpeg,image/webp" class="chart-file" @change="onChartFile" />
+          <img v-if="chartImage" :src="chartImage" class="chart-preview" alt="图表预览" />
+          <label class="field-label">想重点了解什么（可选）</label>
+          <input v-model="chartQuestion" class="style-input" placeholder="示例：第三季度的下滑是什么原因？" maxlength="500" />
+          <button class="generate" :disabled="chartBusy" @click="interpretChart">
+            {{ chartBusy ? '解读中…（约需 10-30 秒）' : '开始解读' }}
+          </button>
+          <p v-if="error" class="error">{{ error }}</p>
+          <div v-if="chartResult" class="chart-result">
+            <label class="field-label">解读结果</label>
+            <p class="chart-text">{{ chartResult }}</p>
+          </div>
+        </template>
+
+        <!-- 信息图 / 简历图面板 -->
+        <template v-else>
         <!-- 内容输入 -->
         <label class="field-label">{{ tab === 'infographic' ? '信息图内容（主题、要点、数据）' : '简历内容（姓名、经历、技能、联系方式等）' }}</label>
         <textarea
@@ -231,6 +297,7 @@ async function generate() {
         </button>
         <p class="model-line">当前模型：{{ model }}</p>
         <p v-if="error" class="error">{{ error }}</p>
+        </template>
       </div>
 
       <!-- 生成结果：签名 URL 显示，首次加载即建立浏览器缓存 -->
@@ -428,6 +495,39 @@ async function generate() {
   font-size: 12px;
   color: var(--text-dim);
   margin: 10px 0 0;
+}
+/* 图表解读面板 */
+.chart-file {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 8px;
+  border: 1px dashed var(--border, #444);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.chart-preview {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #444);
+  margin-top: 10px;
+  display: block;
+}
+.chart-result {
+  margin-top: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border, #444);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.chart-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text, #eee);
+  white-space: pre-wrap;
+  margin: 0;
 }
 .history {
   margin-top: 22px;

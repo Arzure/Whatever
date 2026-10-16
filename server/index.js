@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { loadEnv } = require('./config');
-const { isConfigured, llmConfig } = require('./llm');
+const { isConfigured, llmConfig, chat: llmChat } = require('./llm');
 const storage = require('./storage');
 const image = require('./image');
 const { authenticate, userFromRequest } = require('./auth');
@@ -19,6 +19,8 @@ const PORT = process.env.PORT || 3001;
 
 // 绘图路由单独放宽请求体上限：图片编辑需上传参考图 Base64（5 张可达数十 MB）
 app.use('/api/draw', express.json({ limit: '40mb' }));
+// 办公助手单独放宽：图表解读需上传图片 Base64（单张限制 12MB，与绘图参考图一致）
+app.use('/api/office', express.json({ limit: '20mb' }));
 app.use(express.json({ limit: '64kb' }));
 
 // CORS：Access-Control-Allow-Origin 取 FRONTEND_ORIGIN（默认 localhost:5173）。
@@ -239,6 +241,33 @@ app.post('/api/office/resume', async (req, res) => {
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
   saveDrawResult(req, result, 'resume');
   res.json(result);
+});
+// 图表解读：上传图表截图 → 多模态模型解读数据趋势/异常点/结论建议（自由文本输出，不入绘图历史）
+app.post('/api/office/chart', async (req, res) => {
+  const p = req.body || {};
+  const image = String(p.image || '');
+  if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) {
+    return res.status(400).json({ error: '请上传有效的图表图片（png/jpeg/webp）' });
+  }
+  if (image.length > 12 * 1024 * 1024) return res.status(400).json({ error: '图片过大（Base64 超过 12MB）' });
+  const question = String(p.question || '').trim().slice(0, 500);
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    const content = [
+      { type: 'text', text: '你是数据分析专家。请解读这张图表：1) 说明图表类型与展示的内容；2) 概述主要数据与趋势；3) 指出值得注意的异常点或拐点；4) 给出简明的结论与建议。使用中文，条理清晰，总长不超过 500 字。' + (question ? `\n\n用户特别关注的问题：${question}` : '') },
+      { type: 'image_url', image_url: { url: image } },
+    ];
+    const text = await llmChat([{ role: 'user', content }], {
+      responseFormat: null, // 自由文本输出（参数化后支持）
+      reasoningEffort: 'none',
+      temperature: 0.4,
+      maxTokens: 2000,
+      timeoutMs: 120000, // 多模态解读较慢，放宽超时
+    });
+    res.json({ text });
+  } catch (e) {
+    res.status(500).json({ error: `解读失败：${e.message}` });
+  }
 });
 
 // —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库）与提示词历史（持续保留） ——
