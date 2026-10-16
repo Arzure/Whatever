@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  is_admin INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS draw_history (
   id TEXT PRIMARY KEY,
@@ -49,6 +50,8 @@ CREATE TABLE IF NOT EXISTS saves (
 );
 CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
 `);
+// 旧库迁移：users 补充 is_admin 字段（管理员标记，默认 0；管理员由 .env 的 ADMIN_USERNAMES 指定）
+try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0'); } catch { /* 字段已存在 */ }
 // 旧库迁移：draw_prompts 补充 source 字段（来源标记：draw 绘图 / office 办公）；旧记录视为绘图来源
 try { db.exec("ALTER TABLE draw_prompts ADD COLUMN source TEXT DEFAULT 'draw'"); } catch { /* 字段已存在 */ }
 // 旧库迁移：draw_history 补充 bytes 字段（文件大小，字节）；新库建表已含，重复执行会报错需忽略
@@ -183,18 +186,49 @@ function deleteDrawPrompt(userId, id) {
   db.prepare('DELETE FROM draw_prompts WHERE id = ? AND user_id = ?').run(id, userId);
 }
 function deleteUserCascade(userId) {
-  // 事务：先删该用户全部存档，再删用户本身——要么全成功要么全回滚
+  // 事务：先删该用户全部关联数据（存档、绘图历史、提示词），再删用户本身——要么全成功要么全回滚
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM saves WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM draw_history WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM draw_prompts WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   });
   tx();
+}
+
+// —— 管理员功能（第一期：用户管理）——
+/** 用户列表（管理界面用）：含存档数、绘图历史数、最近活跃时间（各表该用户最新记录时间，无则用注册时间） */
+function listUsersForAdmin() {
+  return db.prepare(`
+    SELECT u.id, u.username, u.is_admin, u.created_at,
+      (SELECT COUNT(*) FROM saves WHERE user_id = u.id) AS save_count,
+      (SELECT COUNT(*) FROM draw_history WHERE user_id = u.id) AS draw_count,
+      (SELECT MAX(updated_at) FROM saves WHERE user_id = u.id) AS last_save_at,
+      (SELECT MAX(created_at) FROM draw_history WHERE user_id = u.id) AS last_draw_at
+    FROM users u ORDER BY u.created_at DESC
+  `).all();
+}
+/** 按用户名设置管理员标记（管理员由 .env 的 ADMIN_USERNAMES 指定，服务启动时同步） */
+function setAdminByUsername(username, isAdmin) {
+  db.prepare('UPDATE users SET is_admin = ? WHERE username = ?').run(isAdmin ? 1 : 0, username);
+}
+/** 按 ID 查用户（管理操作前确认存在） */
+function findUserById(id) {
+  return db.prepare('SELECT id, username, is_admin, created_at FROM users WHERE id = ?').get(id);
+}
+/** 管理员重置用户密码 */
+function adminResetPassword(userId, newHash) {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, userId);
 }
 
 module.exports = {
   db,
   hashPassword,
   verifyPassword,
+  listUsersForAdmin,
+  setAdminByUsername,
+  findUserById,
+  adminResetPassword,
   createUser,
   findUserByName,
   getUserById,

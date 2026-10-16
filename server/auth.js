@@ -80,7 +80,7 @@ function authenticate(username, password) {
   clearFails(username);
   const now = Date.now();
   const token = sign({ uid: user.id, username: user.username, iat: now, exp: now + TOKEN_TTL_MS });
-  return { token, user: { id: user.id, username: user.username } };
+  return { token, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin } };
 }
 
 // —— 从请求中解析当前用户（Authorization: Bearer <token>） ——

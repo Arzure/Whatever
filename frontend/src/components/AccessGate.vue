@@ -82,7 +82,7 @@ onMounted(probe);
       />
       <p v-if="errorMsg" class="gate-error">{{ errorMsg }}</p>
       <button class="gate-btn" :disabled="verifying" @click="submit">
-        {{ verifying ? '验证中…' : '进入游戏' }}
+        {{ verifying ? '验证中…' : '进入万象工坊' }}
       </button>
     </div>
   </div>

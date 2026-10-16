@@ -5,7 +5,7 @@ const { loadEnv } = require('./config');
 const { isConfigured, llmConfig, chat: llmChat } = require('./llm');
 const storage = require('./storage');
 const image = require('./image');
-const { authenticate, userFromRequest } = require('./auth');
+const { authenticate, userFromRequest, hashPassword } = require('./auth');
 const themes = require('./themes');
 const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
@@ -14,6 +14,28 @@ const office = require('./office');
 const excel = require('./excel');
 
 loadEnv();
+
+// —— 管理员功能（第一期：用户管理）——
+// 管理员由 .env 的 ADMIN_USERNAMES 指定（逗号分隔用户名），服务启动时同步标记到数据库
+// 同步策略：名单内的标记为管理员；名单外的清掉标记（改配置重启即生效，撤销即时）
+function syncAdminFlags() {
+  const names = String(process.env.ADMIN_USERNAMES || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const all = storage.listUsersForAdmin();
+  for (const u of all) {
+    const should = names.includes(u.username) ? 1 : 0;
+    if (u.is_admin !== should) storage.setAdminByUsername(u.username, should);
+  }
+  if (names.length) console.log(`[管理] 管理员已同步: ${names.join(', ')}`);
+}
+syncAdminFlags();
+// 管理员鉴权：JWT 解出用户 → 每次查库确认 is_admin（不进 JWT，撤销即时生效）
+function requireAdmin(req, res, next) {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const row = storage.findUserById(user.id);
+  if (!row || !row.is_admin) return res.status(403).json({ error: '需要管理员权限' });
+  next();
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -477,6 +499,30 @@ app.post('/api/auth/delete', (req, res) => {
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, llm: isConfigured() });
+});
+
+// —— 管理员接口（第一期：用户管理；均需 requireAdmin，且受口令 + JWT 双重保护）——
+// 用户列表：用户名、注册时间、存档数、绘图历史数、最近活跃
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  res.json({ rows: storage.listUsersForAdmin() });
+});
+// 删除用户：级联删除存档/绘图历史/提示词；禁止删除自己（防止删掉唯一管理员）
+app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const user = userFromRequest(req);
+  const target = storage.findUserById(req.params.id);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  if (target.id === user.id) return res.status(400).json({ error: '不能删除自己的账号' });
+  storage.deleteUserCascade(target.id);
+  res.json({ ok: true, deleted: target.username });
+});
+// 重置用户密码：管理员设置新密码（6-64 位）
+app.post('/api/admin/users/:id/reset-password', requireAdmin, (req, res) => {
+  const target = storage.findUserById(req.params.id);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  const newPwd = String(req.body?.password || '');
+  if (newPwd.length < 6 || newPwd.length > 64) return res.status(400).json({ error: '新密码需 6-64 位' });
+  storage.adminResetPassword(target.id, hashPassword(newPwd));
+  res.json({ ok: true, reset: target.username });
 });
 
 // 可用游戏模式
