@@ -330,4 +330,44 @@ async function doReset() {
 .session-row:last-child {
   border-bottom: none;
 }
+/* 手机端适配：7 列表格改卡片式布局（每用户一张卡片，信息纵向排列），头部紧凑化 */
+@media (max-width: 640px) {
+  .admin-header {
+    gap: 8px;
+  }
+  .admin-header h2 {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  .back, .refresh {
+    padding: 5px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  /* 表头行隐藏；数据行改卡片 */
+  .table-head {
+    display: none;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    align-items: center;
+    padding: 12px 14px;
+  }
+  .row .name {
+    width: 100%;
+    font-size: 15px;
+  }
+  .row .ops {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .row > span:not(.name):not(.ops) {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+}
 </style>

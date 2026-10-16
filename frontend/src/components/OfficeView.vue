@@ -771,6 +771,38 @@ async function generate() {
 .history-btn.danger:hover {
   border-color: #ff7d7d;
 }
+/* 手机端适配：头部紧凑化、历史条目纵向堆叠、结果区紧凑 */
+@media (max-width: 480px) {
+  .office-header {
+    gap: 8px;
+  }
+  .office-header h2 {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  .office-header .hint {
+    display: none; /* 副标题窄屏隐藏，避免单字换行 */
+  }
+  .back {
+    padding: 5px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .tabs button {
+    font-size: 13px;
+    padding: 8px 4px;
+  }
+  .history-item {
+    flex-direction: column; /* 历史条目纵向堆叠：缩略图在上信息在下 */
+  }
+  .history-img {
+    width: 100%;
+    max-height: 200px;
+  }
+  .chart-preview {
+    max-height: 220px;
+  }
+}
 .result-img {
   cursor: zoom-in;
 }
