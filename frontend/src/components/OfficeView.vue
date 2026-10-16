@@ -164,7 +164,22 @@ function switchTab(t) {
   error.value = '';
   result.value = null;
   size.value = 'auto';
+  // 简历标签页：输入框为空时自动填入最佳实践示例——可直接生成体验效果，也可在示例上改成自己的内容
+  if (t === 'resume' && !content.value.trim()) {
+    content.value = RESUME_SAMPLE;
+  }
 }
+
+// 简历最佳实践示例（实测验证过的格式：每行一个条目，短句经历）
+const RESUME_SAMPLE = [
+  '姓名：王芳',
+  '职位：UI/UX 设计师',
+  '教育：中国美术学院 视觉传达设计 2017-2021',
+  '经历：腾讯 高级UI设计师 2021-2026',
+  '经历：主导多个亿级用户产品的界面改版与设计系统搭建',
+  '技能：Figma Sketch Principle 交互设计',
+  '联系方式：wangfang@example.com',
+].join('\n');
 
 async function generate() {
   if (busy.value) return;
@@ -240,7 +255,7 @@ async function generate() {
           rows="8"
           :placeholder="tab === 'infographic'
             ? '示例：\n主题：2026 年 AI 发展趋势\n要点：\n1. 多模态成为主流…\n2. Agent 能力快速进化…\n3. 端侧模型普及…'
-            : '示例（每行一个条目，内容会逐字渲染到图中）：\n姓名：李华\n职位：后端工程师\n教育：上海交通大学 软件工程 2018-2022\n经历：字节跳动 后端工程师 2022-2026\n技能：Java Spring MySQL Redis Docker\n邮箱：lihua@example.com'"
+            : '每行一个条目（姓名/职位/教育/经历/技能/联系方式），已预填示例可直接生成，改成自己的内容即可'"
           :maxlength="4000"
         ></textarea>
         <div class="char-count">{{ content.length }} / 4000</div>
