@@ -16,6 +16,9 @@ loadEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+// 监听地址：生产默认仅本机回环（127.0.0.1）——外部流量一律走 Caddy 反代，公网无法直连后端（纵深防御）
+// 开发模式（NODE_ENV != production）监听所有网卡，便于本机浏览器直接访问调试
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
 
 // 绘图路由单独放宽请求体上限：图片编辑需上传参考图 Base64（5 张可达数十 MB）
 app.use('/api/draw', express.json({ limit: '40mb' }));
@@ -301,8 +304,25 @@ app.get('/api/draw/history', (req, res) => {
     expiredCount: expired.length, // 本次访问清理的过期图片数量（前端据此提示用户）
   });
 });
+// 图片访问限速（按 IP，宽松阈值）：每分钟 120 次（平均每秒 2 次）——正常浏览画廊完全无感，仅拦截脚本狂刷
+const imgRate = new Map(); // ip -> { count, windowStart }
+const IMG_RATE_LIMIT = 120;
+const IMG_RATE_WINDOW_MS = 60 * 1000;
+function imgRateAllow(ip) {
+  const now = Date.now();
+  let rec = imgRate.get(ip);
+  if (!rec || now - rec.windowStart >= IMG_RATE_WINDOW_MS) {
+    rec = { count: 0, windowStart: now };
+    imgRate.set(ip, rec);
+  }
+  rec.count += 1;
+  return rec.count <= IMG_RATE_LIMIT;
+}
 // 图片文件访问：短期签名校验（img 标签无 JWT 头，靠 URL 签名鉴权；仍按用户隔离）
 app.get('/api/draw/file/:name', (req, res) => {
+  if (!imgRateAllow(req.ip || 'unknown')) {
+    return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+  }
   const name = path.basename(String(req.params.name || ''));
   const { uid, exp, sig } = req.query;
   if (!verifyDrawFileSig(String(uid || ''), name, String(exp || ''), String(sig || ''))) {
@@ -898,8 +918,8 @@ app.post('/api/games/:id/action', async (req, res) => {
 const dist = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(dist));
 
-app.listen(PORT, () => {
-  console.log(`[文字冒险] 服务已启动: http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[文字冒险] 服务已启动: http://${HOST}:${PORT}`);
   console.log(`[文字冒险] LLM 配置状态: ${isConfigured() ? '已配置' : '未配置（请填写 .env）'}`);
   if (isConfigured()) {
     const cfg = llmConfig();
