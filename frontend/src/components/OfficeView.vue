@@ -789,8 +789,9 @@ async function generate() {
     white-space: nowrap;
   }
   .tabs button {
-    font-size: 13px;
-    padding: 8px 4px;
+    font-size: 12px;
+    padding: 8px 2px;
+    white-space: nowrap; /* 禁止换行：『Excel 分析』等标签文字在窄屏单字挂行不美观 */
   }
   .history-item {
     flex-direction: column; /* 历史条目纵向堆叠：缩略图在上信息在下 */

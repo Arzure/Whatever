@@ -351,23 +351,26 @@ async function doReset() {
   .row {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 12px;
+    gap: 4px 10px;
     align-items: center;
     padding: 12px 14px;
   }
   .row .name {
     width: 100%;
     font-size: 15px;
+    margin-bottom: 2px;
   }
   .row .ops {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
-    margin-top: 4px;
+    margin-top: 6px;
   }
+  /* 信息项：紧凑标签式（小字灰色），整齐两行流式排列 */
   .row > span:not(.name):not(.ops) {
     font-size: 12px;
     color: var(--text-dim);
+    white-space: nowrap;
   }
 }
 </style>
