@@ -103,13 +103,18 @@ app.use('/api', (req, res, next) => {
   }
   const provided = req.headers['x-access-token'];
   if (provided !== token) {
-    const now = Date.now();
-    const r = accessFails.get(ip) || { fails: 0, lockedUntil: 0, lastFail: 0 };
-    if (r.lastFail && now - r.lastFail > ACCESS_LOCK_MS) r.fails = 0; // 距上次失败超过窗口期，重新计数
-    r.fails += 1;
-    r.lastFail = now;
-    if (r.fails >= ACCESS_MAX_FAILS) { r.lockedUntil = now + ACCESS_LOCK_MS; r.fails = 0; r.lastFail = 0; }
-    accessFails.set(ip, r);
+    // 限速计数只针对『带错误口令』的请求（暴力穷举特征）；
+    // 无口令头的请求（浏览器首次访问/前端探测）是正常流程，不计失败——
+    // 否则快速刷新页面的探测请求会累积失败锁定 IP，导致正确口令也被拒（实际发生过）
+    if (provided !== undefined) {
+      const now = Date.now();
+      const r = accessFails.get(ip) || { fails: 0, lockedUntil: 0, lastFail: 0 };
+      if (r.lastFail && now - r.lastFail > ACCESS_LOCK_MS) r.fails = 0; // 距上次失败超过窗口期，重新计数
+      r.fails += 1;
+      r.lastFail = now;
+      if (r.fails >= ACCESS_MAX_FAILS) { r.lockedUntil = now + ACCESS_LOCK_MS; r.fails = 0; r.lastFail = 0; }
+      accessFails.set(ip, r);
+    }
     return res.status(401).json({ error: '访问口令缺失或不正确，请输入正确的访问口令' });
   }
   if (rec) accessFails.delete(ip); // 验证成功，清零失败计数
