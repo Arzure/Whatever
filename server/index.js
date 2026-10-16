@@ -304,9 +304,9 @@ app.get('/api/draw/history', (req, res) => {
     expiredCount: expired.length, // 本次访问清理的过期图片数量（前端据此提示用户）
   });
 });
-// 图片访问限速（按 IP，宽松阈值）：每分钟 120 次（平均每秒 2 次）——正常浏览画廊完全无感，仅拦截脚本狂刷
+// 图片访问限速（按 IP，宽松阈值）：每分钟 200 次——正常浏览画廊完全无感，仅拦截脚本狂刷
 const imgRate = new Map(); // ip -> { count, windowStart }
-const IMG_RATE_LIMIT = 120;
+const IMG_RATE_LIMIT = 200;
 const IMG_RATE_WINDOW_MS = 60 * 1000;
 function imgRateAllow(ip) {
   const now = Date.now();
