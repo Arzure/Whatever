@@ -54,7 +54,6 @@ const displayUsername = computed(() => {
 });
 // —— 账号设置 ——
 const showSettings = ref(false);
-const showAdmin = ref(false); // 管理界面浮层（仅管理员顶栏入口可见）
 function onRenamed(user) {
   authUser.value = user;
 }
@@ -106,7 +105,7 @@ async function deleteSave(s) {
         <header class="app-bar">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
-          <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="showAdmin = true">🛡 管理</button>
+          <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'">🛡 管理</button>
           <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
           <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
           <button class="app-bar-logout" @click="logout">退出登录</button>
@@ -118,7 +117,7 @@ async function deleteSave(s) {
           <DeductionView v-else-if="game.state.mode === 'deduction'" />
           <DrawView v-else-if="game.state.view === 'draw'" />
           <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
-          <AdminView v-if="showAdmin" @back="showAdmin = false" />
+          <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
           <WorldView v-else />
         </div>
       </div>
