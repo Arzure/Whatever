@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS saves (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS online_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  login_at INTEGER NOT NULL,
+  last_active_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_online_sessions_user ON online_sessions(user_id, login_at DESC);
 `);
 // 旧库迁移：users 补充 is_admin 字段（管理员标记，默认 0；管理员由 .env 的 ADMIN_USERNAMES 指定）
 try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0'); } catch { /* 字段已存在 */ }
@@ -220,6 +227,21 @@ function findUserById(id) {
 function adminResetPassword(userId, newHash) {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, userId);
 }
+// —— 在线会话记录（管理员界面用）——
+/** 记录一次上线：新开一行；若该用户已有未关闭的会话（最近 10 分钟内活跃过）则续写而非新开 */
+function recordOnlineSession(userId) {
+  const now = Date.now();
+  const open = db.prepare('SELECT id FROM online_sessions WHERE user_id = ? AND last_active_at > ? ORDER BY login_at DESC LIMIT 1').get(userId, now - 10 * 60 * 1000);
+  if (open) {
+    db.prepare('UPDATE online_sessions SET last_active_at = ? WHERE id = ?').run(now, open.id);
+  } else {
+    db.prepare('INSERT INTO online_sessions (user_id, login_at, last_active_at) VALUES (?, ?, ?)').run(userId, now, now);
+  }
+}
+/** 查询用户在线历史（最近 50 次会话：上线时间 + 最后活跃时间） */
+function listOnlineSessions(userId) {
+  return db.prepare('SELECT login_at, last_active_at FROM online_sessions WHERE user_id = ? ORDER BY login_at DESC LIMIT 50').all(userId);
+}
 
 module.exports = {
   db,
@@ -229,6 +251,8 @@ module.exports = {
   setAdminByUsername,
   findUserById,
   adminResetPassword,
+  recordOnlineSession,
+  listOnlineSessions,
   createUser,
   findUserByName,
   getUserById,

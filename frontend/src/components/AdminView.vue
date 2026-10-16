@@ -12,6 +12,9 @@ const deleteConfirmName = ref('');
 // 重置密码状态：目标用户 + 新密码
 const resetTarget = ref(null);
 const newPassword = ref('');
+// 在线历史状态：目标用户 + 会话列表
+const sessionTarget = ref(null);
+const sessionRows = ref([]);
 
 async function load() {
   loading.value = true;
@@ -23,6 +26,18 @@ async function load() {
     error.value = e.message;
   } finally {
     loading.value = false;
+  }
+}
+
+// 查看用户在线历史
+async function showSessions(r) {
+  sessionTarget.value = r;
+  sessionRows.value = [];
+  try {
+    const res = await api.adminUserSessions(r.id);
+    sessionRows.value = res.rows || [];
+  } catch (e) {
+    error.value = e.message;
   }
 }
 
@@ -84,15 +99,17 @@ async function doReset() {
 
     <div v-if="rows.length" class="user-table">
       <div class="table-head row">
-        <span>用户名</span><span>注册时间</span><span>存档</span><span>绘图</span><span>最近活跃</span><span>操作</span>
+        <span>用户名</span><span>状态</span><span>注册时间</span><span>存档</span><span>绘图</span><span>最近活跃</span><span>操作</span>
       </div>
       <div v-for="r in rows" :key="r.id" class="row" :class="{ admin: r.is_admin }">
         <span class="name">{{ r.username }}{{ r.is_admin ? ' 🛡' : '' }}</span>
+        <span><i class="dot" :class="r.online ? 'on' : 'off'"></i>{{ r.online ? '在线' : '离线' }}</span>
         <span>{{ fmt(r.created_at) }}</span>
         <span>{{ r.save_count }}</span>
         <span>{{ r.draw_count }}</span>
         <span>{{ lastActive(r) }}</span>
         <span class="ops">
+          <button class="op" @click="showSessions(r)">在线历史</button>
           <button class="op" @click="resetTarget = r">重置密码</button>
           <button v-if="!r.is_admin" class="op danger" @click="deleteTarget = r; deleteConfirmName = ''">删除</button>
         </span>
@@ -122,6 +139,23 @@ async function doReset() {
         <div class="modal-ops">
           <button class="op" @click="doReset">确认重置</button>
           <button class="op" @click="resetTarget = null">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 在线历史浮层 -->
+    <div v-if="sessionTarget" class="overlay" @click.self="sessionTarget = null">
+      <div class="modal sessions">
+        <h3>「{{ sessionTarget.username }}」的在线历史</h3>
+        <p v-if="!sessionRows.length" class="warn">暂无记录</p>
+        <div v-else class="session-list">
+          <div v-for="(s, i) in sessionRows" :key="i" class="session-row">
+            <span>上线 {{ fmt(s.login_at) }}</span>
+            <span>最后活跃 {{ fmt(s.last_active_at) }}</span>
+          </div>
+        </div>
+        <div class="modal-ops">
+          <button class="op" @click="sessionTarget = null">关闭</button>
         </div>
       </div>
     </div>
@@ -175,7 +209,7 @@ async function doReset() {
 }
 .row {
   display: grid;
-  grid-template-columns: 1.4fr 1.2fr 0.5fr 0.5fr 1.2fr 1.4fr;
+  grid-template-columns: 1.3fr 0.8fr 1.1fr 0.5fr 0.5fr 1.1fr 1.8fr;
   gap: 8px;
   align-items: center;
   padding: 10px 14px;
@@ -261,5 +295,39 @@ async function doReset() {
   gap: 10px;
   margin-top: 16px;
   justify-content: flex-end;
+}
+/* 在线状态圆点 */
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.dot.on {
+  background: #3fb950;
+  box-shadow: 0 0 4px #3fb950;
+}
+.dot.off {
+  background: #666;
+}
+/* 在线历史列表 */
+.modal.sessions {
+  width: min(440px, 92vw);
+}
+.session-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border, #333);
+}
+.session-row:last-child {
+  border-bottom: none;
 }
 </style>

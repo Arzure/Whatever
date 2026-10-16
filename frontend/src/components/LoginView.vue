@@ -40,7 +40,7 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <div class="login-card">
-      <h2 class="login-title">{{ mode === 'login' ? '玩家登录' : '注册新账号' }}</h2>
+      <h2 class="login-title">{{ mode === 'login' ? '用户登录' : '注册新账号' }}</h2>
       <p class="login-sub">登录后你的存档将保存在自己的账号下，其他人不可见</p>
 
       <div class="login-form" @keyup.enter="submit">

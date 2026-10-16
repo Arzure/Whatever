@@ -37,8 +37,29 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// —— 用户活跃追踪（管理员界面用）——
+// 在线判定：最近 5 分钟内有请求视为在线（心跳由各请求顺带记录，无需前端专门上报）
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const lastSeen = new Map(); // userId -> 最近请求时间戳
+// 在线历史：每次会话（从离线到在线的转变）入库一行，供管理员回看
+function trackActivity(req, res, next) {
+  const user = userFromRequest(req);
+  if (user) {
+    const prev = lastSeen.get(user.id) || 0;
+    const now = Date.now();
+    // 从离线（或首次）转为在线：记录一次上线
+    if (now - prev > ONLINE_WINDOW_MS) {
+      storage.recordOnlineSession(user.id);
+    }
+    lastSeen.set(user.id, now);
+  }
+  next();
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
+// 用户活跃追踪：挂在所有 /api 请求上（心跳顺带记录，无需前端专门上报）
+app.use('/api', trackActivity);
 // 监听地址：生产默认仅本机回环（127.0.0.1）——外部流量一律走 Caddy 反代，公网无法直连后端（纵深防御）
 // 开发模式（NODE_ENV != production）监听所有网卡，便于本机浏览器直接访问调试
 const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
@@ -502,9 +523,21 @@ app.get('/api/health', (req, res) => {
 });
 
 // —— 管理员接口（第一期：用户管理；均需 requireAdmin，且受口令 + JWT 双重保护）——
-// 用户列表：用户名、注册时间、存档数、绘图历史数、最近活跃
+// 用户列表：用户名、注册时间、存档数、绘图历史数、在线状态、最近活跃、在线历史
 app.get('/api/admin/users', requireAdmin, (req, res) => {
-  res.json({ rows: storage.listUsersForAdmin() });
+  const now = Date.now();
+  const rows = storage.listUsersForAdmin().map((u) => ({
+    ...u,
+    online: now - (lastSeen.get(u.id) || 0) < ONLINE_WINDOW_MS, // 在线状态：最近 5 分钟内有请求
+    last_seen: lastSeen.get(u.id) || null, // 最近活跃（本次服务运行期内）
+  }));
+  res.json({ rows });
+});
+// 用户在线历史：该用户的历次上线记录（时间 + 时长）
+app.get('/api/admin/users/:id/sessions', requireAdmin, (req, res) => {
+  const target = storage.findUserById(req.params.id);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  res.json({ rows: storage.listOnlineSessions(target.id) });
 });
 // 删除用户：级联删除存档/绘图历史/提示词；禁止删除自己（防止删掉唯一管理员）
 app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {

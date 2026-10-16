@@ -122,6 +122,7 @@ export const api = {
   officeChart: (params) => request('/office/chart', { method: 'POST', body: JSON.stringify(params) }),
   officeExcel: (params) => request('/office/excel', { method: 'POST', body: JSON.stringify(params) }),
   adminUsers: () => request('/admin/users'),
+  adminUserSessions: (id) => request(`/admin/users/${id}/sessions`),
   adminDeleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
   adminResetPassword: (id, password) => request(`/admin/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
   drawPrompts: (source) => request(`/draw/prompts${source ? `?source=${source}` : ''}`),

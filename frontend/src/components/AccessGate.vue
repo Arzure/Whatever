@@ -17,22 +17,28 @@ const verifying = ref(false);
 // 探测中标记：验证完成前不渲染游戏内容，避免首页在口令验证前发起请求导致 401 错误残留
 const probing = ref(true);
 
-async function probe() {
+async function probe(retries = 2) {
   try {
     // 任意受保护接口做探测；401 会在此抛出
     await api.listModes();
     authed.value = true;
   } catch (e) {
-    // 401 → 需要口令；其他错误（后端没起）也显示入口便于排查
-    // 按 HTTP 状态码判断（401 = 需要口令），不依赖后端文案，文案改动不会破坏识别
+    // 401 → 需要口令；按 HTTP 状态码判断，不依赖后端文案
     if (e.status === 401) {
       authed.value = false;
       showInput.value = true;
       // 口令验证前的 401 报错不应残留在游戏界面上
       if (game) game.state.error = '';
+    } else if (retries > 0) {
+      // 网络瞬断/请求被中断（快速刷新常见）：重试探测，不放行——
+      // 放行会导致未验口令就显示登录界面（后端仍会拦截，但不符合门禁预期）
+      await new Promise((r) => setTimeout(r, 300));
+      return probe(retries - 1);
     } else {
-      // 后端不可达：仍显示页面，错误条会自然提示
-      authed.value = true;
+      // 重试仍失败：显示口令输入层（保守处理——宁可多输一次口令，不可绕过门禁）
+      authed.value = false;
+      showInput.value = true;
+      if (game) game.state.error = '';
     }
   }
   probing.value = false;
@@ -82,7 +88,7 @@ onMounted(probe);
       />
       <p v-if="errorMsg" class="gate-error">{{ errorMsg }}</p>
       <button class="gate-btn" :disabled="verifying" @click="submit">
-        {{ verifying ? '验证中…' : '进入万象工坊' }}
+        {{ verifying ? '验证中…' : '进入工坊' }}
       </button>
     </div>
   </div>
