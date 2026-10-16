@@ -57,6 +57,10 @@ function trackActivity(req, res, next) {
 }
 
 const app = express();
+// 信任反向代理（Caddy）：从 X-Forwarded-For 头读取真实客户端 IP——
+// 不配置时所有经代理的请求在服务端眼里都是回环 IP（127.0.0.1），
+// 一个用户触发限速会连累全部用户被锁（实际发生过：本机测试错误口令锁定了回环 IP，所有线上用户被拒）
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
 // 用户活跃追踪：挂在所有 /api 请求上（心跳顺带记录，无需前端专门上报）
 app.use('/api', trackActivity);
