@@ -120,6 +120,7 @@ export const api = {
   officeInfographic: (params) => request('/office/infographic', { method: 'POST', body: JSON.stringify(params) }),
   officeResume: (params) => request('/office/resume', { method: 'POST', body: JSON.stringify(params) }),
   officeChart: (params) => request('/office/chart', { method: 'POST', body: JSON.stringify(params) }),
+  officeExcel: (params) => request('/office/excel', { method: 'POST', body: JSON.stringify(params) }),
   drawPrompts: (source) => request(`/draw/prompts${source ? `?source=${source}` : ''}`),
   drawPromptDelete: (id) => request(`/draw/prompts/${id}`, { method: 'DELETE' }),
   listModes: () => request('/modes'),

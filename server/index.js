@@ -11,6 +11,7 @@ const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
 const draw = require('./draw');
 const office = require('./office');
+const excel = require('./excel');
 
 loadEnv();
 
@@ -246,6 +247,37 @@ app.post('/api/office/resume', async (req, res) => {
   req.body.promptSource = 'office'; // 提示词记录标记办公来源（绘图工作台不再显示办公内容）
   saveDrawResult(req, result, 'resume');
   res.json(result);
+});
+// Excel 数据分析：上传文件 Base64 → 解析（限 5000 行）→ 对话模型分析 → 返回解读文本
+app.post('/api/office/excel', async (req, res) => {
+  const p = req.body || {};
+  const fileB64 = String(p.file || '');
+  if (!fileB64) return res.status(400).json({ error: '请上传 Excel/CSV 文件' });
+  const buf = Buffer.from(fileB64, 'base64');
+  if (buf.length > 10 * 1024 * 1024) return res.status(400).json({ error: '文件过大（超过 10MB）' });
+  const parsed = excel.parseExcel(buf);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const question = String(p.question || '').trim().slice(0, 500);
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    const prompt = excel.buildAnalysisPrompt(parsed, question);
+    const text = await llmChat([{ role: 'user', content: prompt }], {
+      responseFormat: null, // 自由文本输出
+      reasoningEffort: 'none',
+      temperature: 0.4,
+      maxTokens: 3000,
+      timeoutMs: 180000, // 数据分析较慢，放宽超时
+    });
+    res.json({
+      text,
+      meta: {
+        totalRows: parsed.totalRows,
+        sheets: parsed.sheets.map((s) => ({ name: s.name, rowCount: s.rowCount, headers: s.headers })),
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: `分析失败：${e.message}` });
+  }
 });
 // 图表解读：上传图表截图 → 多模态模型解读数据趋势/异常点/结论建议（自由文本输出，不入绘图历史）
 app.post('/api/office/chart', async (req, res) => {

@@ -21,6 +21,60 @@ const chartImage = ref('');
 const chartQuestion = ref('');
 const chartResult = ref('');
 const chartBusy = ref(false);
+// Excel 分析：上传的文件名 + Base64 + 可选提问 + 分析结果
+const excelName = ref('');
+const excelB64 = ref('');
+const excelQuestion = ref('');
+const excelResult = ref('');
+const excelMeta = ref(null); // { totalRows, sheets: [...] }
+const excelBusy = ref(false);
+
+// Excel 分析：选择文件 → 转 Base64
+function onExcelFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+    error.value = '仅支持 xlsx/xls/csv 文件';
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    error.value = '文件过大（超过 10MB）';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    // FileReader 结果去掉 Data URL 前缀，只留 Base64
+    const b64 = String(reader.result).split(',')[1] || '';
+    excelName.value = file.name;
+    excelB64.value = b64;
+    excelResult.value = '';
+    excelMeta.value = null;
+    error.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+// Excel 分析：调用对话模型分析
+async function analyzeExcel() {
+  if (excelBusy.value) return;
+  if (!excelB64.value) {
+    error.value = '请先上传 Excel/CSV 文件';
+    return;
+  }
+  excelBusy.value = true;
+  error.value = '';
+  excelResult.value = '';
+  excelMeta.value = null;
+  try {
+    const r = await api.officeExcel({ file: excelB64.value, question: excelQuestion.value.trim() });
+    excelResult.value = r.text || '';
+    excelMeta.value = r.meta || null;
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    excelBusy.value = false;
+  }
+}
 
 // 图表解读：选择文件 → 转 Base64 Data URL 预览
 function onChartFile(e) {
@@ -221,6 +275,7 @@ async function generate() {
         <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
         <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
         <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
+        <button :class="{ on: tab === 'excel' }" @click="switchTab('excel')">📊 Excel 分析</button>
       </div>
 
       <div class="panel">
@@ -238,6 +293,27 @@ async function generate() {
           <div v-if="chartResult" class="chart-result">
             <label class="field-label">解读结果</label>
             <p class="chart-text">{{ chartResult }}</p>
+          </div>
+        </template>
+
+        <!-- Excel 分析面板 -->
+        <template v-else-if="tab === 'excel'">
+          <label class="field-label">上传 Excel/CSV 文件（xlsx/xls/csv，10MB 内，限 5000 行）</label>
+          <input type="file" accept=".xlsx,.xls,.csv" class="chart-file" @change="onExcelFile" />
+          <p v-if="excelName" class="excel-name">已选择：{{ excelName }}</p>
+          <label class="field-label">想重点分析什么（可选）</label>
+          <input v-model="excelQuestion" class="style-input" placeholder="示例：哪个季度销售额最高？有什么异常？" maxlength="500" />
+          <button class="generate" :disabled="excelBusy" @click="analyzeExcel">
+            {{ excelBusy ? '分析中…（约需 20-60 秒）' : '开始分析' }}
+          </button>
+          <p v-if="error" class="error">{{ error }}</p>
+          <div v-if="excelMeta" class="chart-result">
+            <label class="field-label">数据概览</label>
+            <p class="chart-text">共 {{ excelMeta.totalRows }} 行数据；{{ excelMeta.sheets.map((s) => s.name + '（' + s.rowCount + ' 行）').join('、') }}</p>
+          </div>
+          <div v-if="excelResult" class="chart-result">
+            <label class="field-label">分析结果</label>
+            <p class="chart-text">{{ excelResult }}</p>
           </div>
         </template>
 
@@ -581,6 +657,12 @@ async function generate() {
 .prompt-tag:hover {
   border-color: #7c6cf0;
   color: var(--text, #eee);
+}
+/* Excel 分析面板 */
+.excel-name {
+  font-size: 13px;
+  color: var(--text, #eee);
+  margin: 8px 0 0;
 }
 .history {
   margin-top: 22px;
