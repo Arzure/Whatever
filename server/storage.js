@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS draw_history (
   actual TEXT,
   prompt TEXT NOT NULL,
   file TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  bytes INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_draw_history_user ON draw_history(user_id, created_at);
 CREATE TABLE IF NOT EXISTS draw_prompts (
@@ -47,6 +48,8 @@ CREATE TABLE IF NOT EXISTS saves (
 );
 CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
 `);
+// 旧库迁移：draw_history 补充 bytes 字段（文件大小，字节）；新库建表已含，重复执行会报错需忽略
+try { db.exec('ALTER TABLE draw_history ADD COLUMN bytes INTEGER'); } catch { /* 字段已存在 */ }
 
 // —— 密码哈希（scrypt，格式：salt:hash） ——
 function hashPassword(password) {
@@ -143,8 +146,8 @@ function updatePassword(userId, newPassword) {
 // —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库） ——
 const DRAW_TTL_MS = 24 * 60 * 60 * 1000;
 function saveDrawHistory(userId, item) {
-  db.prepare('INSERT OR REPLACE INTO draw_history (id, user_id, mode, model, size, actual, prompt, file, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-    item.id, userId, item.mode, item.model, item.size, item.actual || null, item.prompt, item.file, Date.now(),
+  db.prepare('INSERT OR REPLACE INTO draw_history (id, user_id, mode, model, size, actual, prompt, file, created_at, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    item.id, userId, item.mode, item.model, item.size, item.actual || null, item.prompt, item.file, Date.now(), item.bytes || null,
   );
 }
 function listDrawHistory(userId) {
@@ -152,7 +155,7 @@ function listDrawHistory(userId) {
   // 惰性清理：查询时顺带删除过期记录（文件由调用方清理）
   const expired = db.prepare('SELECT file FROM draw_history WHERE user_id = ? AND created_at < ?').all(userId, cutoff);
   db.prepare('DELETE FROM draw_history WHERE user_id = ? AND created_at < ?').run(userId, cutoff);
-  return { rows: db.prepare('SELECT id, mode, model, size, actual, prompt, file, created_at FROM draw_history WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC').all(userId, cutoff), expired };
+  return { rows: db.prepare('SELECT id, mode, model, size, actual, prompt, file, created_at, bytes FROM draw_history WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC').all(userId, cutoff), expired };
 }
 function deleteDrawHistory(userId, id) {
   const row = db.prepare('SELECT file FROM draw_history WHERE id = ? AND user_id = ?').get(id, userId);

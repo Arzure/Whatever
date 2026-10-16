@@ -46,6 +46,7 @@ onMounted(async () => {
         model: row.model,
         size: row.size,
         actual: row.actual,
+        bytes: row.bytes,
         mode: row.mode,
         ts: row.created_at,
         persisted: true,
@@ -78,6 +79,13 @@ function formatExpiry(ts) {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return h > 0 ? `${h}小时${m}分后过期` : `${m}分后过期`;
+}
+// 文件大小格式化：字节 → KB/MB
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / 1048576).toFixed(1)}MB`;
 }
 async function removePrompt(id) {
   try {
@@ -145,6 +153,7 @@ async function run() {
             model: row.model,
             size: row.size,
             actual: row.actual,
+            bytes: row.bytes,
             mode: row.mode,
             ts: row.created_at,
             persisted: true,
@@ -330,7 +339,7 @@ function useAsRef(item) {
             <img :src="item.src" :alt="item.prompt" loading="lazy" @click="openPreview(item)" title="点击预览大图" />
             <div class="gallery-meta">
               <span class="gallery-prompt" :title="item.prompt">{{ item.prompt }}</span>
-              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.persisted"> · {{ formatExpiry(item.ts) }}</template></span>
+              <span class="gallery-info">{{ item.mode === 'edit' ? '编辑' : '生成' }} · {{ item.model }} · {{ item.size }}<template v-if="item.actual"> · {{ item.actual }}</template><template v-if="item.bytes"> · {{ formatBytes(item.bytes) }}</template><template v-if="item.persisted"> · {{ formatExpiry(item.ts) }}</template></span>
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="选择格式下载">⬇ 下载</button>

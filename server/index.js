@@ -148,7 +148,8 @@ function saveDrawResult(req, result, modeTag) {
     for (const b64 of result.b64s) {
       const id = `dw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const file = `${id}.${ext}`;
-      fs.writeFileSync(path.join(DRAW_DIR, file), Buffer.from(b64, 'base64'));
+      const buf = Buffer.from(b64, 'base64');
+      fs.writeFileSync(path.join(DRAW_DIR, file), buf);
       // PNG 头解析实际分辨率（宽高在固定偏移 16/20）；WebP 解析 RIFF 头（VP8/VP8L/VP8X 三种编码）；其他格式留空由前端图片加载时读取
       let actual = null;
       try {
@@ -176,7 +177,7 @@ function saveDrawResult(req, result, modeTag) {
           }
         }
       } catch { /* 忽略 */ }
-      storage.saveDrawHistory(user.id, { id, mode: modeTag, model, size, actual, prompt, file });
+      storage.saveDrawHistory(user.id, { id, mode: modeTag, model, size, actual, prompt, file, bytes: buf.length });
     }
     if (prompt) storage.saveDrawPrompt(user.id, prompt);
   } catch (e) {

@@ -34,6 +34,14 @@ function formatExpiry(ts) {
   return h > 0 ? `${h}小时${m}分后过期` : `${m}分后过期`;
 }
 
+// 文件大小格式化：字节 → KB/MB
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / 1048576).toFixed(1)}MB`;
+}
+
 // 下载历史图片：先选格式（PNG/JPEG/WebP），画布转换后保存——无论原图什么格式都按所选格式导出
 const downloadMenu = ref(null); // 待下载项（非空时显示格式选择浮层）
 function downloadHistory(r) {
@@ -238,7 +246,7 @@ async function generate() {
           <img :src="r.url" class="history-img" loading="lazy" :alt="r.prompt" @click="preview = r.url" title="点击预览大图" />
           <div class="history-meta">
             <span class="history-prompt" :title="r.prompt">{{ r.prompt }}</span>
-            <span class="history-info">{{ r.mode === 'infographic' ? '信息图' : '简历图' }} · {{ r.model }} · {{ r.size }}<template v-if="r.actual"> · {{ r.actual }}</template> · {{ formatExpiry(r.created_at) }}</span>
+            <span class="history-info">{{ r.mode === 'infographic' ? '信息图' : '简历图' }} · {{ r.model }} · {{ r.size }}<template v-if="r.actual"> · {{ r.actual }}</template><template v-if="r.bytes"> · {{ formatBytes(r.bytes) }}</template> · {{ formatExpiry(r.created_at) }}</span>
             <div class="history-actions">
               <button class="history-btn" @click="downloadHistory(r)">⬇ 下载</button>
               <button class="history-btn danger" @click="removeHistory(r.id)">🗑 删除</button>
