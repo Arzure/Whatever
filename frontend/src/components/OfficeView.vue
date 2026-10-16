@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api } from '../api';
+import { marked } from 'marked';
 
 // 办公助手（阶段 1）：信息图 + 简历图。提示词体系由服务端组装，前端只负责选项与展示
 const tab = ref('infographic'); // infographic | resume | chart
@@ -185,6 +186,19 @@ async function loadHistory() {
   } catch { /* 静默 */ }
 }
 
+// 历史画廊按当前标签过滤：信息图标签只看信息图，简历图标签只看简历图
+const filteredHistory = computed(() => {
+  if (tab.value === 'infographic') return history.value.filter((r) => r.mode === 'infographic');
+  if (tab.value === 'resume') return history.value.filter((r) => r.mode === 'resume');
+  return [];
+});
+
+// 分析结果 Markdown 渲染（图表解读 / Excel 分析的返回文本）
+function renderMd(text) {
+  if (!text) return '';
+  return marked.parse(String(text));
+}
+
 // 提示词历史：点选填入输入框
 const promptHistory = ref([]);
 function usePrompt(p) {
@@ -292,7 +306,7 @@ async function generate() {
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="chartResult" class="chart-result">
             <label class="field-label">解读结果</label>
-            <p class="chart-text">{{ chartResult }}</p>
+            <div class="chart-text md" v-html="renderMd(chartResult)"></div>
           </div>
         </template>
 
@@ -313,7 +327,7 @@ async function generate() {
           </div>
           <div v-if="excelResult" class="chart-result">
             <label class="field-label">分析结果</label>
-            <p class="chart-text">{{ excelResult }}</p>
+            <div class="chart-text md" v-html="renderMd(excelResult)"></div>
           </div>
         </template>
 
@@ -412,9 +426,9 @@ async function generate() {
       </div>
 
       <!-- 办公助手生成历史：条目化显示，逻辑与绘图工作台画廊一致 -->
-      <div v-if="history.length" class="history">
+      <div v-if="filteredHistory.length" class="history">
         <label class="field-label">生成历史</label>
-        <div v-for="r in history" :key="r.id" class="history-item">
+        <div v-for="r in filteredHistory" :key="r.id" class="history-item">
           <img :src="r.url" class="history-img" loading="lazy" :alt="r.prompt" @click="preview = r.url" title="点击预览大图" />
           <div class="history-meta">
             <span class="history-prompt" :title="r.prompt">{{ r.prompt }}</span>
@@ -633,6 +647,31 @@ async function generate() {
   color: var(--text, #eee);
   white-space: pre-wrap;
   margin: 0;
+}
+/* Markdown 渲染结果：标题/列表/加粗等格式化显示 */
+.chart-text.md {
+  white-space: normal;
+}
+.chart-text.md :deep(h1),
+.chart-text.md :deep(h2),
+.chart-text.md :deep(h3) {
+  font-size: 15px;
+  margin: 14px 0 6px;
+  color: var(--text, #eee);
+}
+.chart-text.md :deep(ul),
+.chart-text.md :deep(ol) {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.chart-text.md :deep(li) {
+  margin: 3px 0;
+}
+.chart-text.md :deep(strong) {
+  color: #7c6cf0;
+}
+.chart-text.md :deep(p) {
+  margin: 6px 0;
 }
 /* 提示词历史标签 */
 .prompt-tags {
