@@ -469,7 +469,10 @@ app.post('/api/auth/login', (req, res) => {
 app.get('/api/auth/me', (req, res) => {
   const user = userFromRequest(req);
   if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
-  res.json({ user });
+  // 查库补管理员标记：令牌里只有用户名，刷新页面时前端用本接口恢复登录态——
+  // 不补标记的话每次刷新都会冲掉登录时存的管理员标记，管理入口消失（需重新登录才恢复）
+  const row = storage.findUserById(user.id);
+  res.json({ user: { id: user.id, username: user.username, isAdmin: !!(row && row.is_admin) } });
 });
 
 // —— 账号管理（均需验证当前密码，防止他人冒用登录态篡改） ——
