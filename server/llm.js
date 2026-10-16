@@ -24,7 +24,8 @@ async function chat(messages, opts = {}) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // 超时可传参（毫秒）：默认 60 秒；办公分析等长输出场景可按需放宽
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
 
   let res;
   try {
@@ -41,9 +42,11 @@ async function chat(messages, opts = {}) {
         max_tokens: opts.maxTokens ?? 4096,
         // 官方推荐参数（sensenova 系列）：
         // - reasoning_effort: 'none' 关闭思考模式（思考内容与输出共享 max_tokens 配额，开启会导致输出被截断/空内容）
-        // - response_format 开启结构化输出，强制模型返回合法 JSON（注意：thinking 字段不受支持，会返回 400）
+        //   办公分析等场景可传 opts.reasoningEffort: 'high' 开启思考（注意：开启思考时 max_tokens 需相应放大）
+        // - response_format 结构化输出，强制模型返回合法 JSON（注意：thinking 字段不受支持，会返回 400）
+        //   传 opts.responseFormat: null 可关闭结构化输出（自由文本，办公分析等场景）；默认开启保持既有调用方行为不变
         reasoning_effort: opts.reasoningEffort ?? 'none',
-        response_format: { type: 'json_object' },
+        ...(opts.responseFormat === null ? {} : { response_format: opts.responseFormat ?? { type: 'json_object' } }),
       }),
       signal: controller.signal,
     });
