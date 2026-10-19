@@ -105,11 +105,84 @@ function buildResumePrompt(resumeContent, style) {
   ].join('\n');
 }
 
+/**
+ * 组装报告网页化提示词（移植 sn-md-to-html-report 核心资产，MIT 协议）。
+ * 原技能是本地 Agent 多轮工作流（先写 plan.md 再写 HTML），Web 单次调用压缩为一次生成：
+ * 保留核心原则（事实保真 / 主题契合 / 设计契约 / 审查角度），省略多轮 plan 交互。
+ * content：用户提供的 Markdown 报告文本；styleHint：可选风格倾向（自由文本）。
+ */
+function buildReportPrompt(content, styleHint) {
+  const styleLine = styleHint && styleHint.trim() ? `风格倾向：${styleHint.trim()}。` : '';
+  // 提示词必须保持超精简（实测教训，重要）：sensenova-6.8-flash-lite 的指令遵循容量很小，
+  // 指令+内容总长较大时直接返回空内容——实测 626 字指令稳定失败、348 字指令稳定成功；
+  // 与开发记录中图像模型『28 行英文规则文字乱码』同源（模型容量问题，非提示词写法问题）。
+  // 故只保留一句话级的核心要求，设计细节交给模型自由发挥。
+  return [
+    '把下面的报告做成一个美观、有设计感的自包含单文件 HTML 页面：保留原文全部事实与数字，不发明内容；按主题气质设计配色与版面，避免通用模板；内联 CSS 不引外部资源，移动端无横向滚动。',
+    styleLine,
+    '只输出 HTML 文档。',
+    '---',
+    content,
+  ].join('\n');
+}
+
+/**
+ * 风格模仿（移植 sn-image-imitate 三阶段管线，MIT 协议，Web 简化为两步）：
+ * 原管线：图像标注（长描述+布局蓝图 JSON）→ 描述改写（锁定风格布局）→ 生图 → 布局审查重试。
+ * Web 简化：VLM 提取参考图风格描述 → 与新内容组装生成提示词 → 复用绘图管线。
+ * 省略布局蓝图 JSON 与审查重试（模型容量与耗时限制），保留『风格锁定 + 内容替换』核心思想。
+ * 提示词保持超精简（同 buildReportPrompt 的实测教训：指令过长模型返回空内容）。
+ */
+function buildImitateAnnotatePrompt() {
+  return '详细描述这张参考图的视觉风格，用于指导生成同风格新图：配色（主色调与氛围）、排版与字体气质、版面布局（区块数量与排布方式）、图形语言（扁平/立体/插画/照片质感）、装饰元素与整体情绪。用中文，200 字以内，只输出风格描述。';
+}
+
+function buildImitatePrompt(styleDesc, targetContent) {
+  return [
+    '按以下视觉风格生成一张新图，风格与版面布局尽量与参考图保持一致：',
+    styleDesc,
+    '---',
+    '新图的内容：',
+    targetContent,
+  ].join('\n');
+}
+
+// —— 报告结构模板（移植 sn-research-report，按读者认知任务选择模板） ——
+const REPORT_STRUCTURES = [
+  { id: 'panorama', name: '全景叙述', desc: '行业研究 / 可行性研究 / 趋势综述——建立完整心智地图', outline: '摘要（3-5 句含关键结论与核心数据）→ 背景与现状（界定范围、当前格局）→ 核心维度逐章展开（每维度自成小节）→ 综合分析（跨维度关联与洞察，不是各维度摘要）→ 结论与展望（基于证据，标注确定性程度）' },
+  { id: 'comparison', name: '对比选型', desc: '竞品分析 / 技术选型 / 消费决策——多选项中做出有据决策', outline: '摘要与推荐（直接给结论+核心理由一句话）→ 评估背景（需求场景、约束、维度定义及权重）→ 选项概览（各自定位）→ 对比矩阵（表格：行=维度，列=选项）→ 逐维度分析（矩阵承载不了的定性分析）→ 综合建议（按场景差异化）→ 风险与局限' },
+  { id: 'investigation', name: '实体调查', desc: '尽职调查 / 投资研究 / 背景调查——全面了解某对象形成判断', outline: '执行摘要（重大发现+关键风险+综合建议，可独立阅读）→ 分维度审查（业务/财务/法律/团队等按需选取）→ 重大发现汇总（红旗事项逐条列出，标注严重程度）→ 建议（明确行动依据）' },
+  { id: 'timeline', name: '时序追踪', desc: '热点事件 / 危机追踪 / 政策变化——还原事件全貌与走向', outline: '摘要（事件一句话定性+当前状态）→ 事件时间线（表格：时间/事件/关键行动方）→ 各方立场（主要利益相关方分列不混叙）→ 影响分析（已发生影响分类列出，标注程度）→ 后续走向（待观察节点与不同情景）' },
+  { id: 'academic', name: '学术综述', desc: '文献梳理——每条结论指向具体文献，争议点呈现各方代表', outline: '摘要 → 引言（背景、范围、结构）→ 研究脉络（按时间线或流派梳理）→ 方法论对比 → 核心发现综合（共识与争议）→ 研究空白与展望 → 结论 → 参考文献' },
+];
+
+/**
+ * 组装报告写作提示词（移植 sn-research-report 模板体系）。
+ * topic：研究主题；structureId：结构模板 ID；requirements：用户补充要求。
+ * 注意保持精简（模型指令容量限制，实测教训）。
+ */
+function buildReportWritePrompt(topic, structureId, requirements) {
+  const s = REPORT_STRUCTURES.find((x) => x.id === structureId) || REPORT_STRUCTURES[0];
+  const reqLine = requirements && requirements.trim() ? `补充要求：${requirements.trim()}。` : '';
+  return [
+    `围绕主题撰写一份结构完整的中文报告，采用「${s.name}」结构：${s.outline}。`,
+    reqLine,
+    '要求：观点有依据，区分事实与判断；不确定的内容明确标注，不虚构数据与来源；条理清晰，用 Markdown 格式输出。',
+    '主题：',
+    topic,
+  ].join('\n');
+}
+
 module.exports = {
   INFOGRAPHIC_LAYOUTS,
   INFOGRAPHIC_STYLES,
   INFOGRAPHIC_SIZES,
   RESUME_SIZES,
+  REPORT_STRUCTURES,
   buildInfographicPrompt,
   buildResumePrompt,
+  buildReportPrompt,
+  buildImitateAnnotatePrompt,
+  buildImitatePrompt,
+  buildReportWritePrompt,
 };

@@ -267,6 +267,7 @@ app.get('/api/office/config', (req, res) => {
     styles: office.INFOGRAPHIC_STYLES,
     infographicSizes: office.INFOGRAPHIC_SIZES,
     resumeSizes: office.RESUME_SIZES,
+    reportStructures: office.REPORT_STRUCTURES,
     defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
   });
 });
@@ -359,6 +360,96 @@ app.post('/api/office/chart', async (req, res) => {
   }
 });
 
+// 风格模仿：参考图 + 新内容 → VLM 提取风格 → 组装提示词 → 复用绘图管线（入绘图历史）
+app.post('/api/office/imitate', async (req, res) => {
+  const p = req.body || {};
+  const image = String(p.image || '');
+  if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) {
+    return res.status(400).json({ error: '请上传有效的参考图（png/jpeg/webp）' });
+  }
+  if (image.length > 12 * 1024 * 1024) return res.status(400).json({ error: '参考图过大（Base64 超过 12MB）' });
+  const targetContent = String(p.content || '').trim();
+  if (!targetContent) return res.status(400).json({ error: '请填写新图内容' });
+  if (targetContent.length > 2000) return res.status(400).json({ error: '新图内容过长（限 2000 字）' });
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    // 第一步：VLM 提取参考图风格描述（视觉多模态调用，与图表解读同管线）
+    const annotateContent = [
+      { type: 'text', text: office.buildImitateAnnotatePrompt() },
+      { type: 'image_url', image_url: { url: image } },
+    ];
+    const styleDesc = await llmChat([{ role: 'user', content: annotateContent }], {
+      responseFormat: null,
+      reasoningEffort: 'none',
+      temperature: 0.3,
+      maxTokens: 1000,
+      timeoutMs: 120000,
+    });
+    // 第二步：组装生成提示词 → 复用绘图管线
+    const prompt = office.buildImitatePrompt(String(styleDesc || '').trim(), targetContent);
+    const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false });
+    if (result.error) return res.status(400).json({ error: result.error });
+    req.body.outputFormat = 'webp';
+    req.body.prompt = targetContent.slice(0, 2000); // 历史记录保存用户原始内容
+    req.body.promptSource = 'office';
+    saveDrawResult(req, result, 'imitate');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: `风格模仿生成失败：${e.message}` });
+  }
+});
+// 报告写作：主题 + 结构模板 → 对话模型撰写 → 返回 Markdown 文字报告（不入绘图历史）
+app.post('/api/office/report-write', async (req, res) => {
+  const p = req.body || {};
+  const topic = String(p.topic || '').trim();
+  if (!topic) return res.status(400).json({ error: '请填写报告主题' });
+  if (topic.length > 2000) return res.status(400).json({ error: '主题过长（限 2000 字）' });
+  const structureId = String(p.structure || 'panorama');
+  const requirements = String(p.requirements || '').trim().slice(0, 1000);
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    const prompt = office.buildReportWritePrompt(topic, structureId, requirements);
+    const text = await llmChat([{ role: 'user', content: prompt }], {
+      responseFormat: null, // 自由文本输出（Markdown 报告）
+      reasoningEffort: 'none',
+      temperature: 0.5,
+      maxTokens: 4096,
+      timeoutMs: 180000, // 长文写作较慢，放宽超时
+    });
+    res.json({ text: String(text || '').trim() });
+  } catch (e) {
+    res.status(500).json({ error: `报告写作失败：${e.message}` });
+  }
+});
+// 报告网页化：Markdown 报告 → 对话模型创作 → 返回自包含单文件 HTML 专题页（不入绘图历史）
+app.post('/api/office/report', async (req, res) => {
+  const p = req.body || {};
+  const content = String(p.content || '').trim();
+  if (!content) return res.status(400).json({ error: '请填写报告内容' });
+  if (content.length > 20000) return res.status(400).json({ error: '报告内容过长（限 20000 字）' });
+  const styleHint = String(p.style || '').trim().slice(0, 200);
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    const prompt = office.buildReportPrompt(content, styleHint);
+    const text = await llmChat([{ role: 'user', content: prompt }], {
+      responseFormat: null, // 自由文本输出（HTML 文档）
+      reasoningEffort: 'none',
+      temperature: 0.5,
+      maxTokens: 8192, // 完整 HTML 页面较长，放宽输出上限（实测 16000 超出模型上限会返回空内容）
+      timeoutMs: 300000, // 长文创作较慢，放宽超时（5 分钟）
+    });
+    // 容错：剥离模型可能包裹的 markdown 代码块围栏
+    let html = String(text || '').trim();
+    const fence = html.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
+    if (fence) html = fence[1].trim();
+    if (!/^<!DOCTYPE html>/i.test(html)) {
+      return res.status(502).json({ error: '生成结果不是有效的 HTML 文档，请重试' });
+    }
+    res.json({ html });
+  } catch (e) {
+    res.status(500).json({ error: `报告生成失败：${e.message}` });
+  }
+});
 // —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库）与提示词历史（持续保留） ——
 const DRAW_DIR = path.join(__dirname, '..', 'data', 'draw');
 fs.mkdirSync(DRAW_DIR, { recursive: true });

@@ -18,6 +18,26 @@ const promptExtend = ref(true);
 
 // 图片编辑：参考图（Data URL，第 1 张为主编辑图，至多 5 张）
 const refImages = ref([]);
+// 风格模仿：参考图（单张 Data URL）
+const imitateImage = ref('');
+function onImitateFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+    error.value = '仅支持 png/jpeg/webp 图片';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    error.value = '参考图过大（限 8MB）';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    imitateImage.value = String(reader.result || '');
+    error.value = '';
+  };
+  reader.readAsDataURL(file);
+}
 
 const options = ref({ enabled: false, models: [], sizes: [], outputFormats: [], defaultModel: '' });
 const generating = ref(false);
@@ -120,10 +140,11 @@ function removeImage(i) {
 async function run() {
   if (generating.value) return;
   const p = prompt.value.trim();
-  if (!p) { error.value = mode.value === 'generate' ? '请输入提示词' : '请输入编辑指令'; return; }
+  if (!p) { error.value = mode.value === 'generate' ? '请输入提示词' : (mode.value === 'imitate' ? '请输入新图内容' : '请输入编辑指令'); return; }
   const m = effectiveModel();
   if (!m) { error.value = '请选择或输入模型名'; return; }
   if (mode.value === 'edit' && !refImages.value.length) { error.value = '图片编辑至少需要上传一张参考图'; return; }
+  if (mode.value === 'imitate' && !imitateImage.value) { error.value = '风格模仿需要上传一张风格参考图'; return; }
   error.value = '';
   generating.value = true;
   try {
@@ -137,7 +158,9 @@ async function run() {
     };
     const r = mode.value === 'generate'
       ? await api.drawGenerate(params)
-      : await api.drawEdit({ ...params, images: refImages.value });
+      : (mode.value === 'imitate'
+        ? await api.officeImitate({ image: imitateImage.value, content: p, model: m, size: params.size })
+        : await api.drawEdit({ ...params, images: refImages.value }));
     if (r && r.b64s) {
       // 生成结果改用服务端签名 URL 显示：重新拉取历史（服务端已落盘），
       // 首次加载从服务器拉取并建立浏览器缓存，之后刷新直接命中缓存不再回源
@@ -246,6 +269,7 @@ function useAsRef(item) {
         <div class="mode-switch">
           <button :class="{ active: mode === 'generate' }" @click="mode = 'generate'">✨ 文生图</button>
           <button :class="{ active: mode === 'edit' }" @click="mode = 'edit'">🖼️ 图片编辑</button>
+          <button :class="{ active: mode === 'imitate' }" @click="mode = 'imitate'">🎨 风格模仿</button>
         </div>
 
         <label class="field">
@@ -293,6 +317,15 @@ function useAsRef(item) {
 
       <!-- 右侧：提示词与结果 -->
       <main class="draw-main">
+        <!-- 风格模仿：参考图上传区（单张） -->
+        <div v-if="mode === 'imitate'" class="ref-area">
+          <label class="field">
+            <span class="field-label">风格参考图（png/jpeg/webp，8MB 内）</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" class="field-input" @change="onImitateFile" />
+          </label>
+          <img v-if="imitateImage" :src="imitateImage" class="ref-preview-single" alt="风格参考图" />
+          <p class="field-tip">AI 先分析参考图的配色、排版与质感，再按你输入的新内容生成同风格新图。</p>
+        </div>
         <!-- 图片编辑：参考图上传区 -->
         <div v-if="mode === 'edit'" class="ref-area">
           <div class="ref-list">
@@ -587,6 +620,16 @@ function useAsRef(item) {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/* 风格模仿：单张参考图预览（限宽居中） */
+.ref-preview-single {
+  display: block;
+  max-width: 320px;
+  max-height: 220px;
+  margin: 10px auto 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: contain;
 }
 .ref-remove {
   position: absolute;

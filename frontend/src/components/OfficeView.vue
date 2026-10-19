@@ -29,6 +29,78 @@ const excelQuestion = ref('');
 const excelResult = ref('');
 const excelMeta = ref(null); // { totalRows, sheets: [...] }
 const excelBusy = ref(false);
+// 报告网页化：Markdown 内容 + 可选风格倾向 + 生成的 HTML（iframe 预览）
+const reportContent = ref('');
+const reportStyle = ref('');
+const reportHtml = ref('');
+const reportBusy = ref(false);
+// 报告写作：主题 + 结构模板 + 补充要求 + 生成的 Markdown 报告
+const writeTopic = ref('');
+const writeStructure = ref('panorama');
+const writeRequirements = ref('');
+const writeResult = ref('');
+const writeBusy = ref(false);
+
+// 报告写作：调用对话模型按结构模板撰写报告
+async function generateWrite() {
+  if (writeBusy.value) return;
+  if (!writeTopic.value.trim()) {
+    error.value = '请填写报告主题';
+    return;
+  }
+  writeBusy.value = true;
+  error.value = '';
+  writeResult.value = '';
+  try {
+    const r = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim() });
+    writeResult.value = r.text || '';
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    writeBusy.value = false;
+  }
+}
+
+// 报告网页化：调用对话模型生成单文件 HTML 专题页
+async function generateReport() {
+  if (reportBusy.value) return;
+  if (!reportContent.value.trim()) {
+    error.value = '请填写报告内容';
+    return;
+  }
+  reportBusy.value = true;
+  error.value = '';
+  reportHtml.value = '';
+  try {
+    const r = await api.officeReport({ content: reportContent.value.trim(), style: reportStyle.value.trim() });
+    reportHtml.value = r.html || '';
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    reportBusy.value = false;
+  }
+}
+
+// 报告网页化：下载生成的 HTML 文件
+function downloadReport() {
+  if (!reportHtml.value) return;
+  const blob = new Blob([reportHtml.value], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'report.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// 报告网页化：新窗口打开预览（iframe srcdoc 的替代查看方式）
+function openReportWindow() {
+  if (!reportHtml.value) return;
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(reportHtml.value);
+    w.document.close();
+  }
+}
 
 // Excel 分析：选择文件 → 转 Base64
 function onExcelFile(e) {
@@ -290,6 +362,8 @@ async function generate() {
         <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
         <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
         <button :class="{ on: tab === 'excel' }" @click="switchTab('excel')">📊 Excel 分析</button>
+        <button :class="{ on: tab === 'report' }" @click="switchTab('report')">📰 报告网页化</button>
+        <button :class="{ on: tab === 'write' }" @click="switchTab('write')">📝 报告写作</button>
       </div>
 
       <div class="panel">
@@ -331,6 +405,52 @@ async function generate() {
           </div>
         </template>
 
+        <!-- 报告写作面板 -->
+        <template v-else-if="tab === 'write'">
+          <label class="field-label">报告结构（按读者认知任务选择）</label>
+          <div class="option-grid">
+            <button
+              v-for="s in config.reportStructures"
+              :key="s.id"
+              class="option"
+              :class="{ on: writeStructure === s.id }"
+              :title="s.outline"
+              @click="writeStructure = s.id"
+            >{{ s.name }}</button>
+          </div>
+          <p v-if="config.reportStructures?.find((s) => s.id === writeStructure)" class="option-desc">{{ config.reportStructures.find((s) => s.id === writeStructure).desc }}</p>
+          <label class="field-label">报告主题</label>
+          <textarea v-model="writeTopic" class="content-input" rows="4" maxlength="2000" placeholder="示例：2026 年国内 AI 编程工具市场分析 / 自建 NAS 与云存储的选型对比"></textarea>
+          <label class="field-label">补充要求（可选）</label>
+          <input v-model="writeRequirements" class="style-input" placeholder="示例：侧重个人开发者视角 / 需要成本对比表格 / 控制在 2000 字内" maxlength="1000" />
+          <button class="generate" :disabled="writeBusy" @click="generateWrite">
+            {{ writeBusy ? '撰写中…（约需 30-90 秒）' : '生成报告' }}
+          </button>
+          <p v-if="error" class="error">{{ error }}</p>
+          <div v-if="writeResult" class="chart-result">
+            <label class="field-label">报告内容</label>
+            <div class="chart-text md" v-html="renderMd(writeResult)"></div>
+          </div>
+        </template>
+        <!-- 报告网页化面板 -->
+        <template v-else-if="tab === 'report'">
+          <label class="field-label">粘贴 Markdown 报告（周报 / 分析 / 复盘 / 白皮书，限 20000 字）</label>
+          <textarea v-model="reportContent" class="content-input" rows="10" maxlength="20000" placeholder="粘贴你的 Markdown 报告内容…支持标题、列表、表格、数据等"></textarea>
+          <label class="field-label">风格倾向（可选）</label>
+          <input v-model="reportStyle" class="style-input" placeholder="示例：深色科技感 / 纸质档案风 / 留白极简（留空由 AI 按内容气质决定）" maxlength="200" />
+          <button class="generate" :disabled="reportBusy" @click="generateReport">
+            {{ reportBusy ? '创作中…（长文约需 1-3 分钟）' : '生成网页报告' }}
+          </button>
+          <p v-if="error" class="error">{{ error }}</p>
+          <div v-if="reportHtml" class="chart-result">
+            <label class="field-label">预览（可交互）</label>
+            <iframe :srcdoc="reportHtml" class="report-frame" sandbox="allow-scripts" title="报告预览"></iframe>
+            <div class="report-actions">
+              <button class="generate" @click="openReportWindow">新窗口打开</button>
+              <button class="generate" @click="downloadReport">下载 HTML</button>
+            </div>
+          </div>
+        </template>
         <!-- 信息图 / 简历图面板 -->
         <template v-else>
         <!-- 提示词历史：点选填入（仅办公来源） -->
@@ -640,6 +760,22 @@ async function generate() {
   border: 1px solid var(--border, #444);
   border-radius: 10px;
   padding: 12px 14px;
+}
+/* 报告网页化：iframe 预览（固定高度内滚动）+ 操作按钮排列 */
+.report-frame {
+  width: 100%;
+  height: 480px;
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  background: #fff;
+}
+.report-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.report-actions .generate {
+  flex: 1;
 }
 .chart-text {
   font-size: 14px;
