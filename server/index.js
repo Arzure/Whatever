@@ -11,6 +11,7 @@ const casegen = require('./casegen');
 const { getMode, listModes, DEFAULT_MODE } = require('./modes');
 const draw = require('./draw');
 const office = require('./office');
+const resume = require('./resume'); // 简历图合成（方案 A：背景生成 + 文字程序化绘制）
 const excel = require('./excel');
 
 loadEnv();
@@ -286,20 +287,31 @@ app.post('/api/office/infographic', async (req, res) => {
   saveDrawResult(req, result, 'infographic');
   res.json(result);
 });
-// 简历图生成：简历文本 + 可选风格 → 固定三段式布局提示词 → 复用绘图管线
+// 简历图生成（方案 A：文字 100% 准确）——图像模型只画无文字背景，文字由 sharp 程序化绘制
 app.post('/api/office/resume', async (req, res) => {
   const p = req.body || {};
   const content = String(p.content || '').trim();
   if (!content) return res.status(400).json({ error: '请填写简历内容' });
   if (content.length > 4000) return res.status(400).json({ error: '简历内容过长（限 4000 字）' });
-  const prompt = office.buildResumePrompt(content, p.style);
-  const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false }); // 不带水印；WebP 输出；关闭提示词扩展（实测：扩展改写会丢失简历具体内容）
-  if (result.error) return res.status(400).json({ error: result.error });
-  req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
-  req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
-  req.body.promptSource = 'office'; // 提示词记录标记办公来源（绘图工作台不再显示办公内容）
-  saveDrawResult(req, result, 'resume');
-  res.json(result);
+  try {
+    // 第一步：生成无文字背景模板（模型只管配色构图，严禁画文字）
+    const bgPrompt = resume.buildBackgroundPrompt(p.style);
+    const bg = await draw.generate({ ...p, prompt: bgPrompt, size: '1536x2720', watermark: false, outputFormat: 'webp', promptExtend: false });
+    if (bg.error) return res.status(400).json({ error: bg.error });
+    // 第二步：解析简历文本 + 程序化合成文字层（确定性渲染，零乱码）
+    const data = resume.structureResume(resume.parseResume(content));
+    const palette = { text: '#1a1a2e', textDim: '#3d4454', accent: '#b8860b', onAccent: '#ffffff' }; // 深色文字：背景提示词已约束下方为浅色区域
+    const bgBuf = Buffer.from(bg.b64s[0], 'base64');
+    const composed = await resume.composeResume(bgBuf, data, palette);
+    const result = { b64s: [composed.toString('base64')] };
+    req.body.outputFormat = 'webp';
+    req.body.prompt = content.slice(0, 2000);
+    req.body.promptSource = 'office';
+    saveDrawResult(req, result, 'resume');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: `简历图生成失败：${e.message}` });
+  }
 });
 // Excel 数据分析：上传文件 Base64 → 解析（限 5000 行）→ 对话模型分析 → 返回解读文本
 app.post('/api/office/excel', async (req, res) => {
