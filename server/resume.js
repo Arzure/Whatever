@@ -72,32 +72,76 @@ function buildResumeSvg(data, palette) {
   const PAD = 96;
   const parts = [];
 
-  // 顶部封面区：姓名超大加粗 + 职位标签
-  parts.push(`<text x="${PAD}" y="300" font-family="${FONT_FAMILY}" font-size="120" font-weight="700" fill="${palette.text}">${esc(data.name)}</text>`);
+  // 顶部封面区：姓名超大加粗 + 职位胶囊标签 + 封面底部装饰线
+  parts.push(`<text x="${PAD}" y="290" font-family="${FONT_FAMILY}" font-size="120" font-weight="700" fill="${palette.text}">${esc(data.name)}</text>`);
   if (data.title) {
-    parts.push(`<rect x="${PAD}" y="345" width="${Math.ceil(data.title.length * 44 + 56)}" height="72" rx="36" fill="${palette.accent}" opacity="0.9"/>`);
-    parts.push(`<text x="${PAD + 28}" y="394" font-family="${FONT_FAMILY}" font-size="36" fill="${palette.onAccent}">${esc(data.title)}</text>`);
+    parts.push(`<rect x="${PAD}" y="335" width="${Math.ceil(data.title.length * 44 + 56)}" height="72" rx="36" fill="${palette.accent}" opacity="0.92"/>`);
+    parts.push(`<text x="${PAD + 28}" y="${384}" font-family="${FONT_FAMILY}" font-size="36" fill="${palette.onAccent}">${esc(data.title)}</text>`);
   }
+  parts.push(`<rect x="${PAD}" y="460" width="${W - PAD * 2}" height="4" rx="2" fill="${palette.accent}" opacity="0.45"/>`);
 
-  // 分类模块：从封面下方开始，逐模块绘制
-  let y = 520;
-  const maxUnits = Math.floor((W - PAD * 2) / 34); // 正文字号 34 的每行容量
+  // 分类模块：按类型差异化呈现（参考旧版设计：联系卡片/技能胶囊/经历时间线）
+  let y = 540;
+  const maxUnits = Math.floor((W - PAD * 2 - 60) / 34);
   for (const sec of data.sections) {
-    if (y > H - 200) break; // 超出画布保护
-    // 模块标题：强调色竖条 + 标题文字
+    if (y > H - 200) break;
+    const isSkills = sec.name.includes('技能');
+    const isContact = sec.name.includes('联系');
+    const isExp = sec.name.includes('经历');
+
+    // 联系方式模块：半透明白色圆角卡片底（模拟旧版联系卡片）
+    if (isContact) {
+      const cardH = 100 + sec.lines.length * 56;
+      parts.push(`<rect x="${PAD - 20}" y="${y - 24}" width="${W - PAD * 2 + 40}" height="${cardH}" rx="24" fill="#ffffff" opacity="0.72"/>`);
+    }
+
+    // 模块标题：强调色竖条 + 标题 + 右侧装饰短线
     parts.push(`<rect x="${PAD}" y="${y}" width="10" height="44" rx="5" fill="${palette.accent}"/>`);
     parts.push(`<text x="${PAD + 30}" y="${y + 36}" font-family="${FONT_FAMILY}" font-size="42" font-weight="700" fill="${palette.text}">${esc(sec.name)}</text>`);
-    y += 80;
-    // 模块条目：每条一行（超宽自动换行）
-    for (const line of sec.lines) {
-      for (const sub of wrapText(line, maxUnits)) {
-        if (y > H - 120) break;
-        parts.push(`<text x="${PAD + 30}" y="${y}" font-family="${FONT_FAMILY}" font-size="34" fill="${palette.textDim}">${esc(sub)}</text>`);
-        y += 56;
+    parts.push(`<rect x="${PAD + 56 + sec.name.length * 42}" y="${y + 20}" width="120" height="4" rx="2" fill="${palette.accent}" opacity="0.35"/>`);
+    y += 84;
+
+    if (isSkills) {
+      // 技能模块：深色胶囊标签流式排布（模拟旧版技能标签墙）
+      let tx = PAD + 30, ty = y;
+      for (const line of sec.lines) {
+        for (const tag of line.split(/[\s,，、/]+/).filter(Boolean)) {
+          const tw = Math.ceil(tag.length * 30 + 48);
+          if (tx + tw > W - PAD) { tx = PAD + 30; ty += 76; }
+          if (ty > H - 120) break;
+          parts.push(`<rect x="${tx}" y="${ty}" width="${tw}" height="60" rx="30" fill="${palette.text}" opacity="0.88"/>`);
+          parts.push(`<text x="${tx + 24}" y="${ty + 40}" font-family="${FONT_FAMILY}" font-size="30" fill="#ffffff">${esc(tag)}</text>`);
+          tx += tw + 18;
+        }
       }
-      y += 16; // 条目间距
+      y = ty + 110;
+    } else if (isExp) {
+      // 经历模块：时间线（强调色竖线 + 首条目实心节点，模拟旧版时间轴）
+      const LX = PAD + 46;
+      const entries = [];
+      for (const line of sec.lines) entries.push(...wrapText(line, maxUnits - 4));
+      const blockH = entries.length * 56 + 30;
+      parts.push(`<line x1="${LX}" y1="${y}" x2="${LX}" y2="${y + blockH}" stroke="${palette.accent}" stroke-width="3" opacity="0.4"/>`);
+      let ey = y + 14;
+      entries.forEach((sub, i) => {
+        if (ey > H - 120) return;
+        if (i === 0) parts.push(`<circle cx="${LX}" cy="${ey - 10}" r="11" fill="${palette.accent}"/>`);
+        parts.push(`<text x="${LX + 36}" y="${ey}" font-family="${FONT_FAMILY}" font-size="34" fill="${palette.textDim}">${esc(sub)}</text>`);
+        ey += 56;
+      });
+      y = ey + 40;
+    } else {
+      // 普通模块（教育等）：条目列表（超宽自动换行）
+      for (const line of sec.lines) {
+        for (const sub of wrapText(line, maxUnits)) {
+          if (y > H - 120) break;
+          parts.push(`<text x="${PAD + 30}" y="${y}" font-family="${FONT_FAMILY}" font-size="34" fill="${palette.textDim}">${esc(sub)}</text>`);
+          y += 56;
+        }
+        y += 16;
+      }
+      y += 44;
     }
-    y += 40; // 模块间距
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${parts.join('')}</svg>`;
