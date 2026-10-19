@@ -288,22 +288,28 @@ app.post('/api/office/infographic', async (req, res) => {
     let currentB64 = result.b64s[0];
     for (let round = 0; round < 2; round++) {
       let garbles = [];
-      try {
-        // 检测：视觉模型找出乱码并推断正确文字
-        const detectContent = [
-          { type: 'text', text: office.buildGarbleDetectPrompt() },
-          { type: 'image_url', image_url: { url: `data:image/webp;base64,${currentB64}` } },
-        ];
-        const detectText = await llmChat([{ role: 'user', content: detectContent }], {
-          responseFormat: null,
-          reasoningEffort: 'none',
-          temperature: 0.1,
-          maxTokens: 2000,
-          timeoutMs: 120000,
-        });
-        garbles = office.parseGarbleList(detectText);
-      } catch { break; } // 检测失败不阻塞，返回当前结果
-      if (!garbles.length) break; // 无乱码，通过
+      // 检测：视觉模型找出乱码并推断正确文字（空内容失败率约一半，失败自动重试两次）
+      for (let attempt = 0; attempt < 3 && !garbles.length; attempt++) {
+        try {
+          const detectContent = [
+            { type: 'text', text: office.buildGarbleDetectPrompt() },
+            { type: 'image_url', image_url: { url: `data:image/webp;base64,${currentB64}` } },
+          ];
+          const detectText = await llmChat([{ role: 'user', content: detectContent }], {
+            responseFormat: null,
+            reasoningEffort: 'none',
+            temperature: 0.1,
+            // 实测：模型偶发忽略 reasoning_effort:none 进入思考模式，思考与正文共享 max_tokens 配额，
+            // 配额 2000 时思考可耗尽全部配额导致正文为空（finish_reason=length, reasoning_tokens=2000）
+            maxTokens: 8000,
+            timeoutMs: 120000,
+          });
+          garbles = office.parseGarbleList(detectText);
+          console.log(`[信息图] 乱码检测 第${round + 1}轮第${attempt + 1}次: 返回${(detectText || '').length}字, 解析${garbles.length}处`);
+          if (!garbles.length && detectText && /没有乱码|无乱码|清晰/.test(String(detectText))) break; // 明确无乱码，不再重试
+        } catch (e) { console.log(`[信息图] 乱码检测 第${round + 1}轮第${attempt + 1}次失败: ${e.message}`); /* 空内容等失败：重试 */ }
+      }
+      if (!garbles.length) break; // 无乱码（或检测三次均失败）——放行当前结果
       try {
         // 修正：图片编辑按精确清单替换（任务从『创作』变『抄写』，实测一次成功）
         const fixed = await draw.edit({
@@ -317,6 +323,7 @@ app.post('/api/office/infographic', async (req, res) => {
         if (fixed.error || !Array.isArray(fixed.b64s) || !fixed.b64s[0]) break; // 修正失败返回当前结果
         currentB64 = fixed.b64s[0];
         garbleFixed += garbles.length;
+        console.log(`[信息图] 乱码修正 第${round + 1}轮: 已修正${garbles.length}处`);
       } catch { break; }
     }
     if (garbleFixed > 0) result.b64s = [currentB64]; // 有修正才替换结果

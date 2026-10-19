@@ -181,9 +181,9 @@ function buildReportWritePrompt(topic, structureId, requirements) {
  * 实测：15 处乱码的清单一次修正全部成功，布局配色保持原样。
  */
 
-/** 检测提示词：找出乱码并推断正确文字，输出结构化清单 */
+/** 检测提示词：找出乱码并推断正确文字（自然语言格式——实测稳定；强制 JSON 格式会诱发空内容，教训同报告网页化） */
 function buildGarbleDetectPrompt() {
-  return '检查这张信息图中的文字：哪些是乱码、变形或无法辨认的？请逐处列出：乱码文字原文、所在位置（哪个板块的什么位置）、根据上下文推断的正确文字。只输出 JSON 数组，格式：[{"bad":"乱码原文","pos":"位置","fix":"正确文字"}]。如果所有文字都清晰正确，输出 []。不要输出其他内容。';
+  return '这张信息图中哪些文字是乱码？请逐处列出：乱码文字原文、所在位置、根据上下文推断的正确文字。如果所有文字都清晰正确，请明确说明没有乱码。';
 }
 
 /** 修正提示词：按精确清单逐处替换，其余保持原样 */
@@ -196,15 +196,44 @@ function buildGarbleFixPrompt(items) {
   ].join('\n');
 }
 
-/** 解析检测返回的 JSON 清单（容错：剥离可能的围栏与前后杂文） */
+/**
+ * 解析检测返回的乱码清单（自然语言格式，宽松正则提取）。
+ * 模型实际返回形如：『1. 最上方模块："AI驺设计"，乱码"驺"，正确应为"AI产品设计"』
+ * 逐行提取：含『正确应为/应为/改成』的行，取行内引号内容为乱码原文，取『应为』后的引号内容为正确文字。
+ */
 function parseGarbleList(text) {
-  const raw = String(text || '').trim();
-  const m = raw.match(/\[[\s\S]*\]/);
-  if (!m) return [];
-  try {
-    const arr = JSON.parse(m[0]);
-    return Array.isArray(arr) ? arr.filter((x) => x && x.bad && x.fix) : [];
-  } catch { return []; }
+  const raw = String(text || '');
+  if (!raw || /没有乱码|无乱码|全部清晰|都清晰|均清晰/.test(raw.slice(0, 200))) return [];
+  const items = [];
+  for (const line of raw.split('\n')) {
+    // Markdown 表格行：『| 乱码原文 | 所在位置 | 正确文字 |』（模型有时返回表格格式）
+    const tableM = line.match(/^\s*\|(.+)\|\s*$/);
+    if (tableM) {
+      const cells = tableM[1].split('|').map(s => s.trim()).filter(Boolean);
+      // 跳过表头行与 ---- 分隔行
+      if (cells.length >= 3 && !/^-+$/.test(cells[0]) && !/乱码原文|所在位置|正确文字/.test(line)) {
+        const [bad, pos, fixRaw] = cells;
+        // fix 列可能混入解释文字（如『AI，结合上下文，此处应为“AI产品设计”』）：优先提取『应为“XXX”』引号内容，否则截断到首个逗号/句号
+        let fix = fixRaw;
+        const qm = fixRaw.match(/应为[：“"]([^”"]+)[”"]/) || fixRaw.match(/是[：“"]([^”"]+)[”"]/);
+        if (qm) fix = qm[1];
+        else fix = fixRaw.split(/[，,。；;（(]/)[0];
+        if (bad && fix && bad !== fix) {
+          items.push({ bad: bad.slice(0, 20), pos: pos.slice(0, 20), fix: fix.slice(0, 20) });
+        }
+      }
+      continue;
+    }
+    if (!/应为|改成|更正为|正确是/.test(line)) continue;
+    // 正确文字：『应为/改成』后的引号内容（兼容 「」『』“”‘’ 与裸文本到标点）
+    const fixM = line.match(/(?:应为|改成|更正为|正确是)[：「"『“‘\s]*([^」"』“‘”。；;，,]{1,20})/);
+    // 乱码原文：行内第一个引号内容（兼容中文弯引号“”）
+    const badM = line.match(/[：「"『“]([^」"』“”]{1,20})[」"』”]/);
+    if (fixM && badM && badM[1] !== fixM[1].trim()) {
+      items.push({ bad: badM[1].trim(), pos: line.split(/[：:]/)[0].replace(/^\d+[.、\s]*/, '').slice(0, 20), fix: fixM[1].trim() });
+    }
+  }
+  return items;
 }
 
 module.exports = {
