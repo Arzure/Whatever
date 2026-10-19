@@ -283,7 +283,7 @@ app.post('/api/office/infographic', async (req, res) => {
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
-  req.body.promptSource = 'office'; // 提示词记录标记办公来源（绘图工作台不再显示办公内容）
+  req.body.promptSource = 'office:infographic'; // 提示词记录标记办公·信息图标签（各标签历史互不混杂）
   saveDrawResult(req, result, 'infographic');
   res.json(result);
 });
@@ -306,7 +306,7 @@ app.post('/api/office/resume', async (req, res) => {
     const result = { b64s: [composed.toString('base64')] };
     req.body.outputFormat = 'webp';
     req.body.prompt = content.slice(0, 2000);
-    req.body.promptSource = 'office';
+    req.body.promptSource = 'office:resume'; // 提示词记录标记办公·简历图标签
     saveDrawResult(req, result, 'resume');
     res.json(result);
   } catch (e) {
@@ -533,7 +533,9 @@ app.delete('/api/draw/history/:id', (req, res) => {
 app.get('/api/draw/prompts', (req, res) => {
   const user = userFromRequest(req);
   if (!user) return res.status(401).json({ error: '请先登录' });
-  const source = req.query.source === 'office' ? 'office' : 'draw'; // 按来源过滤：绘图/办公各自只看自己的提示词
+  // 按来源过滤：绘图只看 draw；办公按标签细分（office:infographic / office:resume），旧 office 数据兼容显示
+  const raw = String(req.query.source || 'draw');
+  const source = raw === 'draw' || raw === 'office' || /^office:[a-z]+$/.test(raw) ? raw : 'draw';
   res.json({ rows: storage.listDrawPrompts(user.id, source) });
 });
 app.delete('/api/draw/prompts/:id', (req, res) => {

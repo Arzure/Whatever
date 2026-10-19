@@ -253,7 +253,17 @@ async function loadHistory() {
     history.value = (h.rows || []).filter((r) => r.mode === 'infographic' || r.mode === 'resume');
   } catch { /* 历史加载失败不阻塞主流程 */ }
   try {
-    const p = await api.drawPrompts('office'); // 办公来源的提示词历史（与绘图工作台隔离）
+    // 办公来源的提示词历史（与绘图工作台隔离），按当前标签加载（初始 tab 为信息图）
+    const p = await api.drawPrompts(tab.value === 'resume' ? 'office:resume' : 'office:infographic');
+    promptHistory.value = (p.rows || []).slice(0, 10);
+  } catch { /* 静默 */ }
+}
+
+// 提示词历史按标签加载：信息图只看信息图的输入历史，简历图只看简历图的（各标签互不混杂）
+async function loadPromptHistoryByTab() {
+  if (tab.value !== 'infographic' && tab.value !== 'resume') return;
+  try {
+    const p = await api.drawPrompts(`office:${tab.value}`);
     promptHistory.value = (p.rows || []).slice(0, 10);
   } catch { /* 静默 */ }
 }
@@ -327,6 +337,7 @@ function switchTab(t) {
   if (t === 'resume' && !content.value.trim()) {
     content.value = RESUME_SAMPLE;
   }
+  loadPromptHistoryByTab(); // 切换标签时刷新提示词历史（按标签隔离）
 }
 
 // 简历最佳实践示例（实测验证过的格式：每行一个条目，短句经历）

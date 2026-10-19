@@ -183,7 +183,8 @@ function saveDrawPrompt(userId, prompt, source) {
   );
 }
 function listDrawPrompts(userId, source) {
-  // 按来源过滤：绘图工作台只看 draw，办公助手只看 office；不传则返回全部（兼容）
+  // 按来源过滤：绘图工作台只看 draw；办公助手按标签细分（office:infographic / office:resume），各标签互不混杂。
+  // 旧数据 source='office' 无法区分标签，不再显示（历史记录本就无法归类，强行兼容会让隔离失效）
   if (source) {
     return db.prepare('SELECT id, prompt, created_at FROM draw_prompts WHERE user_id = ? AND source = ? ORDER BY created_at DESC LIMIT 50').all(userId, source);
   }
