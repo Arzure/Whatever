@@ -43,8 +43,6 @@ const INFOGRAPHIC_SIZES = ['auto', '2048x2048', '2720x1536', '1536x2720', '1664x
 
 // 简历图可用比例（模板为纵向长图，默认 9:16 意向 → 1536x2720）
 const RESUME_SIZES = ['auto', '1536x2720', '1664x2496', '2048x2048'];
-// 简历模板为竖版长图设计：auto 时强制竖版 1536x2720（实测教训：auto 生成 2048×2048 方图会挤压竖版布局，文字变形出乱码；历史验证通过的 9 次全部是 1536x2720）
-const RESUME_DEFAULT_SIZE = '1536x2720';
 
 /**
  * 组装信息图生成提示词（移植 sn-infographic base-prompt 模板）。
@@ -180,7 +178,6 @@ module.exports = {
   INFOGRAPHIC_STYLES,
   INFOGRAPHIC_SIZES,
   RESUME_SIZES,
-  RESUME_DEFAULT_SIZE,
   REPORT_STRUCTURES,
   buildInfographicPrompt,
   buildResumePrompt,
