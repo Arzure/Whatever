@@ -293,6 +293,8 @@ app.post('/api/office/resume', async (req, res) => {
   if (!content) return res.status(400).json({ error: '请填写简历内容' });
   if (content.length > 4000) return res.status(400).json({ error: '简历内容过长（限 4000 字）' });
   const prompt = office.buildResumePrompt(content, p.style);
+  // auto 时强制竖版默认尺寸：简历模板为竖版长图设计，方图会挤压布局导致文字乱码（实测教训）
+  if (!p.size || p.size === 'auto') p.size = office.RESUME_DEFAULT_SIZE;
   const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false }); // 不带水印；WebP 输出；关闭提示词扩展（实测：扩展改写会丢失简历具体内容）
   if (result.error) return res.status(400).json({ error: result.error });
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
