@@ -463,16 +463,19 @@ function useAsRef(item) {
   margin-bottom: 12px;
 }
 /* 模式切换 */
+/* 模式切换：自适应布局（通用方案）——空间够单行铺满，不够自动整齐换行，不依赖断点 */
 .mode-switch {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 14px;
 }
 .mode-switch button {
-  flex: 1;
+  flex: 1 1 auto; /* 按内容自然宽度伸展，电脑端不再挤成窄条 */
+  min-width: 5em;
   padding: 8px 0;
   font-size: 13px;
-  white-space: nowrap; /* 三模式四字标签不换行（窄屏被挤到第二行的修复） */
+  white-space: nowrap;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);

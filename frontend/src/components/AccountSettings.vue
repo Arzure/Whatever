@@ -209,13 +209,17 @@ async function doDelete() {
   padding: 4px 8px;
 }
 .close-btn:hover { color: #e6edf3; }
+/* 标签栏：自适应布局（通用方案）——空间够单行铺满，不够自动整齐换行，不依赖断点 */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 16px;
 }
 .tabs button {
-  flex: 1;
+  flex: 1 1 auto; /* 按内容自然宽度伸展，不再强制等分挤压 */
+  min-width: 4em;
+  white-space: nowrap;
   padding: 8px 0;
   border: 1px solid #30363d;
   border-radius: 6px;
@@ -306,15 +310,9 @@ async function doDelete() {
   .modal {
     padding: 16px 14px;
   }
-  .tabs {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
   .tabs button {
-    flex: 1 1 40%; /* 两列布局，四按钮分两行整齐排列 */
     font-size: 12px;
     padding: 8px 0;
-    white-space: nowrap;
   }
   .form input {
     font-size: 16px;

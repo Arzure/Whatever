@@ -626,13 +626,17 @@ async function generate() {
 .back:hover {
   opacity: 0.8;
 }
+/* 标签栏：自适应布局（通用方案）——空间够单行铺满，不够自动整齐换行，不依赖断点 */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
 }
 .tabs button {
-  flex: 1;
+  flex: 1 1 auto; /* 按内容自然宽度伸展，不再强制等分挤压 */
+  min-width: 4em; /* 最小可点宽度 */
+  white-space: nowrap; /* 文字永不折行 */
   padding: 10px;
   border-radius: 10px;
   border: 1px solid var(--border, #444);

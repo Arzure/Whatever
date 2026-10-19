@@ -178,9 +178,11 @@ async function deleteSave(s) {
 .app-body > * {
   height: 100%;
 }
+/* 顶栏：自适应布局（通用方案）——空间不够时按钮组自动整齐换行，不依赖断点 */
 .app-bar {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
