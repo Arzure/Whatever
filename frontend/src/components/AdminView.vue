@@ -344,8 +344,10 @@ async function doReset() {
     font-size: 12px;
     white-space: nowrap;
   }
-  /* 表头行隐藏；数据行改卡片 */
-  .table-head {
+  /* 表头行隐藏；数据行改卡片。
+     注意必须用 .row.table-head 提高优先级：表头同时带 row 类，
+     若只写 .table-head 会被后面的 .row{display:flex} 同优先级覆盖，表头从未真正隐藏 */
+  .row.table-head {
     display: none;
   }
   .row {
@@ -372,11 +374,12 @@ async function doReset() {
     color: var(--text-dim);
     white-space: nowrap;
   }
-  /* 字段标签前缀：表头已隐藏，换行后靠标签辨认各值含义（按子元素顺序：2 状态 / 3 注册 / 4 存档 / 5 绘图 / 6 活跃） */
-  .row > span:nth-child(2)::before { content: "状态 "; }
-  .row > span:nth-child(3)::before { content: "注册 "; }
-  .row > span:nth-child(4)::before { content: "存档 "; }
-  .row > span:nth-child(5)::before { content: "绘图 "; }
-  .row > span:nth-child(6)::before { content: "活跃 "; }
+  /* 字段标签前缀：换行后靠标签辨认各值含义（按子元素顺序：2 状态 / 3 注册 / 4 存档 / 5 绘图 / 6 活跃）；
+     :not(.table-head) 排除表头行，避免标签叠加到表头文字上 */
+  .row:not(.table-head) > span:nth-child(2)::before { content: "状态 "; }
+  .row:not(.table-head) > span:nth-child(3)::before { content: "注册 "; }
+  .row:not(.table-head) > span:nth-child(4)::before { content: "存档 "; }
+  .row:not(.table-head) > span:nth-child(5)::before { content: "绘图 "; }
+  .row:not(.table-head) > span:nth-child(6)::before { content: "活跃 "; }
 }
 </style>
