@@ -147,4 +147,21 @@ async function submit() {
   text-align: center;
 }
 .login-switch a { color: #58a6ff; text-decoration: none; }
+/* 手机端：输入框字号 ≥16px 防 iOS 聚焦自动放大页面；收紧卡片内边距 */
+@media (max-width: 768px) {
+  .login-wrap {
+    padding: 12px;
+    align-items: flex-start; /* 小屏键盘弹出时不被垂直居中裁切 */
+  }
+  .login-card {
+    padding: 22px 18px;
+  }
+  .login-title {
+    font-size: 18px;
+  }
+  .login-label input {
+    font-size: 16px;
+    padding: 11px 12px;
+  }
+}
 </style>

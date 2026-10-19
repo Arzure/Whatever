@@ -297,4 +297,27 @@ async function doDelete() {
 }
 .btn.danger:hover { background: #a52a2a; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* 手机端：标签栏允许换行（四个按钮挤不下一行）、弹窗收紧、输入框字号 ≥16px 防 iOS 聚焦缩放 */
+@media (max-width: 768px) {
+  .modal-mask {
+    padding: 10px;
+    align-items: flex-start; /* 小屏键盘弹出时不被垂直居中裁切 */
+  }
+  .modal {
+    padding: 16px 14px;
+  }
+  .tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tabs button {
+    flex: 1 1 40%; /* 两列布局，四按钮分两行整齐排列 */
+    font-size: 12px;
+    padding: 8px 0;
+    white-space: nowrap;
+  }
+  .form input {
+    font-size: 16px;
+  }
+}
 </style>

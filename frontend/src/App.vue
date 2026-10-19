@@ -301,7 +301,9 @@ async function deleteSave(s) {
   .app-bar-user {
     font-size: 12px;
     white-space: nowrap;
-    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 30vw; /* 长用户名截断显示，避免撑爆顶栏挤掉按钮 */
   }
   .app-bar-home,
   .app-bar-logout {
