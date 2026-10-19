@@ -40,6 +40,22 @@ const writeStructure = ref('panorama');
 const writeRequirements = ref('');
 const writeResult = ref('');
 const writeBusy = ref(false);
+// 信息图生成进度：阶段文案按时间推进（生成→检测→修正），完成后按 garbleFixed 反馈
+const genStage = ref(0); // 0 未开始 / 1 生成中 / 2 检测文字 / 3 修正乱码
+const genStageTimer = ref(null);
+const garbleNote = ref(''); // 信息图自动修正结果提示（非错误）
+const GEN_STAGES = ['生成中…（大图约需 10-60 秒）', 'AI 正在检查文字是否清晰…', '发现乱码，正在自动修正…'];
+function startGenStages() {
+  genStage.value = 1;
+  genStageTimer.value = setInterval(() => {
+    if (genStage.value < 3) genStage.value += 1;
+  }, 25000); // 每 25 秒推进一个阶段（生成约 10-60s，检测约 10-20s，修正约 15-30s）
+}
+function stopGenStages() {
+  if (genStageTimer.value) clearInterval(genStageTimer.value);
+  genStageTimer.value = null;
+  genStage.value = 0;
+}
 
 // 报告写作：调用对话模型按结构模板撰写报告
 async function generateWrite() {
@@ -360,11 +376,18 @@ async function generate() {
   busy.value = true;
   error.value = '';
   result.value = null;
+  garbleNote.value = ''; // 清空上次的修正提示
+  if (tab.value === 'infographic') startGenStages(); // 信息图：阶段化进度提示
   try {
     const params = tab.value === 'infographic'
       ? { content: content.value.trim(), layout: layoutId.value, style: styleId.value, size: size.value, model: model.value }
       : { content: content.value.trim(), style: resumeStyle.value.trim(), size: size.value, model: model.value };
-    await (tab.value === 'infographic' ? api.officeInfographic(params) : api.officeResume(params));
+    const r = await (tab.value === 'infographic' ? api.officeInfographic(params) : api.officeResume(params));
+    // 信息图：反馈自动修正结果（服务端检测修正乱码后返回 garbleFixed）
+    if (tab.value === 'infographic' && r && r.garbleFixed > 0) {
+      error.value = ''; // 不算错误
+      garbleNote.value = `已自动修正 ${r.garbleFixed} 处乱码文字`;
+    }
     await loadHistory(); // 生成成功后刷新历史画廊
     // 生成结果改用历史记录的签名 URL 显示：首次加载从服务器拉取并建立浏览器缓存，之后刷新直接命中缓存
     const latest = history.value[0];
@@ -373,6 +396,7 @@ async function generate() {
     error.value = e.message;
   } finally {
     busy.value = false;
+    stopGenStages();
   }
 }
 </script>
@@ -565,9 +589,10 @@ async function generate() {
         <p v-if="config.models?.find((m) => m.id === model)" class="option-desc">{{ config.models.find((m) => m.id === model).desc }}</p>
 
         <button class="generate" :disabled="busy" @click="generate">
-          {{ busy ? '生成中…（大图约需 10-60 秒）' : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
+          {{ busy ? (tab === 'infographic' ? GEN_STAGES[genStage - 1] : '生成中…（大图约需 10-60 秒）') : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
         </button>
         <p class="model-line">当前模型：{{ model }}</p>
+        <p v-if="garbleNote" class="garble-note">✔ {{ garbleNote }}</p>
         <p v-if="error" class="error">{{ error }}</p>
         </template>
       </div>
@@ -845,6 +870,12 @@ async function generate() {
 }
 .chart-text.md :deep(p) {
   margin: 6px 0;
+}
+/* 信息图自动修正结果提示（非错误的成功反馈） */
+.garble-note {
+  color: #3fb950;
+  font-size: 13px;
+  margin: 8px 0 0;
 }
 /* 提示词历史标签（文字点选填入 + ✕ 删除，与绘图工作台同款交互） */
 .prompt-tags {

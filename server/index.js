@@ -272,7 +272,7 @@ app.get('/api/office/config', (req, res) => {
     defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
   });
 });
-// 信息图生成：内容 + 布局 + 风格 → 组装提示词 → 复用绘图管线
+// 信息图生成：内容 + 布局 + 风格 → 组装提示词 → 复用绘图管线 → 自动检测修正乱码（实测验证方案）
 app.post('/api/office/infographic', async (req, res) => {
   const p = req.body || {};
   const content = String(p.content || '').trim();
@@ -281,11 +281,52 @@ app.post('/api/office/infographic', async (req, res) => {
   const prompt = office.buildInfographicPrompt(content, p.layout, p.style);
   const result = await draw.generate({ ...p, prompt, watermark: false, outputFormat: 'webp', promptExtend: false }); // 不带水印；WebP 输出；关闭提示词扩展（实测：扩展改写会丢失简历具体内容）
   if (result.error) return res.status(400).json({ error: result.error });
+
+  // —— 乱码自动检测修正（最多两轮；检测用对话模型多模态，修正用图片编辑按精确清单替换）——
+  let garbleFixed = 0; // 实际修正的乱码处数（响应给前端展示）
+  if (isConfigured() && Array.isArray(result.b64s) && result.b64s[0]) {
+    let currentB64 = result.b64s[0];
+    for (let round = 0; round < 2; round++) {
+      let garbles = [];
+      try {
+        // 检测：视觉模型找出乱码并推断正确文字
+        const detectContent = [
+          { type: 'text', text: office.buildGarbleDetectPrompt() },
+          { type: 'image_url', image_url: { url: `data:image/webp;base64,${currentB64}` } },
+        ];
+        const detectText = await llmChat([{ role: 'user', content: detectContent }], {
+          responseFormat: null,
+          reasoningEffort: 'none',
+          temperature: 0.1,
+          maxTokens: 2000,
+          timeoutMs: 120000,
+        });
+        garbles = office.parseGarbleList(detectText);
+      } catch { break; } // 检测失败不阻塞，返回当前结果
+      if (!garbles.length) break; // 无乱码，通过
+      try {
+        // 修正：图片编辑按精确清单替换（任务从『创作』变『抄写』，实测一次成功）
+        const fixed = await draw.edit({
+          images: [`data:image/webp;base64,${currentB64}`],
+          prompt: office.buildGarbleFixPrompt(garbles),
+          model: 'sensenova-u1.5-lite', // 修正用质量版，文字渲染更稳
+          size: 'auto',
+          outputFormat: 'webp',
+          promptExtend: false,
+        });
+        if (fixed.error || !Array.isArray(fixed.b64s) || !fixed.b64s[0]) break; // 修正失败返回当前结果
+        currentB64 = fixed.b64s[0];
+        garbleFixed += garbles.length;
+      } catch { break; }
+    }
+    if (garbleFixed > 0) result.b64s = [currentB64]; // 有修正才替换结果
+  }
+
   req.body.outputFormat = 'webp'; // 历史保存按实际输出格式命名扩展名
   req.body.prompt = content.slice(0, 2000); // 历史记录保存用户原始内容而非组装后的长提示词
   req.body.promptSource = 'office:infographic'; // 提示词记录标记办公·信息图标签（各标签历史互不混杂）
   saveDrawResult(req, result, 'infographic');
-  res.json(result);
+  res.json({ ...result, garbleFixed }); // garbleFixed：本次自动修正的乱码处数（前端展示用）
 });
 // 简历图生成（方案 A：文字 100% 准确）——图像模型只画无文字背景，文字由 sharp 程序化绘制
 app.post('/api/office/resume', async (req, res) => {

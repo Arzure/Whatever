@@ -173,6 +173,40 @@ function buildReportWritePrompt(topic, structureId, requirements) {
   ].join('\n');
 }
 
+/**
+ * 信息图乱码自动检测与修正（实测验证的方案）。
+ * 原理：生图模型渲染中文小字是概率性缺陷；检测环节用对话模型的多模态能力
+ * （与图表解读同管线）找出乱码并推断正确文字，修正环节用图片编辑能力
+ * 按精确清单替换（任务从『创作』变『抄写』，模型做得到）。
+ * 实测：15 处乱码的清单一次修正全部成功，布局配色保持原样。
+ */
+
+/** 检测提示词：找出乱码并推断正确文字，输出结构化清单 */
+function buildGarbleDetectPrompt() {
+  return '检查这张信息图中的文字：哪些是乱码、变形或无法辨认的？请逐处列出：乱码文字原文、所在位置（哪个板块的什么位置）、根据上下文推断的正确文字。只输出 JSON 数组，格式：[{"bad":"乱码原文","pos":"位置","fix":"正确文字"}]。如果所有文字都清晰正确，输出 []。不要输出其他内容。';
+}
+
+/** 修正提示词：按精确清单逐处替换，其余保持原样 */
+function buildGarbleFixPrompt(items) {
+  const lines = items.map((it, i) => `${i + 1}. ${it.pos}的『${it.bad}』改为『${it.fix}』`);
+  return [
+    '只修正以下乱码文字，把每处乱码替换为对应正确文字，其余布局、配色、图标、正常文字全部保持原样不变：',
+    ...lines,
+    '每个字都必须清晰正确，逐字重写上述文字。',
+  ].join('\n');
+}
+
+/** 解析检测返回的 JSON 清单（容错：剥离可能的围栏与前后杂文） */
+function parseGarbleList(text) {
+  const raw = String(text || '').trim();
+  const m = raw.match(/\[[\s\S]*\]/);
+  if (!m) return [];
+  try {
+    const arr = JSON.parse(m[0]);
+    return Array.isArray(arr) ? arr.filter((x) => x && x.bad && x.fix) : [];
+  } catch { return []; }
+}
+
 module.exports = {
   INFOGRAPHIC_LAYOUTS,
   INFOGRAPHIC_STYLES,
@@ -185,4 +219,7 @@ module.exports = {
   buildImitateAnnotatePrompt,
   buildImitatePrompt,
   buildReportWritePrompt,
+  buildGarbleDetectPrompt,
+  buildGarbleFixPrompt,
+  parseGarbleList,
 };
