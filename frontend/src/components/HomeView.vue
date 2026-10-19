@@ -2,14 +2,9 @@
 import { ref, computed, onMounted, inject, Transition } from 'vue';
 import { api } from '../api';
 
-const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice } = inject('game');
+const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice, openAdventure } = inject('game');
 
 const playerName = ref('');
-// 文字冒险表单：点击入口后展开（默认收起，保持首页简洁美观）
-const adventureOpen = ref(false);
-function toggleAdventure() {
-  adventureOpen.value = !adventureOpen.value;
-}
 const modeId = ref('deduction');
 const themeId = ref('');
 const customTheme = ref(null); // 由纯文本导入生成的世界观
@@ -123,7 +118,7 @@ const canStart = computed(() => {
           </span>
           <span class="play-arrow">›</span>
         </div>
-        <div class="play-entry" :class="{ open: adventureOpen }" @click="toggleAdventure" role="button" tabindex="0" @keydown.enter="toggleAdventure">
+        <div class="play-entry" @click="openAdventure()" role="button" tabindex="0" @keydown.enter="openAdventure()">
           <span class="play-icon">⚔️</span>
           <span class="play-text">
             <b>文字冒险</b>
@@ -133,110 +128,7 @@ const canStart = computed(() => {
         </div>
       </div>
 
-      <!-- 文字冒险表单：点击入口展开（默认收起） -->
-      <Transition name="adventure">
-        <div v-if="adventureOpen" class="adventure-panel">
-          <p class="mode-slogan">⚔️ 文字冒险 · 你的每一个选择都将改变命运</p>
 
-          <!-- 游戏模式 -->
-          <section class="block">
-        <h2>选择模式</h2>
-        <div class="mode-list">
-          <button
-            v-for="m in state.modes"
-            :key="m.id"
-            class="mode-card"
-            :class="{ active: modeId === m.id }"
-            @click="pickMode(m.id)"
-          >
-            {{ m.name }}
-          </button>
-        </div>
-      </section>
-
-      <!-- 板子（推理杀模式） -->
-      <section v-if="needBoard" class="block">
-        <h2>选择板子</h2>
-        <div class="theme-list">
-          <button
-            v-for="b in BOARDS"
-            :key="b.id"
-            class="theme-card"
-            :class="{ active: boardId === b.id }"
-            @click="pickBoard(b.id)"
-          >
-            <span class="theme-name">{{ b.name }}</span>
-            <span class="theme-intro">{{ b.intro }}</span>
-          </button>
-        </div>
-      </section>
-      <!-- 案件题材（探案模式） -->
-      <section v-if="needGenre" class="block">
-        <h2>选择案件题材</h2>
-        <div class="theme-list">
-          <button
-            v-for="g in state.genres"
-            :key="g.id"
-            class="theme-card"
-            :class="{ active: genreId === g.id }"
-            @click="pickGenre(g.id)"
-          >
-            <span class="theme-name">{{ g.name }}</span>
-            <span class="theme-intro">{{ g.hint }}</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- 世界观 -->
-      <section v-if="needTheme" class="block">
-        <h2>选择世界</h2>
-        <div class="theme-list">
-          <button
-            v-for="t in state.themes"
-            :key="t.id"
-            class="theme-card"
-            :class="{ active: !customTheme && themeId === t.id }"
-            @click="pickTheme(t.id)"
-          >
-            <span class="theme-name">{{ t.name }}</span>
-            <span class="theme-intro">{{ t.intro }}</span>
-          </button>
-        </div>
-
-        <details class="import">
-          <summary>导入自定义世界观（粘贴文本，由 AI 解析）</summary>
-          <textarea
-            v-model="importText"
-            rows="4"
-            maxlength="4000"
-            placeholder="粘贴你的世界观设定文本，例如时代背景、是否存在战斗、货币、装备概念等…"
-          ></textarea>
-          <button class="btn ghost full" :disabled="importing || !importText.trim()" @click="doImport">
-            {{ importing ? '解析中…' : '解析并选用' }}
-          </button>
-          <p v-if="customTheme" class="import-ok">已采用自定义世界：{{ customTheme.name }}</p>
-        </details>
-      </section>
-
-      <div class="start-box">
-        <input
-          v-model="playerName"
-          type="text"
-          maxlength="20"
-          :placeholder="`给自己起个名字（可留空，默认「${defaultName}」）`"
-          @keyup.enter="start"
-        />
-        <button class="btn primary" :disabled="state.loading || !canStart" @click="start">
-          <template v-if="state.loading">{{ needGenre ? '正在设计案件…' : '进入世界…' }}</template>
-          <template v-else>{{ needGenre ? '开始查案' : '开始新冒险' }}</template>
-        </button>
-      </div>
-      <p class="hint small">名字可留空：不填将直接以「{{ defaultName }}」的身份开始游戏</p>
-      <p v-if="needGenre" class="hint small">探案模式会由 AI 即时设计一桩命案，请先选择题材</p>
-
-      <p v-if="state.error" class="error">{{ state.error }}</p>
-        </div>
-      </Transition>
     </div>
   </div>
 </template>

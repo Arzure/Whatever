@@ -30,6 +30,7 @@ function listModes() {
   return Object.values(MODES).map((m) => ({
     id: m.modeId,
     name: m.modeName,
+    desc: m.modeDesc || '',
     needsTheme: !!m.needsTheme,
     needsGenre: !!m.needsGenre,
   }));

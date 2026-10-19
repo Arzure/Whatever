@@ -10,6 +10,7 @@ import DeductionView from './components/DeductionView.vue';
 import DrawView from './components/DrawView.vue';
 import OfficeView from './components/OfficeView.vue';
 import AdminView from './components/AdminView.vue';
+import AdventureView from './components/AdventureView.vue';
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -108,7 +109,6 @@ async function deleteSave(s) {
           <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'">🛡 管理</button>
           <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
           <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
-          <button class="app-bar-logout" @click="logout">退出登录</button>
         </header>
         <div class="app-body">
           <HomeView v-if="game.state.view === 'home'" />
@@ -118,10 +118,11 @@ async function deleteSave(s) {
           <DrawView v-else-if="game.state.view === 'draw'" />
           <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
           <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
+          <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
           <WorldView v-else />
         </div>
       </div>
-      <AccountSettings v-if="showSettings" :user="authUser" @close="showSettings = false" @renamed="onRenamed" @deleted="onDeleted" />
+      <AccountSettings v-if="showSettings" :user="authUser" @close="showSettings = false" @renamed="onRenamed" @deleted="onDeleted" @logout="showSettings = false; logout()" />
       <!-- 存档选择浮层（顶栏入口） -->
       <Transition name="ovl">
         <div v-if="showSaves" class="save-overlay" @click.self="showSaves = false">

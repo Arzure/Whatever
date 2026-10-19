@@ -1971,6 +1971,7 @@ function renderPlayer(game) {
 module.exports = {
   modeId: MODE_ID,
   modeName: MODE_NAME,
+  modeDesc: '法官视角的甄谎推理：7-10 名玩家夜间行动、白天发言，你通过发言矛盾与行动关系图找出隐藏的坏人阵营。',
   needsTheme: false,
   needsGenre: false,
   needsLLM: false,

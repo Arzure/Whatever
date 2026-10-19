@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { api, setAuth } from '../api';
 
 const props = defineProps({ user: { type: Object, required: true } });
-const emit = defineEmits(['close', 'renamed', 'deleted']);
+const emit = defineEmits(['close', 'renamed', 'deleted', 'logout']);
 
 const tab = ref('rename'); // rename | password | delete
 const error = ref('');
@@ -114,6 +114,7 @@ async function doDelete() {
         <button :class="{ active: tab === 'rename' }" @click="switchTab('rename')">修改用户名</button>
         <button :class="{ active: tab === 'password' }" @click="switchTab('password')">修改密码</button>
         <button :class="{ active: tab === 'delete' }" @click="switchTab('delete')">删除账号</button>
+        <button class="tab-logout" @click="emit('logout')">退出登录</button>
       </div>
 
       <div v-if="error" class="form-error">{{ error }}</div>
@@ -226,6 +227,14 @@ async function doDelete() {
 .tabs button.active {
   border-color: #58a6ff;
   color: #58a6ff;
+}
+/* 退出登录：标签栏末尾的独立动作按钮（非标签，点击即退出） */
+.tabs .tab-logout {
+  color: #ff7d7d;
+}
+.tabs .tab-logout:hover {
+  color: #ff9d9d;
+  border-color: #ff7d7d;
 }
 .form {
   display: flex;

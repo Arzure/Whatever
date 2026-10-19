@@ -959,6 +959,7 @@ function equipItem(game, itemName) {
 module.exports = {
   modeId: 'detective',
   modeName: '探案',
+  modeDesc: 'AI 即时设计一桩命案：你作为侦探调查现场、询问嫌疑人、收集物证，推理并指认凶手。',
   needsTheme: false,
   needsGenre: true,
   needsLLM: true,

@@ -564,6 +564,7 @@ function renderPlayer(game) {
 module.exports = {
   modeId: MODE_ID,
   modeName: MODE_NAME,
+  modeDesc: '单人 5 人局狼人杀：1 狼人、1 预言家、3 村民。你作为村民之一，通过白天发言推理投票放逐狼人。',
   needsTheme: false,
   needsGenre: false,
   needsLLM: false, // 开局不需要 LLM（发言时才需要，由路由统一检查）

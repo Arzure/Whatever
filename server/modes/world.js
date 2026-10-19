@@ -371,6 +371,7 @@ function summarize(game) {
 module.exports = {
   modeId: 'world',
   modeName: '大世界',
+  modeDesc: '自由文字冒险：选择世界观后自由行动，AI 实时生成剧情与场景，支持战斗、物品与装备。',
   needsTheme: true,
   newGame,
   processAction,

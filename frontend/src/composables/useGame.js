@@ -180,6 +180,11 @@ export function useGame() {
     state.view = 'office';
   }
 
+  // 文字冒险模式选择：独立页面（从首页入口跳转）
+  function openAdventure() {
+    state.view = 'adventure';
+  }
+
   function restart() {
     state.view = 'home';
     state.player = null;
@@ -381,6 +386,7 @@ export function useGame() {
     backToHome,
     openDraw,
     openOffice,
+    openAdventure,
     restart,
     submitAction,
     useItem,

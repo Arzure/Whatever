@@ -110,6 +110,7 @@ const canStart = computed(() => {
             {{ m.name }}
           </button>
         </div>
+        <p v-if="currentMode && currentMode.desc" class="mode-desc">{{ currentMode.desc }}</p>
       </section>
 
       <!-- 板子（推理杀模式） -->
@@ -147,7 +148,7 @@ const canStart = computed(() => {
 
       <!-- 世界观 -->
       <section v-if="needTheme" class="block">
-        <h2>选择世界</h2>
+        <h2>选择世界观</h2>
         <div class="theme-list">
           <button
             v-for="t in state.themes"
@@ -255,6 +256,12 @@ const canStart = computed(() => {
 .mode-card.active {
   border-color: var(--accent);
   background: linear-gradient(135deg, rgba(212, 161, 44, 0.12), rgba(60, 90, 160, 0.12)), var(--panel-2);
+}
+.mode-desc {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim, #9aa4b2);
 }
 .theme-list {
   display: grid;
