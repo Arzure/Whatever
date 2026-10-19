@@ -307,12 +307,23 @@ onMounted(async () => {
   loadHistory();
 });
 
+// 信息图 / 简历图共用一个输入框，但内容互不干扰：各标签独立草稿，切换时保存与恢复
+const contentDrafts = { infographic: '', resume: '' };
+
 function switchTab(t) {
+  // 离开的标签若是信息图/简历图，保存其输入草稿
+  if (tab.value === 'infographic' || tab.value === 'resume') {
+    contentDrafts[tab.value] = content.value;
+  }
   tab.value = t;
   error.value = '';
   result.value = null;
   size.value = 'auto';
-  // 简历标签页：输入框为空时自动填入最佳实践示例——可直接生成体验效果，也可在示例上改成自己的内容
+  // 目标标签若是信息图/简历图，恢复其草稿（简历示例不再漏进信息图输入框）
+  if (t === 'infographic' || t === 'resume') {
+    content.value = contentDrafts[t];
+  }
+  // 简历标签页：草稿为空时自动填入最佳实践示例——可直接生成体验效果，也可在示例上改成自己的内容
   if (t === 'resume' && !content.value.trim()) {
     content.value = RESUME_SAMPLE;
   }
