@@ -4,7 +4,7 @@ import { api } from '../api';
 import { marked } from 'marked';
 
 // 办公助手（阶段 1）：信息图 + 简历图。提示词体系由服务端组装，前端只负责选项与展示
-const tab = ref('infographic'); // infographic | resume | chart
+const tab = ref('report'); // report | resume | infographic | chart | excel | write
 const config = ref({ layouts: [], styles: [], infographicSizes: [], resumeSizes: [], defaultModel: '' });
 const content = ref(''); // 信息图内容 / 简历文本
 const layoutId = ref('');
@@ -78,6 +78,98 @@ async function generateWrite() {
 }
 
 // 报告网页化：调用对话模型生成单文件 HTML 专题页
+// 报告网页化预设模板：点选即填入，可直接生成体验效果，也可改成自己的内容
+const REPORT_TEMPLATES = [
+  { name: '周报', style: '清爽商务风', content: [
+    '# 第 42 周工作周报',
+    '',
+    '## 本周概览',
+    '- 核心目标：完成办公助手模块的乱码自动修正功能上线',
+    '- 完成度：95%（端到端验证通过，待用户实测反馈）',
+    '',
+    '## 重点工作',
+    '| 事项 | 进展 | 说明 |',
+    '| ---- | ---- | ---- |',
+    '| 乱码检测修正 | 已上线 | 视觉模型定位+图片编辑替换，实测修正 12 处 |',
+    '| 标签顺序调整 | 已完成 | 报告网页化置顶，提升入口曝光 |',
+    '| 模板机制 | 开发中 | 预设 4 套模板，点选即用 |',
+    '',
+    '## 数据亮点',
+    '- 信息图生成成功率：98%',
+    '- 乱码自动修正命中率：85%',
+    '- 平均生成耗时：65 秒',
+    '',
+    '## 下周计划',
+    '1. 收集首批用户反馈并迭代',
+    '2. 启动移动端适配第二批（顶栏/登录/账号设置）',
+    '3. PWA 可行性调研',
+  ].join('\n') },
+  { name: '数据分析', style: '深色科技感', content: [
+    '# 2026 年 Q3 用户增长分析',
+    '',
+    '## 核心结论',
+    'Q3 新增用户 12.4 万，环比增长 38%，增长主要来自移动端渠道与老用户召回双轮驱动。',
+    '',
+    '## 关键指标',
+    '| 指标 | Q2 | Q3 | 环比 |',
+    '| ---- | ---- | ---- | ---- |',
+    '| 新增用户 | 9.0 万 | 12.4 万 | +38% |',
+    '| 次日留存 | 41% | 46% | +5pp |',
+    '| 付费转化 | 2.1% | 2.8% | +0.7pp |',
+    '',
+    '## 增长拆解',
+    '1. **移动端渠道**：贡献 62% 新增，应用商店评分提升至 4.8 是主因',
+    '2. **老用户召回**：贡献 27% 新增，邮件召回打开率提升至 18%',
+    '3. **自然流量**：贡献 11% 新增，SEO 优化长尾词覆盖翻倍',
+    '',
+    '## 风险与建议',
+    '- 移动端渠道占比过高，需平衡渠道结构',
+    '- 建议加大内容营销投入，提升自然流量占比至 15% 以上',
+  ].join('\n') },
+  { name: '项目复盘', style: '纸质档案风', content: [
+    '# 『星图』项目复盘报告',
+    '',
+    '## 项目背景',
+    '目标：6 周内上线数据可视化看板，支撑运营团队日常决策。',
+    '结果：提前 1 周上线，覆盖 12 个核心场景，日活使用率 73%。',
+    '',
+    '## 做得好的',
+    '1. **需求收敛快**：首周即锁定 MVP 范围，砍掉 40% 非核心需求',
+    '2. **技术选型稳**：复用现有图表库，零新增依赖，交付零回滚',
+    '3. **验收前置**：每轮迭代邀请运营参与验收，上线后无需求返工',
+    '',
+    '## 踩过的坑',
+    '1. 数据接口性能瓶颈在联调后期才暴露，拖慢 3 天——应尽早压测',
+    '2. 权限模型设计过度，实际只用到 2 级——应从最小可用开始',
+    '',
+    '## 下次怎么做',
+    '- 接口压测纳入联调准入标准',
+    '- 权限设计从简，按需扩展',
+  ].join('\n') },
+  { name: '产品白皮书', style: '留白极简', content: [
+    '# 智能办公助手产品白皮书',
+    '',
+    '## 产品定位',
+    '面向中小团队的一站式 AI 办公工具，让报告、简历、信息图的生成从小时级降到分钟级。',
+    '',
+    '## 核心能力',
+    '1. **报告网页化**：Markdown 一键转为可交互网页，支持多风格主题',
+    '2. **简历图生成**：文字 100% 准确的程序化渲染，零乱码',
+    '3. **信息图创作**：多布局多风格，自动检测并修正乱码文字',
+    '',
+    '## 技术特色',
+    '- 视觉模型 + 图片编辑双模型协作，乱码自动修正',
+    '- 单文件 HTML 输出，无外部依赖，可离线分享',
+    '',
+    '## 适用场景',
+    '| 场景 | 使用频率 | 典型用户 |',
+    '| ---- | ---- | ---- |',
+    '| 周报月报 | 每周 | 职场新人 |',
+    '| 求职简历 | 按需 | 应届毕业生 |',
+    '| 数据汇报 | 每月 | 运营/分析师 |',
+  ].join('\n') },
+];
+
 async function generateReport() {
   if (reportBusy.value) return;
   if (!reportContent.value.trim()) {
@@ -412,11 +504,11 @@ async function generate() {
     <div class="office-body">
       <!-- 标签切换 -->
       <div class="tabs">
-        <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
+        <button :class="{ on: tab === 'report' }" @click="switchTab('report')">📰 报告网页化</button>
         <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
+        <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
         <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
         <button :class="{ on: tab === 'excel' }" @click="switchTab('excel')">📊 Excel 分析</button>
-        <button :class="{ on: tab === 'report' }" @click="switchTab('report')">📰 报告网页化</button>
         <button :class="{ on: tab === 'write' }" @click="switchTab('write')">📝 报告写作</button>
       </div>
 
@@ -488,6 +580,15 @@ async function generate() {
         </template>
         <!-- 报告网页化面板 -->
         <template v-else-if="tab === 'report'">
+          <label class="field-label">快速开始：点选模板直接体验（可改成自己的内容）</label>
+          <div class="option-grid">
+            <button
+              v-for="tpl in REPORT_TEMPLATES"
+              :key="tpl.name"
+              class="option-btn"
+              @click="reportContent = tpl.content; reportStyle = tpl.style"
+            >{{ tpl.name }}</button>
+          </div>
           <label class="field-label">粘贴 Markdown 报告（周报 / 分析 / 复盘 / 白皮书，限 20000 字）</label>
           <textarea v-model="reportContent" class="content-input" rows="10" maxlength="20000" placeholder="粘贴你的 Markdown 报告内容…支持标题、列表、表格、数据等"></textarea>
           <label class="field-label">风格倾向（可选）</label>

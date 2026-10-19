@@ -319,6 +319,7 @@ app.post('/api/office/infographic', async (req, res) => {
           size: 'auto',
           outputFormat: 'webp',
           promptExtend: false,
+          watermark: false, // 与生成环节一致不带水印（漏传时默认 true，修正图会带水印）
         });
         if (fixed.error || !Array.isArray(fixed.b64s) || !fixed.b64s[0]) break; // 修正失败返回当前结果
         currentB64 = fixed.b64s[0];
