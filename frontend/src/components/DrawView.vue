@@ -472,6 +472,7 @@ function useAsRef(item) {
   flex: 1;
   padding: 8px 0;
   font-size: 13px;
+  white-space: nowrap; /* 三模式四字标签不换行（窄屏被挤到第二行的修复） */
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);

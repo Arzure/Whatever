@@ -277,6 +277,14 @@ function usePrompt(p) {
   content.value = p.prompt;
 }
 
+// 提示词历史：删除单条（与绘图工作台同款交互）
+async function removePrompt(id) {
+  try {
+    await api.drawPromptDelete(id);
+    promptHistory.value = promptHistory.value.filter((x) => x.id !== id);
+  } catch { /* 静默 */ }
+}
+
 async function removeHistory(id) {
   try {
     await api.drawHistoryDelete(id);
@@ -455,7 +463,10 @@ async function generate() {
         <template v-else>
         <!-- 提示词历史：点选填入（仅办公来源） -->
         <div v-if="promptHistory.length && tab !== 'chart'" class="prompt-tags">
-          <button v-for="p in promptHistory" :key="p.id" class="prompt-tag" :title="p.prompt" @click="usePrompt(p)">{{ p.prompt.slice(0, 18) }}…</button>
+          <span v-for="p in promptHistory" :key="p.id" class="prompt-tag">
+            <span class="prompt-tag-text" :title="p.prompt" @click="usePrompt(p)">{{ p.prompt.slice(0, 18) }}…</span>
+            <button class="prompt-tag-del" title="删除该提示词" @click="removePrompt(p.id)">✕</button>
+          </span>
         </div>
         <!-- 内容输入 -->
         <label class="field-label">{{ tab === 'infographic' ? '信息图内容（主题、要点、数据）' : '简历内容（姓名、经历、技能、联系方式等）' }}</label>
@@ -809,12 +820,44 @@ async function generate() {
 .chart-text.md :deep(p) {
   margin: 6px 0;
 }
-/* 提示词历史标签 */
+/* 提示词历史标签（文字点选填入 + ✕ 删除，与绘图工作台同款交互） */
 .prompt-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+.prompt-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.prompt-tag-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 3px 6px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.prompt-tag-text:hover {
+  color: var(--accent-2);
+}
+.prompt-tag-del {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.prompt-tag-del:hover {
+  color: #f85149;
 }
 .prompt-tag {
   background: rgba(0, 0, 0, 0.25);
