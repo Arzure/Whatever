@@ -320,7 +320,7 @@ function switchTab(t) {
 
 // 简历最佳实践示例（实测验证过的格式：每行一个条目，短句经历）
 const RESUME_SAMPLE = [
-  '姓名：王芳',
+  '姓名：范例',
   '职位：UI/UX 设计师',
   '教育：中国美术学院 视觉传达设计 2017-2021',
   '经历：腾讯 高级UI设计师 2021-2026',
@@ -473,7 +473,7 @@ async function generate() {
         <textarea
           v-model="content"
           class="content-input"
-          rows="8"
+          :rows="tab === 'resume' ? 12 : 8"
           :placeholder="tab === 'infographic'
             ? '示例：\n主题：2026 年 AI 发展趋势\n要点：\n1. 多模态成为主流…\n2. Agent 能力快速进化…\n3. 端侧模型普及…'
             : '每行一个条目（姓名/职位/教育/经历/技能/联系方式），已预填示例可直接生成，改成自己的内容即可'"
