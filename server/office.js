@@ -238,7 +238,7 @@ function buildPptHtml(slides, images, topic) {
     '.slide.current { display: block; }',
     '.slide-body { transform-origin: top center; }',
     '.slide h2 { font-size: 42px; color: #1a1a2e; margin-bottom: 26px; border-left: 8px solid #4f6ef7; padding-left: 20px; }',
-    '.slide-img { max-height: 330px; max-width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 22px; align-self: center; }',
+    '.slide-img { max-height: 370px; max-width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 22px; align-self: center; }',
     '.slide ul { list-style: none; }',
     '.slide li { font-size: 25px; color: #333; line-height: 1.7; padding: 9px 0 9px 34px; position: relative; }',
     '.slide li::before { content: "▸"; position: absolute; left: 8px; color: #4f6ef7; }',

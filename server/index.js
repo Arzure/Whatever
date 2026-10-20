@@ -601,7 +601,7 @@ app.post('/api/office/ppt', async (req, res) => {
           const r = await draw.generate({
             prompt: `演示文稿配图，与『${slides[i].title}』主题相关：${desc}。扁平化矢量插画风格，简洁构图，无文字。`,
             model: 'sensenova-u1.5-lite',
-            size: '1024x1024',
+            size: '2720x1536',
             outputFormat: 'webp',
             watermark: false,
             promptExtend: false,
