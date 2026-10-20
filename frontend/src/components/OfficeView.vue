@@ -1102,10 +1102,11 @@ async function generate() {
   border-radius: 10px;
   padding: 12px 14px;
 }
-/* 报告网页化：iframe 预览（固定高度内滚动）+ 操作按钮排列 */
+/* 报告网页化：iframe 预览（16:9 比例，与幻灯片画布一致）+ 操作按钮排列 */
 .report-frame {
   width: 100%;
-  height: 480px;
+  aspect-ratio: 16 / 9;
+  height: auto;
   border: 1px solid var(--border, #444);
   border-radius: 8px;
   background: #fff;
