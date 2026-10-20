@@ -183,7 +183,7 @@ function buildReportWritePrompt(topic, structureId, requirements) {
 
 /** 检测提示词：找出乱码并推断正确文字（自然语言格式——实测稳定；强制 JSON 格式会诱发空内容，教训同报告网页化） */
 function buildGarbleDetectPrompt() {
-  return '这张信息图中哪些文字是乱码？请逐处列出：乱码文字原文、所在位置、根据上下文推断的正确文字。如果所有文字都清晰正确，请明确说明没有乱码。';
+  return '仔细看这张信息图中的所有文字，找出乱码（错字/不成词的字）。直接输出清单，每处一行，格式：『乱码原文 → 正确文字（位置）』。不要犹豫、不要反复推敲，凭第一判断直接给结论。如果所有文字都清晰正确，只回答『没有乱码』。';
 }
 
 /** 修正提示词：按精确清单逐处替换，其余保持原样 */
@@ -222,6 +222,12 @@ function parseGarbleList(text) {
   if (cur && cur.bad && cur.fix && cur.bad !== cur.fix) items.push(cur);
   if (items.length) return items; // 字段格式解析成功即返回，不再走下面的行解析
   for (const line of raw.split('\n')) {
+    // 新提示词格式：『乱码原文 → 正确文字（位置）』（引导模型直接输出简洁清单）
+    const arrowM = line.match(/([^\s→（()]{1,20})\s*→\s*([^（()\s]{1,20})(?:[（(]([^）)]{0,20})[）)])?/);
+    if (arrowM && arrowM[1] !== arrowM[2]) {
+      items.push({ bad: arrowM[1].trim(), pos: (arrowM[3] || '').trim().slice(0, 20), fix: arrowM[2].trim() });
+      continue;
+    }
     // Markdown 表格行：『| 乱码原文 | 所在位置 | 正确文字 |』（模型有时返回表格格式）
     const tableM = line.match(/^\s*\|(.+)\|\s*$/);
     if (tableM) {
