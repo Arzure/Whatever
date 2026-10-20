@@ -123,6 +123,7 @@ export const api = {
   officeExcel: (params) => request('/office/excel', { method: 'POST', body: JSON.stringify(params) }),
   officeReport: (params) => request('/office/report', { method: 'POST', body: JSON.stringify(params) }),
   officeImitate: (params) => request('/office/imitate', { method: 'POST', body: JSON.stringify(params) }),
+  drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
   officeReportWrite: (params) => request('/office/report-write', { method: 'POST', body: JSON.stringify(params) }),
   adminUsers: () => request('/admin/users'),
   adminUserSessions: (id) => request(`/admin/users/${id}/sessions`),

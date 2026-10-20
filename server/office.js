@@ -137,6 +137,11 @@ function buildImitateAnnotatePrompt() {
   return '详细描述这张参考图的视觉风格，用于指导生成同风格新图：配色（主色调与氛围）、排版与字体气质、版面布局（区块数量与排布方式）、图形语言（扁平/立体/插画/照片质感）、装饰元素与整体情绪。用中文，200 字以内，只输出风格描述。';
 }
 
+/** 图转提示词：VLM 从参考图反向解析出可直接用于绘图的提示词（四段结构化） */
+function buildExtractPromptPrompt() {
+  return '分析这张图片，反向推导出能生成类似图像的绘图提示词。按以下四段输出，每段一行，格式为『段名：内容』：\n主体内容：画面里有什么（人物/物体/场景/动作/文字元素）\n艺术风格：插画/写实/水彩/赛博朋克/扁平化/3D 渲染等具体风格词\n构图视角：特写/全景/俯视/仰视/对称构图/黄金分割等\n色调氛围：主色调/饱和度/光线条件/情绪氛围\n要求：用绘图模型友好的具体词汇（如『吉卜力风格，柔光，低饱和』），不要文学化描述，不要犹豫推敲，直接给结论。只输出这四行，不要其他内容。';
+}
+
 function buildImitatePrompt(styleDesc, targetContent) {
   return [
     '按以下视觉风格生成一张新图，风格与版面布局尽量与参考图保持一致：',
@@ -297,6 +302,7 @@ module.exports = {
   buildResumePrompt,
   buildReportPrompt,
   buildImitateAnnotatePrompt,
+  buildExtractPromptPrompt,
   buildImitatePrompt,
   buildReportWritePrompt,
   buildGarbleDetectPrompt,

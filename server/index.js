@@ -425,6 +425,48 @@ app.post('/api/office/chart', async (req, res) => {
 });
 
 // 风格模仿：参考图 + 新内容 → VLM 提取风格 → 组装提示词 → 复用绘图管线（入绘图历史）
+// 图转提示词：上传图片 → VLM 反向解析四段结构化提示词 → 返回给前端编辑后走生成管线
+app.post('/api/draw/extract-prompt', async (req, res) => {
+  const p = req.body || {};
+  const image = String(p.image || '');
+  if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) {
+    return res.status(400).json({ error: '请上传有效的参考图（png/jpeg/webp）' });
+  }
+  if (image.length > 12 * 1024 * 1024) return res.status(400).json({ error: '参考图过大（Base64 超过 12MB）' });
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    // VLM 解析提示词：带思考兜底与重试（复用乱码检测的稳定性防护经验）
+    let raw = '';
+    for (let attempt = 0; attempt < 3 && !raw; attempt++) {
+      try {
+        raw = await llmChat([{ role: 'user', content: [
+          { type: 'text', text: office.buildExtractPromptPrompt() },
+          { type: 'image_url', image_url: { url: image } },
+        ] }], { responseFormat: null, reasoningEffort: 'none', reasoningFallback: true, temperature: 0.2, maxTokens: 2000, timeoutMs: 120000 });
+        console.log(`[图转提示词] 第${attempt + 1}次: 返回${(raw || '').length}字`);
+      } catch (e) {
+        console.log(`[图转提示词] 第${attempt + 1}次失败: ${e.message}`);
+      }
+    }
+    if (!raw) return res.status(502).json({ error: '解析提示词失败，请重试' });
+    // 四段解析：『段名：内容』逐行提取（宽松匹配，缺段不报错）
+    const seg = { subject: '', style: '', composition: '', mood: '' };
+    const map = [['主体内容', 'subject'], ['艺术风格', 'style'], ['构图视角', 'composition'], ['色调氛围', 'mood']];
+    for (const line of String(raw).split('\n')) {
+      for (const [label, key] of map) {
+        const m = line.match(new RegExp(label + '[：:]\\s*(.+)'));
+        if (m && !seg[key]) seg[key] = m[1].trim().slice(0, 200);
+      }
+    }
+    const prompt = [seg.subject, seg.style, seg.composition, seg.mood].filter(Boolean).join('，');
+    if (!prompt) return res.status(502).json({ error: '解析结果为空，请重试' });
+    res.json({ prompt, segments: seg });
+  } catch (e) {
+    console.log('[图转提示词] 异常:', e.message);
+    res.status(500).json({ error: '解析提示词失败：' + e.message });
+  }
+});
+
 app.post('/api/office/imitate', async (req, res) => {
   const p = req.body || {};
   const image = String(p.image || '');

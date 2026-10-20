@@ -20,6 +20,48 @@ const promptExtend = ref(true);
 const refImages = ref([]);
 // 风格模仿：参考图（单张 Data URL）
 const imitateImage = ref('');
+// 图转提示词：参考图（单张 Data URL）→ VLM 反向解析 → 回填提示词生成类似图
+const extractImage = ref('');
+const extracting = ref(false);
+const extractSegments = ref(null); // 解析出的四段结构（主体/风格/构图/氛围）
+function onExtractFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+    error.value = '仅支持 png/jpeg/webp 图片';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    error.value = '参考图过大（限 8MB）';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    extractImage.value = String(reader.result || '');
+    extractSegments.value = null;
+    error.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+async function extractPrompt() {
+  if (extracting.value) return;
+  if (!extractImage.value) { error.value = '请先上传一张参考图'; return; }
+  error.value = '';
+  extracting.value = true;
+  try {
+    const r = await api.drawExtractPrompt({ image: extractImage.value });
+    if (r && r.prompt) {
+      prompt.value = r.prompt;
+      extractSegments.value = r.segments || null;
+    } else {
+      error.value = '解析提示词失败，请重试';
+    }
+  } catch (e) {
+    error.value = '解析提示词失败：' + (e.message || '请重试');
+  } finally {
+    extracting.value = false;
+  }
+}
 function onImitateFile(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -140,7 +182,7 @@ function removeImage(i) {
 async function run() {
   if (generating.value) return;
   const p = prompt.value.trim();
-  if (!p) { error.value = mode.value === 'generate' ? '请输入提示词' : (mode.value === 'imitate' ? '请输入新图内容' : '请输入编辑指令'); return; }
+  if (!p) { error.value = mode.value === 'generate' ? '请输入提示词' : (mode.value === 'imitate' ? '请输入新图内容' : (mode.value === 'extract' ? '请先解析提示词（或直接输入提示词）' : '请输入编辑指令')); return; }
   const m = effectiveModel();
   if (!m) { error.value = '请选择或输入模型名'; return; }
   if (mode.value === 'edit' && !refImages.value.length) { error.value = '图片编辑至少需要上传一张参考图'; return; }
@@ -156,7 +198,7 @@ async function run() {
       watermark: watermark.value,
       promptExtend: promptExtend.value,
     };
-    const r = mode.value === 'generate'
+    const r = mode.value === 'generate' || mode.value === 'extract'
       ? await api.drawGenerate(params)
       : (mode.value === 'imitate'
         ? await api.officeImitate({ image: imitateImage.value, content: p, model: m, size: params.size })
@@ -270,6 +312,7 @@ function useAsRef(item) {
           <button :class="{ active: mode === 'generate' }" @click="mode = 'generate'">✨ 文生图</button>
           <button :class="{ active: mode === 'edit' }" @click="mode = 'edit'">🖼️ 图片编辑</button>
           <button :class="{ active: mode === 'imitate' }" @click="mode = 'imitate'">🎨 风格模仿</button>
+          <button :class="{ active: mode === 'extract' }" @click="mode = 'extract'">🔍 图转提示词</button>
         </div>
 
         <label class="field">
@@ -325,6 +368,22 @@ function useAsRef(item) {
           </label>
           <img v-if="imitateImage" :src="imitateImage" class="ref-preview-single" alt="风格参考图" />
           <p class="field-tip">AI 先分析参考图的配色、排版与质感，再按你输入的新内容生成同风格新图。</p>
+        </div>
+        <!-- 图转提示词：上传参考图 → 解析提示词 → 回填生成 -->
+        <div v-if="mode === 'extract'" class="ref-area">
+          <label class="field">
+            <span class="field-label">参考图（png/jpeg/webp，8MB 内）</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" class="field-input" @change="onExtractFile" />
+          </label>
+          <img v-if="extractImage" :src="extractImage" class="ref-preview-single" alt="参考图" />
+          <button class="btn" :disabled="extracting || !extractImage" @click="extractPrompt">{{ extracting ? '解析中…（约 10-60 秒）' : '🔍 解析提示词' }}</button>
+          <p class="field-tip">AI 从参考图反向解析出主体/风格/构图/氛围四段提示词并回填，可自由修改后生成同风格新图。</p>
+          <div v-if="extractSegments" class="extract-segments">
+            <p v-if="extractSegments.subject"><strong>主体：</strong>{{ extractSegments.subject }}</p>
+            <p v-if="extractSegments.style"><strong>风格：</strong>{{ extractSegments.style }}</p>
+            <p v-if="extractSegments.composition"><strong>构图：</strong>{{ extractSegments.composition }}</p>
+            <p v-if="extractSegments.mood"><strong>氛围：</strong>{{ extractSegments.mood }}</p>
+          </div>
         </div>
         <!-- 图片编辑：参考图上传区 -->
         <div v-if="mode === 'edit'" class="ref-area">
