@@ -307,7 +307,9 @@ app.post('/api/office/infographic', async (req, res) => {
           });
           garbles = office.parseGarbleList(detectText);
           console.log(`[信息图] 乱码检测 第${round + 1}轮第${attempt + 1}次: 返回${(detectText || '').length}字, 解析${garbles.length}处`);
-          if (!garbles.length && detectText && /没有乱码|无乱码|清晰/.test(String(detectText))) break; // 明确无乱码，不再重试
+          // 明确无乱码则不重试——但仅限正常正文（短文本）；思考兜底内容（长文本）中『文字清晰』等字样
+          // 是逐块扫描的中间描述而非最终结论，不能据此短路（实测 1.3 万字思考内容含『清晰』误触发放行）
+          if (!garbles.length && detectText && detectText.length < 500 && /没有乱码|无乱码|清晰/.test(String(detectText))) break;
         } catch (e) { console.log(`[信息图] 乱码检测 第${round + 1}轮第${attempt + 1}次失败: ${e.message}`); /* 空内容等失败：重试 */ }
       }
       if (!garbles.length) break; // 无乱码（或检测三次均失败）——放行当前结果

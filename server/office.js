@@ -203,7 +203,9 @@ function buildGarbleFixPrompt(items) {
  */
 function parseGarbleList(text) {
   const raw = String(text || '');
-  if (!raw || /没有乱码|无乱码|全部清晰|都清晰|均清晰/.test(raw.slice(0, 200))) return [];
+  // 『没有乱码』短路仅对短文本（正常正文结论）生效：思考兜底内容开头必然复述提示词
+  // （『如果所有文字清晰正确，只回答没有乱码』），长文本据此短路会误杀全部有效信息（实测多次解析 0 处的元凶）
+  if (!raw || (raw.length < 500 && /没有乱码|无乱码|全部清晰|都清晰|均清晰/.test(raw.slice(0, 200)))) return [];
   const items = [];
   // 字段行格式：『1. 乱码原文：XXX』『位置：XXX』『推断正确文字：XXX』三行一组（模型第三种返回格式）
   let cur = null;
@@ -271,6 +273,9 @@ function parseGarbleList(text) {
       items.push({ bad, pos: '', fix });
     };
     for (const m of raw.matchAll(/“([^”]{1,20})”是“([^”]{1,20})”的乱码/g)) pushPair(m[1], m[2]);
+    // 『“乱码” -> “X” 应该是 “Y”』『“乱码”应该是“Y”』等引号表述（思考内容常见）
+    for (const m of raw.matchAll(/“([^”]{1,20})”(?:\s*->\s*“[^”]*”)?\s*应该是\s*“([^”]{1,20})”/g)) pushPair(m[1], m[2]);
+    for (const m of raw.matchAll(/“([^”]{1,20})”\s*->\s*“([^”]{1,20})”/g)) pushPair(m[1], m[2]);
     for (const m of raw.matchAll(/([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})是([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})的乱码/g)) pushPair(m[1], m[2]);
     for (const m of raw.matchAll(/([^\s“”，。；：]{1,20})→([^\s“”，。；：]{1,20})/g)) pushPair(m[1], m[2]);
   }
