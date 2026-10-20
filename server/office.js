@@ -159,15 +159,25 @@ function buildPptOutlinePrompt(topic, pageCount) {
 function parsePptOutline(text) {
   const slides = [];
   let cur = null;
+  // 占位过滤：模型复述提示词格式说明或思考兜底碎语时，会产出模板示例条目——按关键词识别并丢弃
+  const isPlaceholder = (s) => {
+    const t = String(s.title || '');
+    const p = String(s.points || '');
+    return /^本页标题\s*(\(Title.*\))?$/i.test(t.trim())
+      || /^3-5\s*条要点/i.test(p.trim())
+      || /^Key\s*Points/i.test(p.trim())
+      || /I should stick to the exact format/i.test(t + ' ' + p);
+  };
+  const push = (s) => { if (s && s.title && !isPlaceholder(s)) slides.push(s); };
   for (const line of String(text || '').split('\n')) {
     const t = line.match(/标题[：:]\s*(.+)/);
     const p = line.match(/要点[：:]\s*(.+)/);
     const i = line.match(/配图[：:]\s*(.+)/);
-    if (t) { if (cur && cur.title) slides.push(cur); cur = { title: t[1].trim(), points: '', image: '' }; continue; }
+    if (t) { push(cur); cur = { title: t[1].trim(), points: '', image: '' }; continue; }
     if (cur && p) { cur.points = p[1].trim(); continue; }
     if (cur && i) { cur.image = i[1].trim(); continue; }
   }
-  if (cur && cur.title) slides.push(cur);
+  push(cur);
   return slides;
 }
 
