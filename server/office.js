@@ -226,7 +226,7 @@ function parseGarbleList(text) {
   for (const line of raw.split('\n')) {
     // 新提示词格式：『乱码原文 → 正确文字（位置）』（引导模型直接输出简洁清单）
     const arrowM = line.match(/([^\s→（()]{1,20})\s*→\s*([^（()\s]{1,20})(?:[（(]([^）)]{0,20})[）)])?/);
-    if (arrowM && arrowM[1] !== arrowM[2]) {
+    if (arrowM && arrowM[1] !== arrowM[2] && !/乱码原文|正确文字|输出清单|直接输出/.test(arrowM[1]) && !/乱码原文|正确文字|输出清单|直接输出/.test(arrowM[2])) {
       items.push({ bad: arrowM[1].trim(), pos: (arrowM[3] || '').trim().slice(0, 20), fix: arrowM[2].trim() });
       continue;
     }
@@ -261,15 +261,20 @@ function parseGarbleList(text) {
   // 提取『X→Y』『“X”是“Y”的乱码』『X是Y的乱码』等零散表述，去重后返回
   if (!items.length) {
     const seen = new Set();
+    const seenBad = new Set(); // 同一乱码原文只取第一个推断（思考中模型常对同一处反复猜多种可能）
     const pushPair = (bad, fix) => {
       bad = String(bad).replace(/^(?:然后|接着|还有|以及|哦)+/, '').trim();
       fix = String(fix).replace(/^(?:然后|接着|还有|以及|哦)+/, '').trim();
       // 过滤噪声：含疑问/语气标点的匹配通常是思考过程中的犹豫片段，不可靠
       if (/[？?！!哦对]/.test(bad) || /[？?！!哦对]/.test(fix)) return;
+      // 过滤提示词复述：思考内容开头会复述『格式为『乱码原文 → 正确文字』』等提示词本身
+      if (/乱码原文|正确文字|输出清单|直接输出/.test(bad) || /乱码原文|正确文字|输出清单|直接输出/.test(fix)) return;
       if (!bad || !fix || bad === fix || bad.length > 20 || fix.length > 20) return;
       const key = bad + '|' + fix;
       if (seen.has(key)) return;
+      if (seenBad.has(bad)) return; // 同一 bad 的后续猜测丢弃，只保留第一个推断
       seen.add(key);
+      seenBad.add(bad);
       items.push({ bad, pos: '', fix });
     };
     for (const m of raw.matchAll(/“([^”]{1,20})”是“([^”]{1,20})”的乱码/g)) pushPair(m[1], m[2]);
@@ -277,7 +282,7 @@ function parseGarbleList(text) {
     for (const m of raw.matchAll(/“([^”]{1,20})”(?:\s*->\s*“[^”]*”)?\s*应该是\s*“([^”]{1,20})”/g)) pushPair(m[1], m[2]);
     for (const m of raw.matchAll(/“([^”]{1,20})”\s*->\s*“([^”]{1,20})”/g)) pushPair(m[1], m[2]);
     for (const m of raw.matchAll(/([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})是([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})的乱码/g)) pushPair(m[1], m[2]);
-    for (const m of raw.matchAll(/([^\s“”，。；：]{1,20})→([^\s“”，。；：]{1,20})/g)) pushPair(m[1], m[2]);
+    for (const m of raw.matchAll(/([^\s“”，。；：]{1,20})\s*→\s*([^\s“”，。；：]{1,20})/g)) pushPair(m[1], m[2]);
   }
   return items;
 }
