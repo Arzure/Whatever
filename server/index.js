@@ -585,7 +585,7 @@ app.post('/api/office/ppt', async (req, res) => {
           maxTokens: 3000,
           timeoutMs: 120000,
         });
-        slides = office.parsePptOutline(text);
+        slides = office.parsePptOutline(text, pageCount);
         console.log(`[PPT] 大纲第${attempt + 1}次: 返回${(text || '').length}字, 解析${slides.length}页`);
       } catch (e) {
         console.log(`[PPT] 大纲第${attempt + 1}次失败: ${e.message}`);

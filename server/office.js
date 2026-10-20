@@ -155,21 +155,29 @@ function buildPptOutlinePrompt(topic, pageCount) {
   ].join('\n');
 }
 
-/** 宽松解析 PPT 大纲：按『标题：/要点：/配图：』字段行分组（吸取乱码检测教训：不强制 JSON） */
-function parsePptOutline(text) {
+/** 宽松解析 PPT 大纲：按『标题：/要点：/配图：』字段行分组，兼容单行英文标签格式（吸取乱码检测教训：不强制 JSON） */
+function parsePptOutline(text, maxPages) {
   const slides = [];
   let cur = null;
-  // 占位过滤：模型复述提示词格式说明或思考兜底碎语时，会产出模板示例条目——按关键词识别并丢弃
+  // 占位过滤：模型复述提示词格式说明、思考兜底碎语或纯符号行（如『...』）时——按特征识别并丢弃
   const isPlaceholder = (s) => {
     const t = String(s.title || '');
     const p = String(s.points || '');
     return /^本页标题\s*(\(Title.*\))?$/i.test(t.trim())
       || /^3-5\s*条要点/i.test(p.trim())
       || /^Key\s*Points/i.test(p.trim())
-      || /I should stick to the exact format/i.test(t + ' ' + p);
+      || /I should stick to the exact format/i.test(t + ' ' + p)
+      || !/[\u4e00-\u9fffa-zA-Z0-9]/.test(t); // 标题无任何文字（纯符号/省略号）视为占位
   };
   const push = (s) => { if (s && s.title && !isPlaceholder(s)) slides.push(s); };
   for (const line of String(text || '').split('\n')) {
+    // 单行英文标签格式：『标题. Points: 要点. Image: 配图』——自动拆分为三字段
+    const one = line.match(/^(.+?)\s*\.\s*Points?\s*[:：]\s*(.+?)(?:\s*\.\s*Image\s*[:：]\s*(.+))?$/i);
+    if (one) {
+      push(cur);
+      cur = { title: one[1].trim(), points: (one[2] || '').trim(), image: (one[3] || '').trim() };
+      continue;
+    }
     const t = line.match(/标题[：:]\s*(.+)/);
     const p = line.match(/要点[：:]\s*(.+)/);
     const i = line.match(/配图[：:]\s*(.+)/);
@@ -178,7 +186,24 @@ function parsePptOutline(text) {
     if (cur && i) { cur.image = i[1].trim(); continue; }
   }
   push(cur);
-  return slides;
+  // 按标题去重：模型把大纲重复输出两遍时，保留字段更完整的那个
+  const byTitle = new Map();
+  for (const s of slides) {
+    const key = s.title.replace(/\s+/g, '');
+    const old = byTitle.get(key);
+    if (!old || (s.points.length + s.image.length) > (old.points.length + old.image.length)) byTitle.set(key, s);
+  }
+  let out = [...byTitle.values()];
+  // 页数约束：超过请求页数时保留字段最完整的前 N 页（维持原顺序）
+  if (maxPages && out.length > maxPages) {
+    out = out
+      .map((s, idx) => ({ s, idx, score: s.points.length + s.image.length }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxPages)
+      .sort((a, b) => a.idx - b.idx)
+      .map((x) => x.s);
+  }
+  return out;
 }
 
 /** 组装自包含 HTML 幻灯片：键盘/按钮翻页，1280×720 自适应缩放，无外部依赖 */
