@@ -47,6 +47,44 @@ const pptWithImages = ref(true);
 const pptHtml = ref('');
 const pptBusy = ref(false);
 const pptMeta = ref(null); // { pageCount, imageCount }
+// 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）：点选恢复内容到预览区
+const officeHistory = ref([]);
+const officeRestoring = ref(''); // 正在恢复的条目 id（防重复点击）
+async function loadOfficeHistory() {
+  try {
+    const h = await api.officeHistory();
+    officeHistory.value = h.rows || [];
+  } catch { /* 历史加载失败不阻塞主流程 */ }
+}
+// 按当前标签过滤：报告网页化/演示文稿/报告写作各自独立
+const filteredOfficeHistory = computed(() => officeHistory.value.filter((r) => r.type === tab.value));
+function officeTypeLabel(t) {
+  return t === 'report' ? '报告网页化' : t === 'ppt' ? '演示文稿' : '报告写作';
+}
+// 点选恢复：拉取签名 URL 的文件内容，回填到对应标签的预览区
+async function restoreOfficeItem(r) {
+  if (officeRestoring.value) return;
+  officeRestoring.value = r.id;
+  error.value = '';
+  try {
+    const res = await fetch(r.url);
+    if (!res.ok) throw new Error('文件已过期或不可用');
+    const text = await res.text();
+    if (r.type === 'write') {
+      writeResult.value = text;
+    } else if (r.type === 'ppt') {
+      pptHtml.value = text;
+      pptMeta.value = null;
+    } else {
+      reportHtml.value = text;
+    }
+  } catch (e) {
+    error.value = '恢复失败：' + (e.message || '请重试');
+    loadOfficeHistory(); // 可能已过期，刷新列表
+  } finally {
+    officeRestoring.value = '';
+  }
+}
 async function runPpt() {
   if (pptBusy.value) return;
   const t = pptTopic.value.trim();
@@ -60,6 +98,7 @@ async function runPpt() {
     if (r && r.html) {
       pptHtml.value = r.html;
       pptMeta.value = { pageCount: r.pageCount, imageCount: r.imageCount };
+      loadOfficeHistory(); // 生成成功后刷新办公历史
     } else {
       error.value = '生成失败，请重试';
     }
@@ -108,6 +147,7 @@ async function generateWrite() {
   try {
     const r = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim() });
     writeResult.value = r.text || '';
+    loadOfficeHistory(); // 生成成功后刷新办公历史
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -267,6 +307,7 @@ async function generateReport() {
   try {
     const r = await api.officeReport({ content: reportContent.value.trim(), style: reportStyle.value.trim() });
     reportHtml.value = r.html || '';
+    loadOfficeHistory(); // 生成成功后刷新办公历史
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -516,6 +557,7 @@ onMounted(async () => {
     error.value = e.message;
   }
   loadHistory();
+  loadOfficeHistory(); // 办公历史（报告网页化/演示文稿/报告写作）
 });
 
 // 信息图 / 简历图共用一个输入框，但内容互不干扰：各标签独立草稿，切换时保存与恢复
@@ -539,6 +581,7 @@ function switchTab(t) {
     content.value = RESUME_SAMPLE;
   }
   loadPromptHistoryByTab(); // 切换标签时刷新提示词历史（按标签隔离）
+  if (t === 'report' || t === 'ppt' || t === 'write') loadOfficeHistory(); // 切到办公历史标签时刷新列表
 }
 
 // 简历最佳实践示例（实测验证过的格式：每行一个条目，短句经历）
@@ -840,7 +883,21 @@ async function generate() {
           </div>
         </div>
       </div>
-      <p v-else class="history-empty">尚无生成结果</p>
+      <p v-if="!filteredHistory.length && tab !== 'report' && tab !== 'ppt' && tab !== 'write'" class="history-empty">尚无生成结果</p>
+
+      <!-- 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）：点选恢复内容到预览区 -->
+      <div v-if="(tab === 'report' || tab === 'ppt' || tab === 'write') && filteredOfficeHistory.length" class="history">
+        <label class="field-label">生成历史（24 小时保留，点选恢复内容）</label>
+        <div v-for="r in filteredOfficeHistory" :key="r.id" class="history-item">
+          <div class="history-meta">
+            <span class="history-prompt" :title="r.title">{{ r.title }}</span>
+            <span class="history-info">{{ officeTypeLabel(r.type) }}<template v-if="r.bytes"> · {{ formatBytes(r.bytes) }}</template> · {{ formatExpiry(r.created_at) }}</span>
+            <div class="history-actions">
+              <button class="history-btn" :disabled="officeRestoring === r.id" @click="restoreOfficeItem(r)">{{ officeRestoring === r.id ? '恢复中…' : '↩ 恢复' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 灯箱预览：点击图片放大查看，点任意处关闭 -->

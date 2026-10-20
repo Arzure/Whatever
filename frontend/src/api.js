@@ -126,6 +126,8 @@ export const api = {
   drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
   officePpt: (params) => request('/office/ppt', { method: 'POST', body: JSON.stringify(params) }),
   officeReportWrite: (params) => request('/office/report-write', { method: 'POST', body: JSON.stringify(params) }),
+  // 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）
+  officeHistory: () => request('/office/history'),
   adminUsers: () => request('/admin/users'),
   adminUserSessions: (id) => request(`/admin/users/${id}/sessions`),
   adminDeleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),

@@ -101,6 +101,8 @@ app.use('/api', (req, res, next) => {
   if (req.path === '/health') return next(); // 健康检查放行（中间件挂载在 /api，此处为相对路径）
   // 绘图历史图片放行：浏览器 img 标签不携带口令头；该路由自带 HMAC 签名鉴权（绑定用户与文件名），安全性足够
   if (req.path.startsWith('/draw/file/')) return next();
+  // 办公历史文件放行：同绘图文件机制，HMAC 签名鉴权（绑定用户与文件名）
+  if (req.path.startsWith('/office/file/')) return next();
   const ip = req.ip || 'unknown';
   const rec = accessFails.get(ip);
   if (rec && rec.lockedUntil && rec.lockedUntil > Date.now()) {
@@ -515,14 +517,16 @@ app.post('/api/office/report-write', async (req, res) => {
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
   try {
     const prompt = office.buildReportWritePrompt(topic, structureId, requirements);
-    const text = await llmChat([{ role: 'user', content: prompt }], {
+    const text0 = await llmChat([{ role: 'user', content: prompt }], {
       responseFormat: null, // 自由文本输出（Markdown 报告）
       reasoningEffort: 'none',
       temperature: 0.5,
       maxTokens: 4096,
       timeoutMs: 180000, // 长文写作较慢，放宽超时
     });
-    res.json({ text: String(text || '').trim() });
+    const text = String(text0 || '').trim();
+    saveOfficeResult(req, 'write', topic.slice(0, 100), text, 'md'); // 24 小时暂存
+    res.json({ text });
   } catch (e) {
     res.status(500).json({ error: `报告写作失败：${e.message}` });
   }
@@ -551,6 +555,9 @@ app.post('/api/office/report', async (req, res) => {
     if (!/^<!DOCTYPE html>/i.test(html)) {
       return res.status(502).json({ error: '生成结果不是有效的 HTML 文档，请重试' });
     }
+    // 历史标题取首个非空标题行（去掉 # 前缀），避免整段 Markdown 原文进列表
+    const reportTitle = (content.split('\n').map((l) => l.trim()).find((l) => l) || '').replace(/^#+\s*/, '').slice(0, 100) || '未命名报告';
+    saveOfficeResult(req, 'report', reportTitle, html, 'html'); // 24 小时暂存
     res.json({ html });
   } catch (e) {
     res.status(500).json({ error: `报告生成失败：${e.message}` });
@@ -609,11 +616,67 @@ app.post('/api/office/ppt', async (req, res) => {
     }
     // 第三步：组装自包含 HTML 幻灯片
     const html = office.buildPptHtml(slides, images, topic);
+    saveOfficeResult(req, 'ppt', topic.slice(0, 100), html, 'html'); // 24 小时暂存
     res.json({ html, pageCount: slides.length, imageCount: images.filter(Boolean).length });
   } catch (e) {
     console.log('[PPT] 异常:', e.message);
     res.status(500).json({ error: `PPT 生成失败：${e.message}` });
   }
+});
+// —— 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存，机制仿绘图历史）：文件存 data/office/，元数据入库 ——
+const OFFICE_DIR = path.join(__dirname, '..', 'data', 'office');
+function saveOfficeResult(req, type, title, content, ext) {
+  try {
+    const user = userFromRequest(req);
+    if (!user || !content) return null;
+    fs.mkdirSync(OFFICE_DIR, { recursive: true });
+    const id = `of-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const file = `${id}.${ext}`;
+    const buf = Buffer.from(String(content), 'utf8');
+    fs.writeFileSync(path.join(OFFICE_DIR, file), buf);
+    const now = Date.now();
+    storage.db.prepare('INSERT INTO office_history (id, user_id, type, title, file, created_at, bytes) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, user.id, type, String(title || '').slice(0, 100), file, now, buf.length);
+    return id;
+  } catch (e) {
+    console.log('[办公历史] 保存失败:', e.message);
+    return null;
+  }
+}
+function signOfficeFile(userId, name, createdAt) {
+  const exp = (Number(createdAt) || Date.now()) + 25 * 60 * 60 * 1000;
+  const sig = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
+  return `/api/office/file/${name}?uid=${userId}&exp=${exp}&sig=${sig}`;
+}
+function verifyOfficeFileSig(userId, name, exp, sig) {
+  if (!userId || !exp || !sig || Number(exp) < Date.now()) return false;
+  const expect = crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${userId}:${name}:${exp}`).digest('hex').slice(0, 32);
+  return expect === sig;
+}
+// 办公历史列表（自动清理过期记录与文件）
+app.get('/api/office/history', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const expired = storage.db.prepare('SELECT file FROM office_history WHERE user_id = ? AND created_at < ?').all(user.id, cutoff);
+  for (const e of expired) {
+    try { fs.unlinkSync(path.join(OFFICE_DIR, path.basename(e.file))); } catch { /* 文件可能已不存在 */ }
+  }
+  if (expired.length) storage.db.prepare('DELETE FROM office_history WHERE user_id = ? AND created_at < ?').run(user.id, cutoff);
+  const rows = storage.db.prepare('SELECT id, type, title, file, created_at, bytes FROM office_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(user.id);
+  res.json({ rows: rows.map((r) => ({ ...r, url: signOfficeFile(user.id, path.basename(r.file), r.created_at) })), ttlHours: 24 });
+});
+// 办公历史文件读取（HMAC 签名鉴权，同绘图文件机制）
+app.get('/api/office/file/:name', (req, res) => {
+  const name = path.basename(String(req.params.name || ''));
+  const { uid, exp, sig } = req.query;
+  if (!verifyOfficeFileSig(String(uid || ''), name, String(exp || ''), String(sig || ''))) {
+    return res.status(401).json({ error: '签名无效或已过期' });
+  }
+  const row = storage.db.prepare('SELECT 1 FROM office_history WHERE user_id = ? AND file = ?').get(String(uid), name);
+  if (!row) return res.status(404).json({ error: '文件不存在或已过期' });
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.sendFile(path.join(OFFICE_DIR, name));
 });
 // —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库）与提示词历史（持续保留） ——
 const DRAW_DIR = path.join(__dirname, '..', 'data', 'draw');

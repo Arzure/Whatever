@@ -32,6 +32,16 @@ CREATE TABLE IF NOT EXISTS draw_history (
   bytes INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_draw_history_user ON draw_history(user_id, created_at);
+CREATE TABLE IF NOT EXISTS office_history (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  type TEXT NOT NULL,          -- report / ppt / write
+  title TEXT NOT NULL,         -- 主题或内容摘要
+  file TEXT NOT NULL,          -- data/office/ 下的文件名（.html / .md）
+  created_at INTEGER NOT NULL,
+  bytes INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_office_history_user ON office_history(user_id, created_at);
 CREATE TABLE IF NOT EXISTS draw_prompts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
