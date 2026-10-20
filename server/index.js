@@ -298,6 +298,7 @@ app.post('/api/office/infographic', async (req, res) => {
           const detectText = await llmChat([{ role: 'user', content: detectContent }], {
             responseFormat: null,
             reasoningEffort: 'none',
+            reasoningFallback: true, // 空内容时用思考字段兜底（思考中常已含乱码分析结论，宽松解析可提取）
             temperature: 0.1,
             // 实测：模型偶发忽略 reasoning_effort:none 进入思考模式，思考与正文共享 max_tokens 配额，
             // 配额 2000 时思考可耗尽全部配额导致正文为空（finish_reason=length, reasoning_tokens=2000）

@@ -205,6 +205,22 @@ function parseGarbleList(text) {
   const raw = String(text || '');
   if (!raw || /没有乱码|无乱码|全部清晰|都清晰|均清晰/.test(raw.slice(0, 200))) return [];
   const items = [];
+  // 字段行格式：『1. 乱码原文：XXX』『位置：XXX』『推断正确文字：XXX』三行一组（模型第三种返回格式）
+  let cur = null;
+  for (const line of raw.split('\n')) {
+    const badF = line.match(/乱码原文[：:]\s*(.+)/);
+    const posF = line.match(/位置[：:]\s*(.+)/);
+    const fixF = line.match(/(?:推断)?正确文字[：:]\s*(.+)/);
+    if (badF) {
+      if (cur && cur.bad && cur.fix && cur.bad !== cur.fix) items.push(cur);
+      cur = { bad: badF[1].trim().slice(0, 20), pos: '', fix: '' };
+      continue;
+    }
+    if (cur && posF) { cur.pos = posF[1].trim().slice(0, 20); continue; }
+    if (cur && fixF) { cur.fix = fixF[1].trim().slice(0, 20); continue; }
+  }
+  if (cur && cur.bad && cur.fix && cur.bad !== cur.fix) items.push(cur);
+  if (items.length) return items; // 字段格式解析成功即返回，不再走下面的行解析
   for (const line of raw.split('\n')) {
     // Markdown 表格行：『| 乱码原文 | 所在位置 | 正确文字 |』（模型有时返回表格格式）
     const tableM = line.match(/^\s*\|(.+)\|\s*$/);
@@ -232,6 +248,25 @@ function parseGarbleList(text) {
     if (fixM && badM && badM[1] !== fixM[1].trim()) {
       items.push({ bad: badM[1].trim(), pos: line.split(/[：:]/)[0].replace(/^\d+[.、\s]*/, '').slice(0, 20), fix: fixM[1].trim() });
     }
+  }
+  // 思考内容兜底解析（reasoningFallback 文本噪声大，仅在上述解析均为空时启用）：
+  // 提取『X→Y』『“X”是“Y”的乱码』『X是Y的乱码』等零散表述，去重后返回
+  if (!items.length) {
+    const seen = new Set();
+    const pushPair = (bad, fix) => {
+      bad = String(bad).replace(/^(?:然后|接着|还有|以及|哦)+/, '').trim();
+      fix = String(fix).replace(/^(?:然后|接着|还有|以及|哦)+/, '').trim();
+      // 过滤噪声：含疑问/语气标点的匹配通常是思考过程中的犹豫片段，不可靠
+      if (/[？?！!哦对]/.test(bad) || /[？?！!哦对]/.test(fix)) return;
+      if (!bad || !fix || bad === fix || bad.length > 20 || fix.length > 20) return;
+      const key = bad + '|' + fix;
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ bad, pos: '', fix });
+    };
+    for (const m of raw.matchAll(/“([^”]{1,20})”是“([^”]{1,20})”的乱码/g)) pushPair(m[1], m[2]);
+    for (const m of raw.matchAll(/([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})是([\u4e00-\u9fa5A-Za-z0-9\/%\-]{1,20})的乱码/g)) pushPair(m[1], m[2]);
+    for (const m of raw.matchAll(/([^\s“”，。；：]{1,20})→([^\s“”，。；：]{1,20})/g)) pushPair(m[1], m[2]);
   }
   return items;
 }

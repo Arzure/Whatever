@@ -63,7 +63,14 @@ async function chat(messages, opts = {}) {
 
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content ?? '';
-  if (!content) throw new Error('LLM 返回了空内容');
+  if (!content) {
+    // 兜底：模型偶发陷入思考耗尽配额导致正文为空，但 reasoning 字段存有思考内容；
+    // 检测等场景可传 opts.reasoningFallback: true，用思考内容兜底（宽松解析仍可提取有效信息）
+    if (opts.reasoningFallback && data?.choices?.[0]?.message?.reasoning) {
+      return String(data.choices[0].message.reasoning);
+    }
+    throw new Error('LLM 返回了空内容');
+  }
   return content;
 }
 
