@@ -40,6 +40,44 @@ const writeStructure = ref('panorama');
 const writeRequirements = ref('');
 const writeResult = ref('');
 const writeBusy = ref(false);
+// 演示文稿（PPT 简化版）：主题 + 页数 + 配图开关 + 生成的 HTML 幻灯片
+const pptTopic = ref('');
+const pptPages = ref(6);
+const pptWithImages = ref(true);
+const pptHtml = ref('');
+const pptBusy = ref(false);
+const pptMeta = ref(null); // { pageCount, imageCount }
+async function runPpt() {
+  if (pptBusy.value) return;
+  const t = pptTopic.value.trim();
+  if (!t) { error.value = '请填写演示主题'; return; }
+  error.value = '';
+  pptBusy.value = true;
+  pptHtml.value = '';
+  pptMeta.value = null;
+  try {
+    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value });
+    if (r && r.html) {
+      pptHtml.value = r.html;
+      pptMeta.value = { pageCount: r.pageCount, imageCount: r.imageCount };
+    } else {
+      error.value = '生成失败，请重试';
+    }
+  } catch (e) {
+    error.value = '生成失败：' + (e.message || '请重试');
+  } finally {
+    pptBusy.value = false;
+  }
+}
+function downloadPpt() {
+  if (!pptHtml.value) return;
+  const blob = new Blob([pptHtml.value], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (pptTopic.value.trim() || 'presentation') + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 // 信息图生成进度：阶段文案按时间推进（生成→检测→修正），完成后按 garbleFixed 反馈
 const genStage = ref(0); // 0 未开始 / 1 生成中 / 2 检测文字 / 3 修正乱码
 const genStageTimer = ref(null);
@@ -253,6 +291,14 @@ function openReportWindow() {
   const w = window.open('', '_blank');
   if (w) {
     w.document.write(reportHtml.value);
+    w.document.close();
+  }
+}
+function openPptWindow() {
+  if (!pptHtml.value) return;
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(pptHtml.value);
     w.document.close();
   }
 }
@@ -552,6 +598,7 @@ async function generate() {
       <!-- 标签切换 -->
       <div class="tabs">
         <button :class="{ on: tab === 'report' }" @click="switchTab('report')">📰 报告网页化</button>
+        <button :class="{ on: tab === 'ppt' }" @click="switchTab('ppt')">🎞️ 演示文稿</button>
         <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
         <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
         <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
@@ -650,6 +697,33 @@ async function generate() {
             <div class="report-actions">
               <button class="generate" @click="openReportWindow">新窗口打开</button>
               <button class="generate" @click="downloadReport">下载 HTML</button>
+            </div>
+          </div>
+        </template>
+        <!-- 演示文稿（PPT 简化版）面板 -->
+        <template v-else-if="tab === 'ppt'">
+          <label class="field-label">演示主题（也可以粘贴大纲或要点，AI 自动编排成幻灯片）</label>
+          <textarea v-model="pptTopic" class="content-input" rows="4" maxlength="2000" placeholder="示例：新能源汽车市场趋势汇报 / 产品季度复盘 / 团队介绍"></textarea>
+          <label class="field-label">页数</label>
+          <select v-model.number="pptPages" class="style-input">
+            <option v-for="n in [4, 6, 8, 10, 12]" :key="n" :value="n">{{ n }} 页</option>
+          </select>
+          <label class="field-label">配图</label>
+          <label class="field" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" v-model="pptWithImages" />
+            <span>AI 为每页生成配图（关闭则纯文字，速度快很多）</span>
+          </label>
+          <button class="generate" :disabled="pptBusy" @click="runPpt">
+            {{ pptBusy ? '生成中…（大纲约 10-30 秒，配图每页约 10 秒）' : '生成演示文稿' }}
+          </button>
+          <p v-if="error" class="error">{{ error }}</p>
+          <div v-if="pptHtml" class="chart-result">
+            <label class="field-label">预览（方向键翻页，可交互）</label>
+            <iframe :srcdoc="pptHtml" class="report-frame" sandbox="allow-scripts" title="演示文稿预览"></iframe>
+            <p v-if="pptMeta" class="field-label">共 {{ pptMeta.pageCount }} 页，配图 {{ pptMeta.imageCount }} 张</p>
+            <div class="report-actions">
+              <button class="generate" @click="openPptWindow">新窗口全屏演示</button>
+              <button class="generate" @click="downloadPpt">下载 HTML</button>
             </div>
           </div>
         </template>

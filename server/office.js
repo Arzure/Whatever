@@ -142,6 +142,97 @@ function buildExtractPromptPrompt() {
   return '分析这张图片，反向推导出能生成类似图像的绘图提示词。按以下四段输出，每段一行，格式为『段名：内容』：\n主体内容：画面里有什么（人物/物体/场景/动作/文字元素）\n艺术风格：插画/写实/水彩/赛博朋克/扁平化/3D 渲染等具体风格词\n构图视角：特写/全景/俯视/仰视/对称构图/黄金分割等\n色调氛围：主色调/饱和度/光线条件/情绪氛围\n要求：用绘图模型友好的具体词汇（如『吉卜力风格，柔光，低饱和』），不要文学化描述，不要犹豫推敲，直接给结论。只输出这四行，不要其他内容。';
 }
 
+/** PPT 简化版（移植 sn-ppt-story 大纲方法论 + sn-ppt-standard 渲染思路，MIT 协议）：
+ * Web 单次调用三步：LLM 生成大纲（宽松字段格式）→ 逐页配图（复用绘图管线）→ 组装自包含 HTML 幻灯片。
+ * 提示词保持超精简（同 buildReportPrompt 实测教训：sensenova-6.8-flash-lite 指令容量小，过长直接返回空内容）。 */
+function buildPptOutlinePrompt(topic, pageCount) {
+  return [
+    `为主题『${topic}』设计一份 ${pageCount} 页的演示文稿大纲。每页按以下三行输出：`,
+    '标题：本页标题',
+    '要点：3-5 条要点，用分号分隔',
+    '配图：一句话描述适合本页的插图',
+    '先想清楚叙事主线（如背景→矛盾→方案→结论的推进），不要机械罗列目录。只输出大纲，不要其他内容。',
+  ].join('\n');
+}
+
+/** 宽松解析 PPT 大纲：按『标题：/要点：/配图：』字段行分组（吸取乱码检测教训：不强制 JSON） */
+function parsePptOutline(text) {
+  const slides = [];
+  let cur = null;
+  for (const line of String(text || '').split('\n')) {
+    const t = line.match(/标题[：:]\s*(.+)/);
+    const p = line.match(/要点[：:]\s*(.+)/);
+    const i = line.match(/配图[：:]\s*(.+)/);
+    if (t) { if (cur && cur.title) slides.push(cur); cur = { title: t[1].trim(), points: '', image: '' }; continue; }
+    if (cur && p) { cur.points = p[1].trim(); continue; }
+    if (cur && i) { cur.image = i[1].trim(); continue; }
+  }
+  if (cur && cur.title) slides.push(cur);
+  return slides;
+}
+
+/** 组装自包含 HTML 幻灯片：键盘/按钮翻页，1280×720 自适应缩放，无外部依赖 */
+function buildPptHtml(slides, images, topic) {
+  const pages = slides.map((s, i) => {
+    const img = images && images[i] ? `<img src="${images[i]}" class="slide-img" alt="">` : '';
+    const pts = String(s.points || '').split(/[；;]/).map((x) => x.trim()).filter(Boolean)
+      .map((x) => `<li>${x}</li>`).join('');
+    return [
+      `<section class="slide${i === 0 ? ' current' : ''}">`,
+      `  <h2>${s.title}</h2>`,
+      img,
+      pts ? `  <ul>${pts}</ul>` : '',
+      '</section>',
+    ].filter(Boolean).join('\n');
+  }).join('\n');
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="zh">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${topic}</title>`,
+    '<style>',
+    '* { margin: 0; padding: 0; box-sizing: border-box; }',
+    'body { background: #111; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }',
+    '.stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }',
+    '.deck { position: relative; width: 1280px; height: 720px; transform-origin: center; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }',
+    '.slide { display: none; position: absolute; inset: 0; padding: 56px 76px; flex-direction: column; }',
+    '.slide.current { display: flex; }',
+    '.slide h2 { font-size: 42px; color: #1a1a2e; margin-bottom: 26px; border-left: 8px solid #4f6ef7; padding-left: 20px; }',
+    '.slide-img { max-height: 370px; max-width: 100%; object-fit: contain; border-radius: 8px; margin-bottom: 22px; align-self: center; }',
+    '.slide ul { list-style: none; }',
+    '.slide li { font-size: 25px; color: #333; line-height: 1.7; padding: 9px 0 9px 34px; position: relative; }',
+    '.slide li::before { content: "▸"; position: absolute; left: 8px; color: #4f6ef7; }',
+    '.nav { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; color: #aaa; font-size: 14px; }',
+    '.nav button { background: rgba(255,255,255,.15); color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 15px; cursor: pointer; }',
+    '.nav button:hover { background: rgba(255,255,255,.3); }',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<div class="stage"><div class="deck" id="deck">',
+    pages,
+    '</div></div>',
+    '<div class="nav">',
+    '<button onclick="go(-1)">‹ 上一页</button>',
+    '<span id="pageNo"></span>',
+    '<button onclick="go(1)">下一页 ›</button>',
+    '</div>',
+    '<script>',
+    'const slides = document.querySelectorAll(".slide");',
+    'let cur = 0;',
+    'function show() { slides.forEach((s, i) => s.classList.toggle("current", i === cur)); document.getElementById("pageNo").textContent = (cur + 1) + " / " + slides.length; }',
+    'function go(d) { cur = Math.min(Math.max(cur + d, 0), slides.length - 1); show(); }',
+    'function fit() { const s = Math.min(innerWidth / 1320, innerHeight / 780); document.getElementById("deck").style.transform = "scale(" + s + ")"; }',
+    'addEventListener("keydown", (e) => { if (["ArrowRight", "PageDown", " "].includes(e.key)) go(1); if (["ArrowLeft", "PageUp"].includes(e.key)) go(-1); });',
+    'addEventListener("resize", fit);',
+    'fit(); show();',
+    '</' + 'script>',
+    '</body>',
+    '</html>',
+  ].join('\n');
+}
+
 function buildImitatePrompt(styleDesc, targetContent) {
   return [
     '按以下视觉风格生成一张新图，风格与版面布局尽量与参考图保持一致：',
@@ -303,6 +394,9 @@ module.exports = {
   buildReportPrompt,
   buildImitateAnnotatePrompt,
   buildExtractPromptPrompt,
+  buildPptOutlinePrompt,
+  parsePptOutline,
+  buildPptHtml,
   buildImitatePrompt,
   buildReportWritePrompt,
   buildGarbleDetectPrompt,

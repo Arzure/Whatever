@@ -556,6 +556,65 @@ app.post('/api/office/report', async (req, res) => {
     res.status(500).json({ error: `报告生成失败：${e.message}` });
   }
 });
+// —— PPT 简化版（移植 sn-ppt-story 大纲方法论 + sn-ppt-standard 渲染思路）：主题 → 大纲 → 逐页配图 → 自包含 HTML 幻灯片 ——
+app.post('/api/office/ppt', async (req, res) => {
+  const p = req.body || {};
+  const topic = String(p.topic || '').trim();
+  if (!topic) return res.status(400).json({ error: '请填写演示主题' });
+  if (topic.length > 2000) return res.status(400).json({ error: '主题内容过长（限 2000 字）' });
+  const pageCount = Math.min(Math.max(parseInt(p.pageCount, 10) || 6, 3), 12);
+  const withImages = p.withImages !== false; // 默认配图，可关闭（纯文字更快）
+  if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
+  try {
+    // 第一步：LLM 生成大纲（带思考兜底与重试，复用乱码检测的稳定性防护）
+    let slides = [];
+    for (let attempt = 0; attempt < 3 && !slides.length; attempt++) {
+      try {
+        const text = await llmChat([{ role: 'user', content: office.buildPptOutlinePrompt(topic, pageCount) }], {
+          responseFormat: null,
+          reasoningEffort: 'none',
+          reasoningFallback: true,
+          temperature: 0.4,
+          maxTokens: 3000,
+          timeoutMs: 120000,
+        });
+        slides = office.parsePptOutline(text);
+        console.log(`[PPT] 大纲第${attempt + 1}次: 返回${(text || '').length}字, 解析${slides.length}页`);
+      } catch (e) {
+        console.log(`[PPT] 大纲第${attempt + 1}次失败: ${e.message}`);
+      }
+    }
+    if (!slides.length) return res.status(502).json({ error: '大纲生成失败，请重试' });
+    // 第二步：逐页配图（复用绘图管线；失败不阻断，该页无图继续）
+    const images = [];
+    if (withImages && draw.isImageEnabled()) {
+      for (let i = 0; i < slides.length; i++) {
+        const desc = slides[i].image || slides[i].title;
+        try {
+          const r = await draw.generate({
+            prompt: `演示文稿配图，与『${slides[i].title}』主题相关：${desc}。扁平化矢量插画风格，简洁构图，无文字。`,
+            model: 'sensenova-u1.5-lite',
+            size: '1024x1024',
+            outputFormat: 'webp',
+            watermark: false,
+            promptExtend: false,
+          });
+          images.push(r && r.b64s && r.b64s[0] ? 'data:image/webp;base64,' + r.b64s[0] : '');
+          console.log(`[PPT] 配图 ${i + 1}/${slides.length}: ${images[i] ? '成功' : '失败'}`);
+        } catch (e) {
+          images.push('');
+          console.log(`[PPT] 配图 ${i + 1}/${slides.length} 失败: ${e.message}`);
+        }
+      }
+    }
+    // 第三步：组装自包含 HTML 幻灯片
+    const html = office.buildPptHtml(slides, images, topic);
+    res.json({ html, pageCount: slides.length, imageCount: images.filter(Boolean).length });
+  } catch (e) {
+    console.log('[PPT] 异常:', e.message);
+    res.status(500).json({ error: `PPT 生成失败：${e.message}` });
+  }
+});
 // —— 绘图历史（24 小时过期，图片存文件系统仅元数据入库）与提示词历史（持续保留） ——
 const DRAW_DIR = path.join(__dirname, '..', 'data', 'draw');
 fs.mkdirSync(DRAW_DIR, { recursive: true });
