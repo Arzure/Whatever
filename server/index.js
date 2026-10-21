@@ -546,7 +546,7 @@ app.post('/api/office/report-write', async (req, res) => {
       responseFormat: null, // 自由文本输出（Markdown 报告）
       reasoningEffort: 'none',
       temperature: 0.5,
-      maxTokens: 4096,
+      maxTokens: 8192, // 长文写作 4096 偏低会截断，放宽到 8192
       timeoutMs: 180000, // 长文写作较慢，放宽超时
     });
     const text = String(text0 || '').trim();
@@ -612,6 +612,7 @@ app.post('/api/office/ppt', async (req, res) => {
   if (!topic) return res.status(400).json({ error: '请填写演示主题' });
   if (topic.length > 2000) return res.status(400).json({ error: '主题内容过长（限 2000 字）' });
   const pageCount = Math.min(Math.max(parseInt(p.pageCount, 10) || 6, 3), 12);
+  const pptStyle = String(p.style || 'standard') === 'dazzle' ? 'dazzle' : 'standard'; // standard | dazzle（动态演示）
   const withImages = p.withImages !== false; // 默认配图，可关闭（纯文字更快）
   const docContent = String(p.docContent || '').trim().slice(0, docparse.MAX_CHARS); // 可选文档素材（前端先解析预览确认）
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
@@ -627,7 +628,7 @@ app.post('/api/office/ppt', async (req, res) => {
           reasoningEffort: 'none',
           reasoningFallback: true,
           temperature: 0.4,
-          maxTokens: 3000,
+          maxTokens: 8000, // 12 页大纲+dazzle 动画描述约 2500-3000 tokens，3000 临界会截断，放宽到 8000
           timeoutMs: 120000,
         });
         const parsed = office.parsePptOutline(text, pageCount);
@@ -660,8 +661,8 @@ app.post('/api/office/ppt', async (req, res) => {
         }
       }
     }
-    // 第三步：组装自包含 HTML 幻灯片
-    const html = office.buildPptHtml(slides, images, topic);
+    // 第三步：组装自包含 HTML 幻灯片（dazzle 风格使用动态模板：入场动画+渐变装饰+进度条）
+    const html = pptStyle === 'dazzle' ? office.buildPptDazzleHtml(slides, images, topic) : office.buildPptHtml(slides, images, topic);
     saveOfficeResult(req, 'ppt', topic.slice(0, 100), html, 'html'); // 24 小时暂存
     res.json({ html, pageCount: slides.length, imageCount: images.filter(Boolean).length });
   } catch (e) {

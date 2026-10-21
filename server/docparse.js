@@ -4,7 +4,7 @@ const mammoth = require('mammoth');
 // 大小限制：10MB（与前端上传约束一致）
 const MAX_BYTES = 10 * 1024 * 1024;
 // 提取文本上限：2 万字（足够大纲素材，防止超长文档拖垮提示词）
-const MAX_CHARS = 20000;
+const MAX_CHARS = 40000; // 表格转 Markdown 后字符量膨胀 2-3 倍，预留空间
 
 // 清洗：统一换行、去控制字符
 function cleanText(t) {

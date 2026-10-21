@@ -52,6 +52,7 @@ const writeBusy = ref(false);
 const pptTopic = ref('');
 const pptDoc = ref(null); // PPT 文档素材：{ name, text }（上传解析后填充）
 const pptPages = ref(6);
+const pptStyle = ref('standard'); // standard | dazzle（动态演示）
 const pptWithImages = ref(true);
 const pptHtml = ref('');
 const pptBusy = ref(false);
@@ -124,7 +125,7 @@ async function runPpt() {
   pptHtml.value = '';
   pptMeta.value = null;
   try {
-    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value, docContent: pptDoc.value ? pptDoc.value.text : '' });
+    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value, style: pptStyle.value, docContent: pptDoc.value ? pptDoc.value.text : '' });
     if (r && r.html) {
       pptHtml.value = r.html;
       pptMeta.value = { pageCount: r.pageCount, imageCount: r.imageCount };
@@ -796,6 +797,10 @@ async function generate() {
           <label class="field-label">演示主题（也可以粘贴大纲或要点，AI 自动编排成幻灯片）</label>
           <textarea v-model="pptTopic" class="content-input" rows="4" maxlength="2000" placeholder="示例：新能源汽车市场趋势汇报 / 产品季度复盘 / 团队介绍"></textarea>
           <label class="field-label">页数</label>
+          <select v-model="pptStyle" class="style-input">
+            <option value="standard">标准风格</option>
+            <option value="dazzle">动态演示（入场动画+渐变装饰）</option>
+          </select>
           <select v-model.number="pptPages" class="style-input">
             <option v-for="n in [4, 6, 8, 10, 12]" :key="n" :value="n">{{ n }} 页</option>
           </select>

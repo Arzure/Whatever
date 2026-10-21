@@ -282,6 +282,79 @@ function buildPptHtml(slides, images, topic) {
   ].join('\n');
 }
 
+/** 组装 dazzle 动态演示 HTML：入场动画 + 渐变装饰 + 动态进度条，1280×720 自适应缩放，无外部依赖 */
+function buildPptDazzleHtml(slides, images, topic) {
+  const pages = slides.map((s, i) => {
+    const img = images && images[i] ? `<img src="${images[i]}" class="slide-img" alt="">` : '';
+    const pts = String(s.points || '').split(/[；;]/).map((x) => x.trim()).filter(Boolean)
+      .map((x, j) => `<li style="animation-delay:${0.35 + j * 0.18}s">${x}</li>`).join('');
+    return [
+      `<section class="slide${i === 0 ? ' current' : ''}">`,
+      `  <div class="slide-glow"></div>`,
+      `  <div class="slide-body">`,
+      `  <h2>${s.title}</h2>`,
+      img,
+      pts ? `  <ul>${pts}</ul>` : '',
+      '  </div>',
+      '</section>',
+    ].filter(Boolean).join('\n');
+  }).join('\n');
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="zh">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${topic}</title>`,
+    '<style>',
+    '* { margin: 0; padding: 0; box-sizing: border-box; }',
+    'body { background: #07090f; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }',
+    '.stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }',
+    '.deck { position: relative; width: 1280px; height: 720px; flex-shrink: 0; transform-origin: center; background: linear-gradient(135deg, #0d1226 0%, #131a35 55%, #1a1040 100%); border-radius: 8px; overflow: hidden; box-shadow: 0 20px 80px rgba(0,180,255,.25); }',
+    '.slide { display: none; position: absolute; inset: 0; padding: 56px 76px; }',
+    '.slide.current { display: block; }',
+    '.slide-glow { position: absolute; top: -180px; right: -120px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, rgba(0,229,255,.18) 0%, transparent 70%); pointer-events: none; animation: glowPulse 6s ease-in-out infinite; }',
+    '.slide-body { transform-origin: top center; position: relative; z-index: 1; }',
+    '.slide h2 { font-size: 42px; color: #eaf6ff; margin-bottom: 26px; padding-left: 20px; border-left: 8px solid; border-image: linear-gradient(180deg, #00e5ff, #7c4dff) 1; opacity: 0; animation: fadeUp .6s ease-out forwards; }',
+    '.slide-img { display: block; margin: 0 auto 22px; max-height: 400px; max-width: 100%; object-fit: contain; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.45); opacity: 0; animation: fadeIn .7s ease-out .2s forwards; }',
+    '.slide ul { list-style: none; }',
+    '.slide li { font-size: 25px; color: #c9d8ec; line-height: 1.7; padding: 9px 0 9px 34px; position: relative; opacity: 0; animation: fadeUp .5s ease-out forwards; }',
+    '.slide li::before { content: "▸"; position: absolute; left: 8px; color: #00e5ff; }',
+    '.progress { position: absolute; left: 0; bottom: 0; height: 4px; background: linear-gradient(90deg, #00e5ff, #7c4dff); width: 0; transition: width .4s ease; z-index: 10; }',
+    '.nav { position: absolute; right: 20px; bottom: 14px; display: flex; gap: 12px; align-items: center; color: #7a8aa5; font-size: 13px; z-index: 10; }',
+    '.nav button { background: rgba(255,255,255,.08); color: #c9d8ec; border: none; border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; }',
+    '.nav button:hover { background: rgba(0,229,255,.2); }',
+    '@keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }',
+    '@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }',
+    '@keyframes glowPulse { 0%,100% { opacity: .7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.12); } }',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<div class="stage"><div class="deck" id="deck">',
+    pages,
+    '<div class="progress" id="progress"></div>',
+    '<div class="nav">',
+    '<button onclick="go(-1)">‹ 上一页</button>',
+    '<span id="pageNo"></span>',
+    '<button onclick="go(1)">下一页 ›</button>',
+    '</div>',
+    '</div></div>',
+    '<script>',
+    'const slides = document.querySelectorAll(".slide");',
+    'let cur = 0;',
+    'function show() { slides.forEach((s, i) => { const on = i === cur; s.classList.toggle("current", on); if (on) { s.querySelectorAll("h2, li, .slide-img").forEach(el => { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }); } }); document.getElementById("pageNo").textContent = (cur + 1) + " / " + slides.length; document.getElementById("progress").style.width = ((cur + 1) / slides.length * 100) + "%"; fitSlide(); }',
+    'function fitSlide() { const s = slides[cur]; if (!s) return; const body = s.querySelector(".slide-body"); if (!body) return; body.style.transform = "none"; const avail = s.clientHeight - 112; const need = body.scrollHeight; if (need > avail) { const k = avail / need; body.style.transform = "scale(" + k + ")"; body.style.width = (100 / k) + "%"; body.style.marginLeft = "auto"; body.style.marginRight = "auto"; } else { body.style.width = ""; body.style.marginLeft = ""; body.style.marginRight = ""; } }',
+    'function go(d) { cur = Math.min(Math.max(cur + d, 0), slides.length - 1); show(); }',
+    'function fit() { const s = Math.min(innerWidth / 1280, innerHeight / 720); document.getElementById("deck").style.transform = "scale(" + s + ")"; }',
+    'addEventListener("keydown", (e) => { if (["ArrowRight", "PageDown", " "].includes(e.key)) go(1); if (["ArrowLeft", "PageUp"].includes(e.key)) go(-1); });',
+    'addEventListener("resize", fit);',
+    'fit(); show();',
+    'addEventListener("load", fitSlide);',
+    '</' + 'script>',
+    '</body>',
+    '</html>',
+  ].join('\n');
+}
 function buildImitatePrompt(styleDesc, targetContent) {
   return [
     '按以下视觉风格生成一张新图，风格与版面布局尽量与参考图保持一致：',
@@ -457,6 +530,7 @@ module.exports = {
   buildPptOutlinePrompt,
   parsePptOutline,
   buildPptHtml,
+  buildPptDazzleHtml,
   buildImitatePrompt,
   buildReportWritePrompt,
   buildGarbleDetectPrompt,
