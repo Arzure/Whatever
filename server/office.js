@@ -262,7 +262,7 @@ function buildPptHtml(slides, images, topic) {
     'function show() { slides.forEach((s, i) => s.classList.toggle("current", i === cur)); document.getElementById("pageNo").textContent = (cur + 1) + " / " + slides.length; fitSlide(); }',
     'function fitSlide() { const s = slides[cur]; if (!s) return; const body = s.querySelector(".slide-body"); if (!body) return; body.style.transform = "none"; const avail = s.clientHeight - 112; const need = body.scrollHeight; if (need > avail) { const k = avail / need; body.style.transform = "scale(" + k + ")"; body.style.width = (100 / k) + "%"; body.style.marginLeft = "auto"; body.style.marginRight = "auto"; } else { body.style.width = ""; body.style.marginLeft = ""; body.style.marginRight = ""; } }',
     'function go(d) { cur = Math.min(Math.max(cur + d, 0), slides.length - 1); show(); }',
-    'function fit() { const s = Math.min(innerWidth / 1320, innerHeight / 780); document.getElementById("deck").style.transform = "scale(" + s + ")"; }',
+    'function fit() { const s = Math.min(innerWidth / 1280, innerHeight / 720); document.getElementById("deck").style.transform = "scale(" + s + ")"; }',
     'addEventListener("keydown", (e) => { if (["ArrowRight", "PageDown", " "].includes(e.key)) go(1); if (["ArrowLeft", "PageUp"].includes(e.key)) go(-1); });',
     'addEventListener("resize", fit);',
     'fit(); show();',
