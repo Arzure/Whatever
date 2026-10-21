@@ -572,10 +572,13 @@ app.post('/api/office/report', async (req, res) => {
           maxTokens: 8192, // 完整 HTML 页面较长，放宽输出上限（实测 16000 超出模型上限会返回空内容）
           timeoutMs: 480000, // 长文创作较慢，放宽超时（8 分钟）
         });
-        // 容错：剥离模型可能包裹的 markdown 代码块围栏
+        // 容错：剥离模型可能包裹的 markdown 代码块围栏（长文输出可能被截断、结尾无闭合围栏，故宽松剥离）
         let h = String(text || '').trim();
-        const fence = h.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
-        if (fence) h = fence[1].trim();
+        const fenceStart = h.match(/^```[a-zA-Z]*[ \t]*\n/);
+        if (fenceStart) h = h.slice(fenceStart[0].length).trim();
+        if (h.endsWith('```')) h = h.slice(0, -3).trim();
+        const docIdx = h.search(/<!DOCTYPE html>/i);
+        if (docIdx > 0) h = h.slice(docIdx);
         if (/^<!DOCTYPE html>/i.test(h)) { html = h; break; }
         console.log(`[报告] 第${attempt + 1}次生成结果非 HTML（长度${h.length}）: ${JSON.stringify(h.slice(0, 300))}`);
         lastErr = null; // 非 HTML 但未抛错，重试
