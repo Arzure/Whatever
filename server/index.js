@@ -558,18 +558,32 @@ app.post('/api/office/report', async (req, res) => {
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
   try {
     const prompt = office.buildReportPrompt(content, styleHint);
-    const text = await llmChat([{ role: 'user', content: prompt }], {
-      responseFormat: null, // 自由文本输出（HTML 文档）
-      reasoningEffort: 'none',
-      temperature: 0.5,
-      maxTokens: 8192, // 完整 HTML 页面较长，放宽输出上限（实测 16000 超出模型上限会返回空内容）
-      timeoutMs: 300000, // 长文创作较慢，放宽超时（5 分钟）
-    });
-    // 容错：剥离模型可能包裹的 markdown 代码块围栏
-    let html = String(text || '').trim();
-    const fence = html.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
-    if (fence) html = fence[1].trim();
-    if (!/^<!DOCTYPE html>/i.test(html)) {
+    // 长文+多表格输入生成耗时可能超过 5 分钟，放宽到 8 分钟；失败（超时/空返回/非 HTML）自动重试一次
+    let html = '';
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await llmChat([{ role: 'user', content: prompt }], {
+          responseFormat: null, // 自由文本输出（HTML 文档）
+          reasoningEffort: 'none',
+          temperature: 0.5,
+          maxTokens: 8192, // 完整 HTML 页面较长，放宽输出上限（实测 16000 超出模型上限会返回空内容）
+          timeoutMs: 480000, // 长文创作较慢，放宽超时（8 分钟）
+        });
+        // 容错：剥离模型可能包裹的 markdown 代码块围栏
+        let h = String(text || '').trim();
+        const fence = h.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
+        if (fence) h = fence[1].trim();
+        if (/^<!DOCTYPE html>/i.test(h)) { html = h; break; }
+        console.log(`[报告] 第${attempt + 1}次生成结果非 HTML（长度${h.length}）: ${JSON.stringify(h.slice(0, 300))}`);
+        lastErr = null; // 非 HTML 但未抛错，重试
+      } catch (e) {
+        console.log(`[报告] 第${attempt + 1}次生成失败: ${e.message}`);
+        lastErr = e;
+      }
+    }
+    if (!html) {
+      if (lastErr) throw lastErr;
       return res.status(502).json({ error: '生成结果不是有效的 HTML 文档，请重试' });
     }
     // 历史标题取首个非空标题行（去掉 # 前缀），避免整段 Markdown 原文进列表
