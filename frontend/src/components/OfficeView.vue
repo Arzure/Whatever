@@ -1110,11 +1110,13 @@ async function generate() {
 .report-frame-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 0;
+  padding-top: 56.25%;
   border: 1px solid var(--border, #444);
   border-radius: 8px;
   background: #fff;
   overflow: hidden;
+  box-sizing: border-box;
 }
 .report-frame {
   position: absolute;
