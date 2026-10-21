@@ -37,8 +37,30 @@ async function parseDocument(buffer, filename) {
     const { PDFParse } = require('pdf-parse');
     const parser = new PDFParse({ data: buffer });
     try {
+      // —— 表格识别增强：矢量网格检测 + 单元格文本填充，转 Markdown 供下游使用 ——
+      let tableMd = '';
+      try {
+        const tr = await parser.getTable();
+        const tables = [];
+        for (const pg of ((tr && tr.pages) || [])) {
+          for (const tb of (pg.tables || [])) tables.push(tb);
+        }
+        if (tables.length) {
+          tableMd = tables.map((rows, i) => {
+            const md = rows
+              .map(cells => '| ' + cells.map(c => String(c == null ? '' : c).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim()).join(' | ') + ' |')
+              .join('\n');
+            return '【表格 ' + (i + 1) + '】\n' + md;
+          }).join('\n\n');
+        }
+      } catch (e) {
+        // 表格检测失败不影响纯文本提取
+      }
       const r = await parser.getText();
       text = (r && r.text) || '';
+      if (tableMd) {
+        text += '\n\n——以下为文档中检测到的结构化表格——\n\n' + tableMd;
+      }
     } finally {
       await parser.destroy();
     }
