@@ -569,7 +569,7 @@ app.post('/api/office/report', async (req, res) => {
           responseFormat: null, // 自由文本输出（HTML 文档）
           reasoningEffort: 'none',
           temperature: 0.5,
-          maxTokens: 8192, // 完整 HTML 页面较长，放宽输出上限（实测 16000 超出模型上限会返回空内容）
+          maxTokens: 32768, // 完整 HTML 页面较长，放宽输出上限（实测 8192/16000 会截断，32768 档模型可自然结束完整输出）
           timeoutMs: 480000, // 长文创作较慢，放宽超时（8 分钟）
         });
         // 容错：剥离模型可能包裹的 markdown 代码块围栏（长文输出可能被截断、结尾无闭合围栏，故宽松剥离）
