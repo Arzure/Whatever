@@ -48,9 +48,9 @@ function fmt(ts) {
   return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-// 最近活跃：存档与绘图的最新时间取大者，无则注册时间
+// 最近活跃：优先真实活跃时间（任何请求都会节流落库），无则回退存档/绘图/注册时间
 function lastActive(r) {
-  const t = Math.max(r.last_save_at || 0, r.last_draw_at || 0, r.created_at || 0);
+  const t = Math.max(r.last_active_at || 0, r.last_save_at || 0, r.last_draw_at || 0, r.created_at || 0);
   return fmt(t);
 }
 

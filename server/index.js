@@ -49,6 +49,7 @@ function requireAdmin(req, res, next) {
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const lastSeen = new Map(); // userId -> 最近请求时间戳
 // 在线历史：每次会话（从离线到在线的转变）入库一行，供管理员回看
+const lastPersisted = new Map(); // userId -> 上次活跃落库时间戳（与会话开始落库分开节流）
 function trackActivity(req, res, next) {
   const user = userFromRequest(req);
   if (user) {
@@ -57,6 +58,11 @@ function trackActivity(req, res, next) {
     // 从离线（或首次）转为在线：记录一次上线
     if (now - prev > ONLINE_WINDOW_MS) {
       storage.recordOnlineSession(user.id);
+      lastPersisted.set(user.id, now);
+    } else if (now - (lastPersisted.get(user.id) || 0) > 60 * 1000) {
+      // 会话期间持续活跃：每 60 秒节流落库一次，确保活跃时间持久化（服务重启不丢）
+      storage.recordOnlineSession(user.id);
+      lastPersisted.set(user.id, now);
     }
     lastSeen.set(user.id, now);
   }

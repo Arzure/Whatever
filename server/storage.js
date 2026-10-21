@@ -222,7 +222,8 @@ function listUsersForAdmin() {
       (SELECT COUNT(*) FROM saves WHERE user_id = u.id) AS save_count,
       (SELECT COUNT(*) FROM draw_history WHERE user_id = u.id) AS draw_count,
       (SELECT MAX(updated_at) FROM saves WHERE user_id = u.id) AS last_save_at,
-      (SELECT MAX(created_at) FROM draw_history WHERE user_id = u.id) AS last_draw_at
+      (SELECT MAX(created_at) FROM draw_history WHERE user_id = u.id) AS last_draw_at,
+      (SELECT MAX(last_active_at) FROM online_sessions WHERE user_id = u.id) AS last_active_at
     FROM users u ORDER BY u.created_at DESC
   `).all();
 }
