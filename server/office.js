@@ -233,7 +233,7 @@ function buildPptHtml(slides, images, topic) {
     '* { margin: 0; padding: 0; box-sizing: border-box; }',
     'body { background: #111; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }',
     '.stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }',
-    '.deck { position: relative; width: 1280px; height: 720px; transform-origin: center; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }',
+    '.deck { position: relative; width: 1280px; height: 720px; flex-shrink: 0; transform-origin: center; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }',
     '.slide { display: none; position: absolute; inset: 0; padding: 56px 76px; }',
     '.slide.current { display: block; }',
     '.slide-body { transform-origin: top center; }',
