@@ -309,6 +309,11 @@ async function doDelete() {
   }
   .modal {
     padding: 16px 14px;
+    max-height: 88vh; /* 长内容（删除账号含警告文本）可滚动，不溢出屏幕 */
+    overflow-y: auto;
+  }
+  .modal-head h3 {
+    font-size: 16px;
   }
   .tabs button {
     font-size: 12px;
@@ -316,6 +321,16 @@ async function doDelete() {
   }
   .form input {
     font-size: 16px;
+  }
+  .form label {
+    margin-bottom: 10px;
+  }
+  .form .btn {
+    font-size: 15px;
+    padding: 11px;
+  }
+  .warn-text {
+    font-size: 13px;
   }
 }
 </style>

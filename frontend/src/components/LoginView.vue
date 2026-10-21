@@ -152,16 +152,29 @@ async function submit() {
   .login-wrap {
     padding: 12px;
     align-items: flex-start; /* 小屏键盘弹出时不被垂直居中裁切 */
+    padding-top: 10vh;
   }
   .login-card {
     padding: 22px 18px;
+    width: 100%;
+    max-width: 360px;
   }
   .login-title {
     font-size: 18px;
   }
+  .login-sub {
+    font-size: 12px;
+  }
   .login-label input {
     font-size: 16px;
     padding: 11px 12px;
+  }
+  .login-btn {
+    font-size: 16px;
+    padding: 12px;
+  }
+  .login-switch {
+    font-size: 13px;
   }
 }
 </style>

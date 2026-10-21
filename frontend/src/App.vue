@@ -108,7 +108,7 @@ async function deleteSave(s) {
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'">🛡 管理</button>
           <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
-          <button class="app-bar-logout" @click="showSettings = true">账号设置</button>
+          <button class="app-bar-logout" @click="showSettings = true"><span class="label-full">账号设置</span><span class="label-short">设置</span></button>
         </header>
         <div class="app-body">
           <HomeView v-if="game.state.view === 'home'" />
@@ -305,7 +305,7 @@ async function deleteSave(s) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 30vw; /* 长用户名截断显示，避免撑爆顶栏挤掉按钮 */
+    max-width: 22vw; /* 长用户名截断显示，避免撑爆顶栏挤掉按钮 */
   }
   .app-bar-home,
   .app-bar-logout {
@@ -314,5 +314,12 @@ async function deleteSave(s) {
     white-space: nowrap;
     flex-shrink: 0;
   }
+  /* 账号设置按钮：窄屏缩短为『设置』，避免与其他按钮挤爆单行 */
+  .label-full { display: none; }
+  .label-short { display: inline; }
+}
+@media (min-width: 769px) {
+  .label-full { display: inline; }
+  .label-short { display: none; }
 }
 </style>

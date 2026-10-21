@@ -167,4 +167,26 @@ onMounted(probe);
   opacity: 0.6;
   cursor: not-allowed;
 }
+/* 手机端口令门禁：输入框 16px 防 iOS 聚焦缩放，键盘弹出时顶部对齐不被裁切 */
+@media (max-width: 768px) {
+  .access-gate {
+    align-items: flex-start;
+    padding-top: 18vh;
+  }
+  .gate-card {
+    max-width: 320px;
+    padding: 22px 18px;
+  }
+  .gate-card h2 {
+    font-size: 18px;
+  }
+  .gate-input {
+    font-size: 16px;
+    padding: 11px 12px;
+  }
+  .gate-btn {
+    font-size: 16px;
+    padding: 11px;
+  }
+}
 </style>
