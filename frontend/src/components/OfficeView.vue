@@ -68,7 +68,7 @@ async function loadOfficeHistory() {
 // 按当前标签过滤：报告网页化/演示文稿/报告写作各自独立
 const filteredOfficeHistory = computed(() => officeHistory.value.filter((r) => r.type === tab.value));
 function officeTypeLabel(t) {
-  return t === 'report' ? '报告网页化' : t === 'ppt' ? '演示文稿' : '报告写作';
+  return t === 'report' ? '报告网页化' : t === 'ppt' ? '演示文稿' : t === 'excel' ? 'Excel 分析' : t === 'chart' ? '图表解读' : '报告写作';
 }
 // 点选恢复：拉取签名 URL 的文件内容，回填到对应标签的预览区
 async function restoreOfficeItem(r) {
@@ -84,6 +84,11 @@ async function restoreOfficeItem(r) {
     } else if (r.type === 'ppt') {
       pptHtml.value = text;
       pptMeta.value = null;
+    } else if (r.type === 'excel') {
+      excelResult.value = text;
+      excelMeta.value = null; // 历史仅存分析文本，元信息不恢复
+    } else if (r.type === 'chart') {
+      chartResult.value = text;
     } else {
       reportHtml.value = text;
     }
@@ -606,7 +611,7 @@ function switchTab(t) {
     content.value = RESUME_SAMPLE;
   }
   loadPromptHistoryByTab(); // 切换标签时刷新提示词历史（按标签隔离）
-  if (t === 'report' || t === 'ppt' || t === 'write') loadOfficeHistory(); // 切到办公历史标签时刷新列表
+  if (t === 'report' || t === 'ppt' || t === 'write' || t === 'excel' || t === 'chart') loadOfficeHistory(); // 切到办公历史标签时刷新列表
 }
 
 // 简历最佳实践示例（实测验证过的格式：每行一个条目，短句经历）
@@ -934,10 +939,10 @@ async function generate() {
           </div>
         </div>
       </div>
-      <p v-if="!filteredHistory.length && tab !== 'report' && tab !== 'ppt' && tab !== 'write'" class="history-empty">尚无生成结果</p>
+      <p v-if="!filteredHistory.length && tab !== 'report' && tab !== 'ppt' && tab !== 'write' && tab !== 'excel' && tab !== 'chart'" class="history-empty">尚无生成结果</p>
 
-      <!-- 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）：点选恢复内容到预览区 -->
-      <div v-if="(tab === 'report' || tab === 'ppt' || tab === 'write') && filteredOfficeHistory.length" class="history">
+      <!-- 办公历史（报告网页化/演示文稿/报告写作/Excel 分析/图表解读，24 小时暂存）：点选恢复内容到预览区 -->
+      <div v-if="(tab === 'report' || tab === 'ppt' || tab === 'write' || tab === 'excel' || tab === 'chart') && filteredOfficeHistory.length" class="history">
         <label class="field-label">生成历史（24 小时保留，点选恢复内容）</label>
         <div v-for="r in filteredOfficeHistory" :key="r.id" class="history-item">
           <div class="history-meta">

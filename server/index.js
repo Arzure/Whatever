@@ -403,6 +403,7 @@ app.post('/api/office/excel', async (req, res) => {
       maxTokens: 3000,
       timeoutMs: 180000, // 数据分析较慢，放宽超时
     });
+    saveOfficeResult(req, 'excel', question ? `Excel分析：${question.slice(0, 50)}` : 'Excel 数据分析', text, 'md'); // 24 小时暂存
     res.json({
       text,
       meta: {
@@ -436,6 +437,7 @@ app.post('/api/office/chart', async (req, res) => {
       maxTokens: 2000,
       timeoutMs: 120000, // 多模态解读较慢，放宽超时
     });
+    saveOfficeResult(req, 'chart', question ? `图表解读：${question.slice(0, 50)}` : '图表解读', text, 'md'); // 24 小时暂存
     res.json({ text });
   } catch (e) {
     res.status(500).json({ error: `解读失败：${e.message}` });
