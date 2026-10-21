@@ -736,7 +736,9 @@ async function generate() {
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="reportHtml" class="chart-result">
             <label class="field-label">预览（可交互）</label>
-            <iframe :srcdoc="reportHtml" class="report-frame" sandbox="allow-scripts" title="报告预览"></iframe>
+            <div class="report-frame-wrap">
+              <iframe :srcdoc="reportHtml" class="report-frame" sandbox="allow-scripts" title="报告预览"></iframe>
+            </div>
             <div class="report-actions">
               <button class="generate" @click="openReportWindow">新窗口打开</button>
               <button class="generate" @click="downloadReport">下载 HTML</button>
@@ -762,7 +764,9 @@ async function generate() {
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="pptHtml" class="chart-result">
             <label class="field-label">预览（方向键翻页，可交互）</label>
-            <iframe :srcdoc="pptHtml" class="report-frame" sandbox="allow-scripts" title="演示文稿预览"></iframe>
+            <div class="report-frame-wrap">
+              <iframe :srcdoc="pptHtml" class="report-frame" sandbox="allow-scripts" title="演示文稿预览"></iframe>
+            </div>
             <p v-if="pptMeta" class="field-label">共 {{ pptMeta.pageCount }} 页，配图 {{ pptMeta.imageCount }} 张</p>
             <div class="report-actions">
               <button class="generate" @click="openPptWindow">新窗口全屏演示</button>
@@ -1103,12 +1107,21 @@ async function generate() {
   padding: 12px 14px;
 }
 /* 报告网页化：iframe 预览（16:9 比例，与幻灯片画布一致）+ 操作按钮排列 */
-.report-frame {
+.report-frame-wrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
   border: 1px solid var(--border, #444);
   border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.report-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
   background: #fff;
 }
 .report-actions {
