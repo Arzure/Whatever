@@ -575,7 +575,9 @@ app.post('/api/office/ppt', async (req, res) => {
   try {
     // 第一步：LLM 生成大纲（带思考兜底与重试，复用乱码检测的稳定性防护）
     let slides = [];
-    for (let attempt = 0; attempt < 3 && !slides.length; attempt++) {
+    // 页数明显不足（少于要求页数-2，如 12 页只解析出 3 页）视为返回被截断，同样触发重试；跨尝试保留页数最多的结果
+    const enough = (n) => n >= Math.max(1, pageCount - 2);
+    for (let attempt = 0; attempt < 3 && !enough(slides.length); attempt++) {
       try {
         const text = await llmChat([{ role: 'user', content: office.buildPptOutlinePrompt(topic, pageCount) }], {
           responseFormat: null,
@@ -585,8 +587,9 @@ app.post('/api/office/ppt', async (req, res) => {
           maxTokens: 3000,
           timeoutMs: 120000,
         });
-        slides = office.parsePptOutline(text, pageCount);
-        console.log(`[PPT] 大纲第${attempt + 1}次: 返回${(text || '').length}字, 解析${slides.length}页`);
+        const parsed = office.parsePptOutline(text, pageCount);
+        if (parsed.length > slides.length) slides = parsed;
+        console.log(`[PPT] 大纲第${attempt + 1}次: 返回${(text || '').length}字, 解析${parsed.length}页${parsed.length < slides.length ? '（保留更优结果' + slides.length + '页）' : ''}`);
       } catch (e) {
         console.log(`[PPT] 大纲第${attempt + 1}次失败: ${e.message}`);
       }
