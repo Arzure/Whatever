@@ -777,7 +777,7 @@ async function generate() {
           </div>
           <input v-model="reportStyle" class="style-input" placeholder="示例：深色科技感 / 纸质档案风 / 留白极简（留空由 AI 按内容气质决定）" maxlength="200" />
           <button class="generate" :disabled="reportBusy" @click="generateReport">
-            {{ reportBusy ? '创作中…（长文约需 1-3 分钟）' : '生成网页报告' }}
+            {{ reportBusy ? '创作中…（长文完整生成约需 3-8 分钟，请耐心等待）' : '生成网页报告' }}
           </button>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="reportHtml" class="chart-result">
