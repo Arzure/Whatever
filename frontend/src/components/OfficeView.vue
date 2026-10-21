@@ -36,12 +36,14 @@ const reportHtml = ref('');
 const reportBusy = ref(false);
 // 报告写作：主题 + 结构模板 + 补充要求 + 生成的 Markdown 报告
 const writeTopic = ref('');
+const writeDoc = ref(null); // 写作文档素材：{ name, text }（上传解析后填充）
 const writeStructure = ref('panorama');
 const writeRequirements = ref('');
 const writeResult = ref('');
 const writeBusy = ref(false);
 // 演示文稿（PPT 简化版）：主题 + 页数 + 配图开关 + 生成的 HTML 幻灯片
 const pptTopic = ref('');
+const pptDoc = ref(null); // PPT 文档素材：{ name, text }（上传解析后填充）
 const pptPages = ref(6);
 const pptWithImages = ref(true);
 const pptHtml = ref('');
@@ -85,6 +87,22 @@ async function restoreOfficeItem(r) {
     officeRestoring.value = '';
   }
 }
+// 文档上传解析（PPT/写作共用逻辑）：上传 Word/PDF → 后端提取文本 → 存为素材
+async function uploadDoc(file, docRef) {
+  if (!file) return;
+  const ext = file.name.toLowerCase().split('.').pop();
+  if (!['docx', 'pdf'].includes(ext)) { error.value = '仅支持 .docx / .pdf 文档'; return; }
+  error.value = '';
+  try {
+    const r = await api.officeDocParse(file);
+    docRef.value = { name: file.name, text: r.text || '' };
+  } catch (e) {
+    docRef.value = null;
+    error.value = '文档解析失败：' + (e.message || '请重试');
+  }
+}
+function handlePptDoc(e) { uploadDoc(e.target.files && e.target.files[0], pptDoc); e.target.value = ''; }
+function handleWriteDoc(e) { uploadDoc(e.target.files && e.target.files[0], writeDoc); e.target.value = ''; }
 async function runPpt() {
   if (pptBusy.value) return;
   const t = pptTopic.value.trim();
@@ -94,7 +112,7 @@ async function runPpt() {
   pptHtml.value = '';
   pptMeta.value = null;
   try {
-    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value });
+    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value, docContent: pptDoc.value ? pptDoc.value.text : '' });
     if (r && r.html) {
       pptHtml.value = r.html;
       pptMeta.value = { pageCount: r.pageCount, imageCount: r.imageCount };
@@ -145,7 +163,7 @@ async function generateWrite() {
   error.value = '';
   writeResult.value = '';
   try {
-    const r = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim() });
+    const r = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim(), docContent: writeDoc.value ? writeDoc.value.text : '' });
     writeResult.value = r.text || '';
     loadOfficeHistory(); // 生成成功后刷新办公历史
   } catch (e) {
@@ -706,6 +724,12 @@ async function generate() {
           <textarea v-model="writeTopic" class="content-input" rows="4" maxlength="2000" placeholder="示例：2026 年国内 AI 编程工具市场分析 / 自建 NAS 与云存储的选型对比"></textarea>
           <label class="field-label">补充要求（可选）</label>
           <input v-model="writeRequirements" class="style-input" placeholder="示例：侧重个人开发者视角 / 需要成本对比表格 / 控制在 2000 字内" maxlength="1000" />
+          <label class="field-label">参考文档（可选，.docx / .pdf，报告将基于文档内容展开）</label>
+          <div v-if="writeDoc" class="field" style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ writeDoc.name }}（{{ writeDoc.text.length }} 字）</span>
+            <button class="history-btn danger" type="button" @click="writeDoc = null">移除</button>
+          </div>
+          <input v-else type="file" accept=".docx,.pdf" @change="handleWriteDoc" />
           <button class="generate" :disabled="writeBusy" @click="generateWrite">
             {{ writeBusy ? '撰写中…（约需 30-90 秒）' : '生成报告' }}
           </button>
@@ -758,6 +782,12 @@ async function generate() {
             <input type="checkbox" v-model="pptWithImages" />
             <span>AI 为每页生成配图（关闭则纯文字，速度快很多）</span>
           </label>
+          <label class="field-label">参考文档（可选，.docx / .pdf，大纲将基于文档内容展开）</label>
+          <div v-if="pptDoc" class="field" style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pptDoc.name }}（{{ pptDoc.text.length }} 字）</span>
+            <button class="history-btn danger" type="button" @click="pptDoc = null">移除</button>
+          </div>
+          <input v-else type="file" accept=".docx,.pdf" @change="handlePptDoc" />
           <button class="generate" :disabled="pptBusy" @click="runPpt">
             {{ pptBusy ? '生成中…（大纲约 10-30 秒，配图每页约 10 秒）' : '生成演示文稿' }}
           </button>

@@ -12,6 +12,12 @@ const { getMode, listModes, DEFAULT_MODE } = require('./modes');
 const draw = require('./draw');
 const office = require('./office');
 const resume = require('./resume'); // 简历图合成（方案 A：背景生成 + 文字程序化绘制）
+const docparse = require('./docparse'); // 文档解析：Word/PDF 文本提取（办公助手文档素材）
+const multer = require('multer'); // 文件上传中间件（文档解析接口）
+const uploadDoc = multer({
+  storage: multer.memoryStorage(), // 内存暂存，解析后即弃，不落盘
+  limits: { fileSize: docparse.MAX_BYTES, files: 1 },
+});
 const excel = require('./excel');
 
 loadEnv();
@@ -274,6 +280,16 @@ app.get('/api/office/config', (req, res) => {
     defaultModel: process.env.IMAGE_MODEL || 'sensenova-u1.5-fast',
   });
 });
+// 文档解析：上传 Word/PDF → 提取纯文本返回（前端预览确认后作为 PPT/写作的文档素材）
+app.post('/api/office/doc-parse', uploadDoc.single('file'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) return res.status(400).json({ error: '请选择要上传的文档' });
+    const text = await docparse.parseDocument(req.file.buffer, req.file.originalname);
+    res.json({ text, chars: text.length, filename: req.file.originalname });
+  } catch (e) {
+    res.status(400).json({ error: e.message || '文档解析失败' });
+  }
+});
 // 信息图生成：内容 + 布局 + 风格 → 组装提示词 → 复用绘图管线 → 自动检测修正乱码（实测验证方案）
 app.post('/api/office/infographic', async (req, res) => {
   const p = req.body || {};
@@ -514,9 +530,10 @@ app.post('/api/office/report-write', async (req, res) => {
   if (topic.length > 2000) return res.status(400).json({ error: '主题过长（限 2000 字）' });
   const structureId = String(p.structure || 'panorama');
   const requirements = String(p.requirements || '').trim().slice(0, 1000);
+  const docContent = String(p.docContent || '').trim().slice(0, docparse.MAX_CHARS); // 可选文档素材
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
   try {
-    const prompt = office.buildReportWritePrompt(topic, structureId, requirements);
+    const prompt = office.buildReportWritePrompt(topic, structureId, requirements, docContent);
     const text0 = await llmChat([{ role: 'user', content: prompt }], {
       responseFormat: null, // 自由文本输出（Markdown 报告）
       reasoningEffort: 'none',
@@ -571,6 +588,7 @@ app.post('/api/office/ppt', async (req, res) => {
   if (topic.length > 2000) return res.status(400).json({ error: '主题内容过长（限 2000 字）' });
   const pageCount = Math.min(Math.max(parseInt(p.pageCount, 10) || 6, 3), 12);
   const withImages = p.withImages !== false; // 默认配图，可关闭（纯文字更快）
+  const docContent = String(p.docContent || '').trim().slice(0, docparse.MAX_CHARS); // 可选文档素材（前端先解析预览确认）
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
   try {
     // 第一步：LLM 生成大纲（带思考兜底与重试，复用乱码检测的稳定性防护）
@@ -579,7 +597,7 @@ app.post('/api/office/ppt', async (req, res) => {
     const enough = (n) => n >= Math.max(1, pageCount - 2);
     for (let attempt = 0; attempt < 3 && !enough(slides.length); attempt++) {
       try {
-        const text = await llmChat([{ role: 'user', content: office.buildPptOutlinePrompt(topic, pageCount) }], {
+        const text = await llmChat([{ role: 'user', content: office.buildPptOutlinePrompt(topic, pageCount, docContent) }], {
           responseFormat: null,
           reasoningEffort: 'none',
           reasoningFallback: true,

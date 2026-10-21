@@ -71,7 +71,8 @@ export function getAuthUser() {
 }
 
 async function request(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  // FormData（文件上传）不设 Content-Type，由浏览器自动生成 multipart 边界
+  const headers = opts.body instanceof FormData ? { ...(opts.headers || {}) } : { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const token = getAccessToken();
   if (token) headers['X-Access-Token'] = token;
   const authToken = getAuthToken();
@@ -125,6 +126,12 @@ export const api = {
   officeImitate: (params) => request('/office/imitate', { method: 'POST', body: JSON.stringify(params) }),
   drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
   officePpt: (params) => request('/office/ppt', { method: 'POST', body: JSON.stringify(params) }),
+  // 文档解析：上传 Word/PDF 提取文本（multipart 文件上传）
+  officeDocParse: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request('/office/doc-parse', { method: 'POST', body: fd });
+  },
   officeReportWrite: (params) => request('/office/report-write', { method: 'POST', body: JSON.stringify(params) }),
   // 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）
   officeHistory: () => request('/office/history'),

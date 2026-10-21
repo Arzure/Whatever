@@ -145,14 +145,23 @@ function buildExtractPromptPrompt() {
 /** PPT 简化版（移植 sn-ppt-story 大纲方法论 + sn-ppt-standard 渲染思路，MIT 协议）：
  * Web 单次调用三步：LLM 生成大纲（宽松字段格式）→ 逐页配图（复用绘图管线）→ 组装自包含 HTML 幻灯片。
  * 提示词保持超精简（同 buildReportPrompt 实测教训：sensenova-6.8-flash-lite 指令容量小，过长直接返回空内容）。 */
-function buildPptOutlinePrompt(topic, pageCount) {
-  return [
+function buildPptOutlinePrompt(topic, pageCount, docContent) {
+  const lines = [
     `为主题『${topic}』设计一份 ${pageCount} 页的演示文稿大纲。每页按以下三行输出：`,
     '标题：本页标题',
     '要点：3-5 条要点，用分号分隔',
     '配图：一句话描述适合本页的插图',
-    '先想清楚叙事主线（如背景→矛盾→方案→结论的推进），不要机械罗列目录。只输出大纲，不要其他内容。',
-  ].join('\n');
+  ];
+  if (docContent) {
+    lines.push(
+      '---',
+      '以下是用户提供的参考文档内容，大纲必须基于文档内容展开，优先使用文档中的事实、数据与观点，不要凭空编造：',
+      docContent,
+      '---'
+    );
+  }
+  lines.push('先想清楚叙事主线（如背景→矛盾→方案→结论的推进），不要机械罗列目录。只输出大纲，不要其他内容。');
+  return lines.join('\n');
 }
 
 /** 宽松解析 PPT 大纲：按『标题：/要点：/配图：』字段行分组，兼容单行英文标签格式（吸取乱码检测教训：不强制 JSON） */
@@ -297,16 +306,27 @@ const REPORT_STRUCTURES = [
  * topic：研究主题；structureId：结构模板 ID；requirements：用户补充要求。
  * 注意保持精简（模型指令容量限制，实测教训）。
  */
-function buildReportWritePrompt(topic, structureId, requirements) {
+function buildReportWritePrompt(topic, structureId, requirements, docContent) {
   const s = REPORT_STRUCTURES.find((x) => x.id === structureId) || REPORT_STRUCTURES[0];
   const reqLine = requirements && requirements.trim() ? `补充要求：${requirements.trim()}。` : '';
-  return [
+  const lines = [
     `围绕主题撰写一份结构完整的中文报告，采用「${s.name}」结构：${s.outline}。`,
     reqLine,
+  ];
+  if (docContent && docContent.trim()) {
+    lines.push(
+      '以下是用户提供的参考文档内容，报告必须基于文档内容展开，优先使用文档中的事实、数据与观点，不要凭空编造：',
+      '---',
+      docContent.trim(),
+      '---'
+    );
+  }
+  lines.push(
     '要求：观点有依据，区分事实与判断；不确定的内容明确标注，不虚构数据与来源；条理清晰，用 Markdown 格式输出。',
     '主题：',
-    topic,
-  ].join('\n');
+    topic
+  );
+  return lines.join('\n');
 }
 
 /**
