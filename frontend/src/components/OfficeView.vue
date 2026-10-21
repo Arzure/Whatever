@@ -32,6 +32,13 @@ const excelBusy = ref(false);
 // 报告网页化：Markdown 内容 + 可选风格倾向 + 生成的 HTML（iframe 预览）
 const reportContent = ref('');
 const reportStyle = ref('');
+// 报告网页化预设风格（移植 sn-md-to-html-report 美学方向方法论：内容信号→配色/字体/材质推导，压缩为一句话级描述以适配模型容量）
+const REPORT_STYLES = [
+  { name: '深色科技', desc: '深色科技感：深蓝黑背景配青色强调，数据用等宽数字字体，网格线与扫描线纹理，冷静精密' },
+  { name: '纸质档案', desc: '纸质档案风：米白纸纹背景配深褐墨色，衬线标题配黑体正文，胶带与印章式装饰元素，纪实沉稳' },
+  { name: '留白极简', desc: '留白极简风：纯白背景大量留白，单一黑色主色配一处强调色，超大字号标题，克制无装饰' },
+  { name: '商务简报', desc: '商务简报风：白底配藏青主色与浅灰分区，卡片式信息块与侧栏目录，数字大字号突出，专业可信' },
+];
 const reportHtml = ref('');
 const reportBusy = ref(false);
 // 报告写作：主题 + 结构模板 + 补充要求 + 生成的 Markdown 报告
@@ -752,7 +759,17 @@ async function generate() {
           </div>
           <label class="field-label">粘贴 Markdown 报告（周报 / 分析 / 复盘 / 白皮书，限 20000 字）</label>
           <textarea v-model="reportContent" class="content-input" rows="10" maxlength="20000" placeholder="粘贴你的 Markdown 报告内容…支持标题、列表、表格、数据等"></textarea>
-          <label class="field-label">风格倾向（可选）</label>
+          <label class="field-label">风格倾向（可选，点选预设或自行输入）</label>
+          <div class="option-grid">
+            <button
+              v-for="st in REPORT_STYLES"
+              :key="st.name"
+              class="option-btn"
+              :class="{ active: reportStyle === st.desc }"
+              :title="st.desc"
+              @click="reportStyle = reportStyle === st.desc ? '' : st.desc"
+            >{{ st.name }}</button>
+          </div>
           <input v-model="reportStyle" class="style-input" placeholder="示例：深色科技感 / 纸质档案风 / 留白极简（留空由 AI 按内容气质决定）" maxlength="200" />
           <button class="generate" :disabled="reportBusy" @click="generateReport">
             {{ reportBusy ? '创作中…（长文约需 1-3 分钟）' : '生成网页报告' }}
