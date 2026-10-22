@@ -185,6 +185,11 @@ export function useGame() {
     state.view = 'adventure';
   }
 
+  // AI 助手对话：独立页面（从首页对话框入口跳转）
+  function openChat() {
+    state.view = 'chat';
+  }
+
   function restart() {
     state.view = 'home';
     state.player = null;
@@ -385,6 +390,7 @@ export function useGame() {
     loadSave,
     backToHome,
     openDraw,
+    openChat,
     openOffice,
     openAdventure,
     restart,

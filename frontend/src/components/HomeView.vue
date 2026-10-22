@@ -4,7 +4,19 @@ import { ref, computed, onMounted, onBeforeUnmount, inject, Transition } from 'v
 import { api } from '../api';
 import SilkBackground from './SilkBackground.vue';
 
-const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice, openAdventure } = inject('game');
+const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice, openAdventure, openChat } = inject('game');
+
+// —— 对话框入口：点击后飞入过渡——首页缩小后退模糊淡出，对话页从输入框位置弹性放大 ——
+const homeEl = ref(null);
+function enterChat() {
+  const home = homeEl.value;
+  if (home) {
+    home.classList.add('leaving'); // 首页被推远：缩小+模糊+淡出
+    setTimeout(() => openChat(), 260); // 过渡中段切换视图，衔接无缝
+  } else {
+    openChat();
+  }
+}
 
 const playerName = ref('');
 const modeId = ref('deduction');
@@ -137,7 +149,7 @@ const canStart = computed(() => {
 </script>
 
 <template>
-  <div class="home">
+  <div class="home" ref="homeEl">
     <SilkBackground />
     <div class="home-card">
       <h1 class="title" ref="titleRef" @mousemove="onTitleMove" @mouseleave="onTitleLeave">
@@ -150,6 +162,13 @@ const canStart = computed(() => {
       </h1>
       <p class="subtitle">AI 驱动的创作世界 · Powered by AI</p>
       <div class="title-divider" aria-hidden="true"></div>
+
+      <!-- AI 助手对话框主入口：点击飞入对话页 -->
+      <div class="chat-entry" style="animation-delay: 0.43s" role="button" tabindex="0" @click="enterChat()" @keydown.enter="enterChat()">
+        <span class="chat-entry-icon"><Icon name="sparkle" :size="20" /></span>
+        <span class="chat-entry-text">有什么可以帮您？</span>
+        <span class="chat-entry-send"><Icon name="send" :size="16" /></span>
+      </div>
 
       <!-- 双入口并列：绘图工作台 / 文字冒险 -->
       <div class="play-grid">
@@ -403,6 +422,81 @@ const canStart = computed(() => {
 @media (max-width: 480px) {
   .play-grid {
     grid-template-columns: 1fr;
+  }
+}
+/* —— AI 助手对话框主入口：复用入口卡片流光边框技术，视觉权重最高 —— */
+.chat-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  margin-bottom: 22px;
+  border: 1px solid rgba(212, 161, 44, 0.22);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(212, 161, 44, 0.1), rgba(60, 90, 160, 0.1)), var(--panel-2);
+  cursor: pointer;
+  animation: entry-in 0.55s ease both;
+  box-shadow: 0 0 22px rgba(212, 161, 44, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s, transform 0.18s ease-out, box-shadow 0.2s;
+}
+.chat-entry:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4), 0 0 34px color-mix(in srgb, var(--accent-2) 24%, transparent);
+}
+.chat-entry:hover .chat-entry-send {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #1a1303;
+  transform: scale(1.08);
+}
+.chat-entry-icon {
+  color: var(--accent);
+  display: inline-flex;
+}
+.chat-entry-text {
+  flex: 1;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+.chat-entry-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  transition: background 0.2s, color 0.2s, transform 0.18s ease-out;
+}
+/* 对话框流光边框：常态即旋转（主入口常亮，区别于卡片的 hover 触发） */
+.chat-entry::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 15px;
+  padding: 1.5px;
+  background: conic-gradient(from var(--ang, 0deg), transparent 0%, var(--accent-2) 14%, transparent 32%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.55;
+  pointer-events: none;
+  animation: border-spin 3.2s linear infinite;
+}
+.chat-entry:hover::before { opacity: 1; }
+/* —— 飞入过渡：首页被推远（缩小+模糊+淡出），对话页从输入框位置放大展开 —— */
+.home.leaving {
+  animation: home-leave 0.5s cubic-bezier(0.5, 0, 0.75, 0) both;
+  pointer-events: none;
+}
+@keyframes home-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.88);
+    filter: blur(8px);
   }
 }
 .title-divider {

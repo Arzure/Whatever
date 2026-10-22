@@ -11,6 +11,7 @@ import DrawView from './components/DrawView.vue';
 import OfficeView from './components/OfficeView.vue';
 import AdminView from './components/AdminView.vue';
 import AdventureView from './components/AdventureView.vue';
+import ChatView from './components/ChatView.vue';
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -149,6 +150,7 @@ async function deleteSave(s) {
           <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
           <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
           <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
+          <ChatView v-else-if="game.state.view === 'chat'" @back="game.backToHome" />
           <DetectiveView v-else-if="game.state.mode === 'detective'" />
           <WolfView v-else-if="game.state.mode === 'wolf'" />
           <DeductionView v-else-if="game.state.mode === 'deduction'" />
