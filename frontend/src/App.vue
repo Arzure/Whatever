@@ -348,7 +348,8 @@ async function deleteSave(s) {
 }
 /* —— 浅色主题顶栏适配：白色毛玻璃 + 紫色亮边，避免深蓝顶栏在浅色页面割裂 —— */
 html.light .app-bar {
-  background: rgba(255, 255, 255, 0.7);
+  /* 不透明度降至 0.42：与深色 0.55 观感对齐，内容透过被模糊，毛玻璃才可见 */
+  background: rgba(255, 255, 255, 0.42);
   border-bottom: 1px solid rgba(109, 90, 224, 0.28);
   box-shadow: 0 1px 0 rgba(109, 90, 224, 0.08), 0 6px 28px rgba(30, 38, 56, 0.1);
 }
