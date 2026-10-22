@@ -106,13 +106,15 @@ void main(){
   vec3 col = uBase;
   col += uColor * relief * 0.85 * uIntensity;
   col += uSheenColor * gloss * uSheen * uIntensity;
-  col += uColor * crest * 0.25 * uIntensity;
+  col += uColor * crest * 0.18 * uIntensity;
   float b = textureLod(uBloom, uv, 1.0).r * 0.35
           + textureLod(uBloom, uv, 2.0).r * 0.30
           + textureLod(uBloom, uv, 3.0).r * 0.20
           + textureLod(uBloom, uv, 4.0).r * 0.15;
-  col += uColor * b * uGlow * 2.2 * uIntensity;
+  col += uColor * b * uGlow * 1.3 * uIntensity;
   col *= uIntro;
+  /* 软性色调映射：高光平滑收敛，涟漪冲高时不过曝，中间调不受影响 */
+  col = 1.0 - exp(-col * 1.4);
   outColor = vec4(col, 1.0);
 }`;
 
