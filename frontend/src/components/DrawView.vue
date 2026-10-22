@@ -526,14 +526,12 @@ function useAsRef(item) {
 /* 模式切换 */
 /* 模式切换：自适应布局（通用方案）——空间够单行铺满，不够自动整齐换行，不依赖断点 */
 .mode-switch {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 四列等分：四个模式标签永远整齐一行，不再换行不均 */
   gap: 6px;
   margin-bottom: 14px;
 }
 .mode-switch button {
-  flex: 1 1 auto; /* 按内容自然宽度伸展，电脑端不再挤成窄条 */
-  min-width: 5em;
   padding: 8px 0;
   font-size: 13px;
   white-space: nowrap;
@@ -973,6 +971,10 @@ function useAsRef(item) {
   .draw-panel {
     width: 100%;
     position: static;
+  }
+  /* 模式切换两列降级：窄屏四列过窄会截断文字，两列整齐对称 */
+  .mode-switch {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>
