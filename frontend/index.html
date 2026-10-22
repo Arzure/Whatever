@@ -4,9 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>万象工坊</title>
+    <!-- PWA：应用清单（可安装到手机桌面）+ iOS 主屏图标 + 主题色 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#131c3a" />
     <!-- 思源宋体：标题衬线字体（国内镜像，swap 模式加载失败自动回退系统衬线） -->
     <link rel="preconnect" href="https://fonts.loli.net" />
     <link href="https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet" />
+    <script>
+      // 注册 Service Worker（离线缓存静态资源；生产环境 https 下生效）
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>
