@@ -322,7 +322,7 @@ watch(() => state.history.length, scrollToBottom);
 .input-bar {
   display: flex;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
 }
 .input-bar textarea {
@@ -342,7 +342,7 @@ watch(() => state.history.length, scrollToBottom);
 }
 
 .vote-panel {
-  padding: 12px 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
 }
 .vote-hint {

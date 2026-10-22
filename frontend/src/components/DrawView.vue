@@ -627,8 +627,8 @@ function useAsRef(item) {
   border: none;
   background: none;
   color: var(--text-dim);
-  font-size: 10px;
-  padding: 3px 6px 3px 0;
+  font-size: 12px;
+  padding: 5px 8px;
   cursor: pointer;
 }
 .prompt-tag-del:hover {
@@ -700,8 +700,8 @@ function useAsRef(item) {
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.65);

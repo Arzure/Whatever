@@ -470,7 +470,7 @@ watch(() => state.history.length, scrollToBottom);
 
 .input-bar {
   border-top: 1px solid var(--border);
-  padding: 16px 28px;
+  padding: 16px 28px calc(16px + env(safe-area-inset-bottom));
   background: var(--panel);
 }
 

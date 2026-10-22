@@ -1293,8 +1293,8 @@ async function generate() {
   border: none;
   background: none;
   color: var(--text-dim);
-  font-size: 11px;
-  padding: 3px 6px;
+  font-size: 12px;
+  padding: 5px 8px;
   cursor: pointer;
 }
 .prompt-tag-del:hover {

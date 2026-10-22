@@ -160,3 +160,9 @@ button, a, input, select, textarea {
 html.light .btn.primary {
   color: #fff;
 }
+/* —— 移动端第二批：消息内容横向溢出防护（长文本/长 URL 不撑破布局） —— */
+.msg-content,
+.user-bubble {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
