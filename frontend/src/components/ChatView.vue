@@ -101,6 +101,20 @@ async function removeSession(id) {
   }
 }
 
+// 清空全部会话
+async function clearAllSessions() {
+  if (sending.value || !sessions.value.length) return;
+  if (!confirm('确定清空全部对话记录吗？删除后不可恢复。')) return;
+  try {
+    await api.chatClearAll();
+    sessions.value = [];
+    sessionId.value = '';
+    messages.value = [];
+  } catch (e) {
+    console.error('[chat] 清空失败:', e.message);
+  }
+}
+
 // 发送消息：流式接口，逐字渲染+思考过程实时展示
 async function send() {
   const text = input.value.trim();
@@ -202,6 +216,7 @@ function fmtTime(ts) {
       </button>
       <template v-if="sidebarOpen">
         <button class="btn primary sidebar-new" @click="newSession"><Icon name="sparkle" :size="14" /> 新对话</button>
+        <button v-if="sessions.length" class="btn ghost sidebar-clear" title="清空全部对话" @click="clearAllSessions"><Icon name="trash" :size="14" /> 清空</button>
         <div class="sidebar-list">
           <div v-if="!sessions.length" class="sidebar-empty">暂无历史会话</div>
           <div
@@ -325,6 +340,15 @@ function fmtTime(ts) {
 }
 .sidebar-new {
   white-space: nowrap;
+}
+.sidebar-clear {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.sidebar-clear:hover {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
 }
 .sidebar-list {
   flex: 1;

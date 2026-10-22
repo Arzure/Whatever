@@ -958,6 +958,13 @@ app.delete('/api/chat/sessions/:id', (req, res) => {
   storage.deleteChatSession(s.id, user.id);
   res.json({ ok: true });
 });
+// 清空全部会话（连同消息）
+app.delete('/api/chat/sessions', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const count = storage.deleteAllChatSessions(user.id);
+  res.json({ ok: true, count });
+});
 app.post('/api/auth/register', (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');

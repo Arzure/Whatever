@@ -134,6 +134,7 @@ export const api = {
   chatSend: (id, content) => request(`/chat/sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
   chatRename: (id, title) => request(`/chat/sessions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
   chatDelete: (id) => request(`/chat/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  chatClearAll: () => request('/chat/sessions', { method: 'DELETE' }),
   officePpt: (params) => request('/office/ppt', { method: 'POST', body: JSON.stringify(params) }),
   // 文档解析：上传 Word/PDF 提取文本（multipart 文件上传）
   officeDocParse: (file) => {
