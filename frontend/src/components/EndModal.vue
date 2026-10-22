@@ -229,7 +229,7 @@ function roleClass(role) {
   justify-content: center;
   font-size: 18px;
   font-weight: 700;
-  color: #0e1428;
+  color: #131c3a;
   margin-bottom: 4px;
 }
 .curtain-portrait {

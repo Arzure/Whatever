@@ -207,9 +207,9 @@ async function deleteSave(s) {
 .app-bar-home {
   margin-right: auto;
   padding: 4px 12px;
-  border: 1px solid #3d4d80;
+  border: 1px solid #4a5c96;
   border-radius: 6px;
-  background: #1f2b52;
+  background: #263566;
   color: #e6edf3;
   font-size: 13px;
   cursor: pointer;
@@ -293,7 +293,7 @@ async function deleteSave(s) {
 }
 .app-bar-logout {
   background: none;
-  border: 1px solid #3d4d80;
+  border: 1px solid #4a5c96;
   border-radius: 6px;
   color: #8b949e;
   font-size: 13px;

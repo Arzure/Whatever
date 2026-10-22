@@ -184,8 +184,8 @@ async function doDelete() {
 .modal {
   width: 100%;
   max-width: 400px;
-  background: #182242;
-  border: 1px solid #3d4d80;
+  background: #1e2a52;
+  border: 1px solid #4a5c96;
   border-radius: 12px;
   padding: 20px;
 }
@@ -221,9 +221,9 @@ async function doDelete() {
   min-width: 4em;
   white-space: nowrap;
   padding: 8px 0;
-  border: 1px solid #3d4d80;
+  border: 1px solid #4a5c96;
   border-radius: 6px;
-  background: #0e1428;
+  background: #131c3a;
   color: #8b949e;
   font-size: 13px;
   cursor: pointer;
@@ -257,8 +257,8 @@ async function doDelete() {
 .form input {
   padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid #3d4d80;
-  background: #0e1428;
+  border: 1px solid #4a5c96;
+  background: #131c3a;
   color: #e6edf3;
   font-size: 14px;
 }

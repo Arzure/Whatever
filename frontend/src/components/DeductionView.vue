@@ -1558,13 +1558,13 @@ watch(() => state.history.length, scrollToBottom);
   border: 1px solid var(--border);
 }
 .exec-flip-back {
-  background: repeating-linear-gradient(45deg, #1f2b52, #1f2b52 6px, #243252 6px, #243252 12px);
+  background: repeating-linear-gradient(45deg, #263566, #263566 6px, #2a3a66 6px, #2a3a66 12px);
   color: var(--text-dim);
   font-size: 18px;
   font-weight: 700;
 }
 .exec-flip-front {
-  background: #182242;
+  background: #1e2a52;
   transform: rotateY(180deg);
 }
 @keyframes card-flip {
@@ -1636,7 +1636,7 @@ watch(() => state.history.length, scrollToBottom);
   margin-bottom: 6px;
 }
 .pager-btn {
-  background: #182242;
+  background: #1e2a52;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 8px;
@@ -1944,7 +1944,7 @@ watch(() => state.history.length, scrollToBottom);
   padding: 16px;
 }
 .review-modal {
-  background: #0e1428;
+  background: #131c3a;
   border: 1px solid var(--border);
   border-radius: 12px;
   max-width: 720px;
@@ -1981,7 +1981,7 @@ watch(() => state.history.length, scrollToBottom);
   border-radius: 10px;
   padding: 8px;
   margin: 8px 0;
-  background: #0e1428;
+  background: #131c3a;
 }
 .night-graph-title {
   font-size: 12px;
@@ -2061,7 +2061,7 @@ watch(() => state.history.length, scrollToBottom);
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  color: #0e1428;
+  color: #131c3a;
   font-size: 13px;
   font-weight: 700;
   margin-right: 6px;
