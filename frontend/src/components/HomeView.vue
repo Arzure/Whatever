@@ -148,11 +148,12 @@ const canStart = computed(() => {
 .home-card {
   width: min(520px, 92vw);
   margin: auto;
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(212, 161, 44, 0.03), transparent 30%), var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 36px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  /* 层次光感：深投影打底 + 金色微光晕勾勒轮廓 */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 50px rgba(212, 161, 44, 0.05);
 }
 
 .title {
@@ -214,7 +215,14 @@ const canStart = computed(() => {
 }
 .play-entry:hover {
   border-color: var(--accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 24px rgba(212, 161, 44, 0.1);
+}
+.play-entry:hover .play-icon {
+  transform: scale(1.12);
+}
+.play-icon {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .play-icon {
   font-size: 34px;

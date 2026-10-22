@@ -53,3 +53,40 @@ button {
 input {
   font-family: inherit;
 }
+/* —— 视觉精修：通用微交互与层次光感 —— */
+/* 焦点环：键盘导航时金色焦点环，鼠标点击不出现 */
+:focus-visible {
+  outline: 2px solid rgba(212, 161, 44, 0.7);
+  outline-offset: 2px;
+}
+/* 全局按钮 hover：上浮 1px + 金色光晕 */
+button:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+  filter: brightness(0.95);
+}
+/* 全局过渡：颜色类属性统一 0.15s 缓动，避免生硬切换 */
+button, a, input, select, textarea {
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s, filter 0.15s;
+}
+/* 滚动条精修：细窄半透明，hover 亮起 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 160, 175, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 161, 44, 0.45);
+}
+/* 选中文本：金色淡底 */
+::selection {
+  background: rgba(212, 161, 44, 0.3);
+}

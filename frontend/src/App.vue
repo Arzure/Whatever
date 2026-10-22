@@ -187,8 +187,12 @@ async function deleteSave(s) {
   justify-content: flex-end;
   gap: 12px;
   padding: 8px 16px;
-  background: #161b22;
+  /* 毛玻璃顶栏：半透明底 + 背景模糊，内容滚动时从顶栏后掠过形成层次 */
+  background: rgba(22, 27, 34, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid #30363d;
+  box-shadow: 0 1px 0 rgba(212, 161, 44, 0.06), 0 4px 24px rgba(0, 0, 0, 0.25);
 }
 .app-bar-user {
   color: #e6edf3;
