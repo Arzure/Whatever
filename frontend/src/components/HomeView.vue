@@ -226,8 +226,8 @@ const canStart = computed(() => {
 /* 流光：单向匀速无限循环——渐变首尾同色天然周期，200% 尺寸下位移一个周期恰好无缝衔接，
    高光带永远朝同一方向流动，到边缘后从另一侧自然续上，无往返割裂感 */
 @keyframes title-shine {
-  from { background-position: 0% 0; }
-  to { background-position: 200% 0; }
+  from { background-position: 200% 0; }
+  to { background-position: 0% 0; }
 }
 .title-char {
   display: inline-block;
