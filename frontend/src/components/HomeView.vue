@@ -216,8 +216,12 @@ const canStart = computed(() => {
   letter-spacing: 8px;
   text-align: center;
   margin: 0;
-  /* 透明填充文字的 text-shadow 呈现为字形光晕：此处作常态投影 */
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  /* 深色底不需要投影：黑色 text-shadow 在透明填充文字上会沿字形扩散染暗边缘（发黑感根因） */
+  text-shadow: none;
+}
+/* 浅色模式：亮金字在白底上对比不足，保留轻投影保证可读 */
+:global(html.light) .title {
+  text-shadow: 0 1px 4px rgba(120, 90, 20, 0.35);
 }
 /* 流光：高光带从左到右周期性扫过，金属反光质感 */
 @keyframes title-shine {
