@@ -70,6 +70,17 @@ body {
   font-size: 15px;
   line-height: 1.7;
 }
+/* 绸缎背景对话页模糊态：进入对话页时背景晕开模糊+轻微降饱和降亮度，
+   降低流动绸缎对阅读的干扰；返回首页时平滑恢复。
+   过渡时长与对话页飞入动效（0.55s）对齐，同步晕开更丝滑；
+   scale 1.06 防止模糊后画布边缘露出透明边 */
+.silk-canvas {
+  transition: filter 0.55s ease, transform 0.55s ease;
+}
+.silk-canvas.silk-dimmed {
+  filter: blur(14px) saturate(0.72) brightness(0.82);
+  transform: scale(1.06);
+}
 /* 对话入口点击光晕：卡片中心炸开的一圈径向光（挂在 body 上，须全局样式） */
 .chat-burst {
   position: fixed;
