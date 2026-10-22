@@ -231,7 +231,7 @@ const canStart = computed(() => {
 /* 翻澜内层：入场动画在外层，动态变形在内层，互不冲突；渐变流光在此层 */
 .title-char-inner {
   display: inline-block;
-  background: linear-gradient(105deg, #b8860b 0%, #d4a12c 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #d4a12c 82%, #b8860b 100%);
+  background: linear-gradient(105deg, #d4a12c 0%, #e8c15a 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #e8c15a 82%, #d4a12c 100%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
