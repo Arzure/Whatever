@@ -74,4 +74,81 @@ async function chat(messages, opts = {}) {
   return content;
 }
 
-module.exports = { chat, isConfigured, llmConfig };
+/**
+ * 流式调用 /chat/completions（stream: true）。
+ * onDelta(content 增量) / onReasoning(思考增量) 逐段回调；返回完整正文。
+ * 不可用（接口不支持流式等）时抛错，由调用方回退非流式。
+ */
+async function chatStream(messages, opts = {}, onDelta, onReasoning) {
+  const cfg = llmConfig();
+  if (!cfg.apiKey) {
+    throw new Error('未配置 LLM_API_KEY，请在项目根目录的 .env 文件中填写 API Key');
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 120000);
+  let res;
+  try {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature: opts.temperature ?? 0.8,
+        max_tokens: opts.maxTokens ?? 4096,
+        stream: true,
+        reasoning_effort: opts.reasoningEffort ?? 'none',
+        ...(opts.responseFormat === null ? {} : { response_format: opts.responseFormat ?? { type: 'json_object' } }),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    throw new Error(`无法连接 LLM 服务（${cfg.baseUrl}）：${err.message}`);
+  }
+  if (!res.ok) {
+    clearTimeout(timer);
+    const text = await res.text().catch(() => '');
+    throw new Error(`LLM 请求失败 (${res.status})：${text.slice(0, 300)}`);
+  }
+  // SSE 解析：按行读 data: {...}，提取增量内容与思考
+  let full = '';
+  try {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop(); // 末行可能不完整，留待下轮
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('data:')) continue;
+        const payload = t.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        let j;
+        try { j = JSON.parse(payload); } catch { continue; }
+        const delta = j?.choices?.[0]?.delta;
+        if (!delta) continue;
+        const rc = delta.reasoning_content ?? delta.reasoning;
+        if (rc && onReasoning) onReasoning(String(rc));
+        const c = delta.content;
+        if (c) {
+          full += c;
+          if (onDelta) onDelta(String(c));
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!full) throw new Error('LLM 返回了空内容');
+  return full;
+}
+
+module.exports = { chat, chatStream, isConfigured, llmConfig };

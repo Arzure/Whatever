@@ -1,7 +1,7 @@
 <script setup>
 import { ref, nextTick, inject, onMounted } from 'vue';
 import Icon from './Icon.vue';
-import { api } from '../api';
+import { api, getAuthToken, getAccessToken } from '../api';
 
 const { state, backToHome } = inject('game');
 
@@ -14,6 +14,7 @@ const sending = ref(false);
 const loadingSession = ref(false);
 const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
+const reasoningOpen = ref({}); // 各消息思考区块的展开状态（流式时自动展开，完成后可点击切换）
 
 // —— 共享元素飞入（FLIP）：挂载时从首页入口卡片的屏幕位置/尺寸平滑扩张成整个对话页 ——
 const chatEl = ref(null);
@@ -99,7 +100,7 @@ async function removeSession(id) {
   }
 }
 
-// 发送消息：真实接口，回复落库
+// 发送消息：流式接口，逐字渲染+思考过程实时展示
 async function send() {
   const text = input.value.trim();
   if (!text || sending.value || !sessionId.value) return;
@@ -107,9 +108,57 @@ async function send() {
   input.value = '';
   sending.value = true;
   scrollToBottom();
+  // 流式占位气泡（取代理对象，直接修改可触发更新）
+  messages.value.push({ role: 'assistant', content: '', reasoning: '', streaming: true });
+  const streamMsg = messages.value[messages.value.length - 1];
   try {
-    const data = await api.chatSend(sessionId.value, text);
-    messages.value.push({ role: 'assistant', content: data.reply.content });
+    const headers = { 'Content-Type': 'application/json' };
+    const at = getAccessToken();
+    if (at) headers['X-Access-Token'] = at;
+    const t = getAuthToken();
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(`/api/chat/sessions/${sessionId.value}/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ content: text }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `请求失败 (${res.status})`);
+    }
+    // SSE 解析：按空行分帧，提取 event/data
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const frames = buf.split('\n\n');
+      buf = frames.pop(); // 末帧可能不完整，留待下轮
+      for (const frame of frames) {
+        let event = '';
+        let data = '';
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event: ')) event = line.slice(7).trim();
+          else if (line.startsWith('data: ')) data = line.slice(6);
+        }
+        if (!data) continue;
+        let j;
+        try { j = JSON.parse(data); } catch { continue; }
+        if (event === 'delta') {
+          streamMsg.content += j.content;
+          scrollToBottom();
+        } else if (event === 'reasoning') {
+          streamMsg.reasoning += j.content;
+        } else if (event === 'error') {
+          streamMsg.content = j.error;
+          streamMsg.failed = true;
+        } else if (event === 'done') {
+          streamMsg.content = j.reply.content; // 以落库的完整内容为准
+        }
+      }
+    }
     // 刷新侧栏标题（首条消息自动生成）
     const s = sessions.value.find((x) => x.id === sessionId.value);
     if (s && s.title === '新对话') {
@@ -117,8 +166,10 @@ async function send() {
       s.updated_at = Date.now();
     }
   } catch (e) {
-    messages.value.push({ role: 'assistant', content: `回复失败：${e.message}` });
+    streamMsg.content = `回复失败：${e.message}`;
+    streamMsg.failed = true;
   } finally {
+    streamMsg.streaming = false;
     sending.value = false;
     scrollToBottom();
   }
@@ -171,10 +222,19 @@ function fmtTime(ts) {
       <div ref="messagesEl" class="chat-messages">
         <div v-if="loadingSession" class="msg assistant"><div class="msg-content loading-text">加载中…</div></div>
         <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
-          <div class="msg-content">{{ m.content }}</div>
-        </div>
-        <div v-if="sending" class="msg assistant">
-          <div class="msg-content loading-text"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <div
+            v-if="m.reasoning"
+            class="msg-reasoning"
+            :class="{ open: m.streaming || reasoningOpen[i] }"
+            @click="reasoningOpen[i] = !reasoningOpen[i]"
+          >
+            <span class="reasoning-label"><Icon name="sparkle" :size="12" /> 思考过程</span>
+            <div class="reasoning-body">{{ m.reasoning }}</div>
+          </div>
+          <div v-if="m.content || !m.streaming" class="msg-content">
+            {{ m.content }}<span v-if="m.streaming" class="stream-cursor"></span>
+          </div>
+          <div v-else class="msg-content loading-text"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
         </div>
       </div>
       <div class="chat-input-bar">
@@ -390,6 +450,46 @@ function fmtTime(ts) {
   font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
+}
+/* 思考过程区块：流式时自动展开实时滚动，完成后折叠为标签可点击回看 */
+.msg-reasoning {
+  margin-bottom: 6px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  padding: 4px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.reasoning-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.reasoning-body {
+  display: none;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin-top: 4px;
+  user-select: text;
+}
+.msg-reasoning.open .reasoning-body {
+  display: block;
+}
+/* 流式光标：金色竖线闪烁 */
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: -2px;
+  animation: cursor-blink 0.9s steps(1) infinite;
+}
+@keyframes cursor-blink {
+  50% { opacity: 0; }
 }
 .loading-text {
   color: var(--text-dim);

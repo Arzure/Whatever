@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { loadEnv } = require('./config');
-const { isConfigured, llmConfig, chat: llmChat } = require('./llm');
+const { isConfigured, llmConfig, chat: llmChat, chatStream } = require('./llm');
 const storage = require('./storage');
 const image = require('./image');
 const { authenticate, userFromRequest, hashPassword } = require('./auth');
@@ -894,20 +894,36 @@ app.post('/api/chat/sessions/:id/messages', async (req, res) => {
   // 组装上下文：系统提示 + 全部历史（超长时截断早期轮次，保留最近 40 条防 token 超限）
   const history = storage.listChatMessages(s.id).slice(-40).map((m) => ({ role: m.role, content: m.content }));
   const messages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...history];
+  // —— 流式响应：SSE 转发增量内容与思考过程；流式不可用自动回退非流式 ——
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  send('user', userMsg);
   let reply = '';
   let lastErr = '';
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const tryStream = async () => {
+    reply = await chatStream(messages, { maxTokens: 4096, responseFormat: null },
+      (delta) => send('delta', { content: delta }),
+      (reasoning) => send('reasoning', { content: reasoning }));
+  };
+  const tryPlain = async () => {
+    reply = (await llmChat(messages, { maxTokens: 4096, responseFormat: null })).trim();
+  };
+  // 两次机会：优先流式，失败（含限速等待后重试）回退非流式
+  for (let attempt = 0; attempt < 2 && !reply; attempt++) {
     try {
-      reply = (await llmChat(messages, { maxTokens: 4096 })).trim();
+      if (attempt === 0) await tryStream();
+      else await tryPlain();
       if (reply) break;
       lastErr = '模型返回空内容';
     } catch (e) {
       lastErr = e.message;
-      // 429 限速：立即重试无效，等待 3 秒让限速窗口过去再试
       if (attempt === 0 && /429|rate_limit/i.test(e.message)) {
-        await new Promise((r) => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, 3000)); // 限速窗口等待
       } else if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 800)); // 偶发 fetch failed：短暂等待后重试
+        await new Promise((r) => setTimeout(r, 800));
       }
     }
   }
@@ -915,10 +931,12 @@ app.post('/api/chat/sessions/:id/messages', async (req, res) => {
     const friendly = /429|rate_limit/i.test(lastErr)
       ? '当前使用人数较多，助手暂时忙不过来，请稍等片刻再发送'
       : `助手回复失败：${lastErr}`;
-    return res.status(502).json({ error: friendly, userMessage: userMsg });
+    send('error', { error: friendly });
+    return res.end();
   }
   const replyMsg = storage.addChatMessage(s.id, 'assistant', reply);
-  res.json({ userMessage: userMsg, reply: replyMsg });
+  send('done', { reply: replyMsg });
+  res.end();
 });
 // 重命名会话
 app.patch('/api/chat/sessions/:id', (req, res) => {
