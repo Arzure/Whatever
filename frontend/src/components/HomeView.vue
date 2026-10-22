@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { ref, computed, onMounted, onBeforeUnmount, inject, Transition } from 'vue';
 import { api } from '../api';
 import SilkBackground from './SilkBackground.vue';
@@ -153,7 +154,7 @@ const canStart = computed(() => {
       <!-- 双入口并列：绘图工作台 / 文字冒险 -->
       <div class="play-grid">
         <div class="play-entry" style="animation-delay: 0.55s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openDraw()" role="button" tabindex="0" @keydown.enter="openDraw()">
-          <span class="play-icon">🎨</span>
+          <span class="play-icon"><Icon name="brush" :size="22" /></span>
           <span class="play-text">
             <b>绘图工作台</b>
             <em>文生图 · 图片编辑 · 自由配置模型与参数</em>
@@ -161,7 +162,7 @@ const canStart = computed(() => {
           <span class="play-arrow">›</span>
         </div>
         <div class="play-entry" style="animation-delay: 0.67s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openOffice()" role="button" tabindex="0" @keydown.enter="openOffice()">
-          <span class="play-icon">📊</span>
+          <span class="play-icon"><Icon name="chart" :size="22" /></span>
           <span class="play-text">
             <b>办公助手</b>
             <em>信息图 · 简历图 · 一键生成专业视觉内容</em>
@@ -169,7 +170,7 @@ const canStart = computed(() => {
           <span class="play-arrow">›</span>
         </div>
         <div class="play-entry" style="animation-delay: 0.79s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openAdventure()" role="button" tabindex="0" @keydown.enter="openAdventure()">
-          <span class="play-icon">⚔️</span>
+          <span class="play-icon"><Icon name="sword" :size="22" /></span>
           <span class="play-text">
             <b>文字冒险</b>
             <em>推理杀 · 探案 · 狼人杀 · 大世界</em>

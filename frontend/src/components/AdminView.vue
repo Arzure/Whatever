@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { ref, onMounted } from 'vue';
 import { api } from '../api';
 
@@ -91,7 +92,7 @@ async function doReset() {
   <div class="admin">
     <header class="admin-header">
       <button class="back" @click="$emit('back')">‹ 返回</button>
-      <h2>🛡 用户管理</h2>
+      <h2><Icon name="admin" /> 用户管理</h2>
       <button class="refresh" @click="load">刷新</button>
     </header>
     <p v-if="error" class="error">{{ error }}</p>

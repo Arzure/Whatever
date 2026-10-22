@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { ref, computed, onMounted, inject } from 'vue';
 import { api } from '../api';
 
@@ -91,7 +92,7 @@ const canStart = computed(() => {
   <div class="adventure">
     <header class="adventure-header">
       <button class="back" @click="$emit('back')">‹ 返回首页</button>
-      <h2>⚔️ 文字冒险</h2>
+      <h2><Icon name="sword" /> 文字冒险</h2>
       <span class="hint">你的每一个选择都将改变命运</span>
     </header>
 

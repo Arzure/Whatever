@@ -14,6 +14,7 @@ import AdventureView from './components/AdventureView.vue';
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
+import Icon from './components/Icon.vue';
 
 const game = useGame();
 provide('game', game);
@@ -134,12 +135,12 @@ async function deleteSave(s) {
     <template v-else>
       <div class="app-shell">
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
-          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
-          <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
-          <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme">{{ theme === 'light' ? '🌙 深色' : '☀️ 浅色' }}</button>
-          <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'">🛡 管理</button>
-          <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
-          <button class="app-bar-logout" @click="showSettings = true"><span class="label-full">账号设置</span><span class="label-short">设置</span></button>
+          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> 首页</button>
+          <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
+          <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> {{ theme === 'light' ? '深色' : '浅色' }}</button>
+          <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'"><Icon name="admin" /> 管理</button>
+          <button class="app-bar-logout" @click="showSaves = true"><Icon name="save" /> 存档</button>
+          <button class="app-bar-logout" @click="showSettings = true"><Icon name="settings" /> <span class="label-full">账号设置</span><span class="label-short">设置</span></button>
         </header>
         <div class="app-body">
           <HomeView v-if="game.state.view === 'home'" />
@@ -245,6 +246,9 @@ async function deleteSave(s) {
 .app-bar-user {
   color: #e6edf3;
   font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .app-bar-home {
   margin-right: auto;
@@ -255,6 +259,9 @@ async function deleteSave(s) {
   color: #e6edf3;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .app-bar-home:hover {
   border-color: #58a6ff;
@@ -341,6 +348,9 @@ async function deleteSave(s) {
   font-size: 13px;
   padding: 4px 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .app-bar-logout:hover {
   color: #f85149;

@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api } from '../api';
 import { marked } from 'marked';
@@ -688,20 +689,20 @@ async function generate() {
   <div class="office">
     <header class="office-header">
       <button class="back" @click="$emit('back')">‹ 返回首页</button>
-      <h2>📊 办公助手</h2>
+      <h2><Icon name="chart" /> 办公助手</h2>
       <span class="hint">信息图 · 简历图 · 生成结果自动进入绘图历史</span>
     </header>
 
     <div class="office-body">
       <!-- 标签切换 -->
       <div class="tabs">
-        <button :class="{ on: tab === 'report' }" @click="switchTab('report')">📰 报告网页化</button>
-        <button :class="{ on: tab === 'ppt' }" @click="switchTab('ppt')">🎞️ 演示文稿</button>
-        <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')">📄 简历图</button>
-        <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')">📈 信息图</button>
-        <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')">🔍 图表解读</button>
-        <button :class="{ on: tab === 'excel' }" @click="switchTab('excel')">📊 Excel 分析</button>
-        <button :class="{ on: tab === 'write' }" @click="switchTab('write')">📝 报告写作</button>
+        <button :class="{ on: tab === 'report' }" @click="switchTab('report')"><Icon name="doc" /> 报告网页化</button>
+        <button :class="{ on: tab === 'ppt' }" @click="switchTab('ppt')"><Icon name="ppt" /> 演示文稿</button>
+        <button :class="{ on: tab === 'resume' }" @click="switchTab('resume')"><Icon name="resume" /> 简历图</button>
+        <button :class="{ on: tab === 'infographic' }" @click="switchTab('infographic')"><Icon name="chart" /> 信息图</button>
+        <button :class="{ on: tab === 'chart' }" @click="switchTab('chart')"><Icon name="search" /> 图表解读</button>
+        <button :class="{ on: tab === 'excel' }" @click="switchTab('excel')"><Icon name="excel" /> Excel 分析</button>
+        <button :class="{ on: tab === 'write' }" @click="switchTab('write')"><Icon name="doc" /> 报告写作</button>
       </div>
 
       <div class="panel">
@@ -868,7 +869,7 @@ async function generate() {
         <div v-if="promptHistory.length && tab !== 'chart'" class="prompt-tags">
           <span v-for="p in promptHistory" :key="p.id" class="prompt-tag">
             <span class="prompt-tag-text" :title="p.prompt" @click="usePrompt(p)">{{ p.prompt.slice(0, 18) }}…</span>
-            <button class="prompt-tag-del" title="删除该提示词" @click="removePrompt(p.id)">✕</button>
+            <button class="prompt-tag-del" title="删除该提示词" @click="removePrompt(p.id)"><Icon name="close" /></button>
           </span>
         </div>
         <!-- 内容输入 -->
@@ -970,7 +971,7 @@ async function generate() {
             <span class="history-info">{{ r.mode === 'infographic' ? '信息图' : '简历图' }} · {{ r.model }} · {{ r.size }}<template v-if="r.actual"> · {{ r.actual }}</template><template v-if="r.bytes"> · {{ formatBytes(r.bytes) }}</template> · {{ formatExpiry(r.created_at) }}</span>
             <div class="history-actions">
               <button class="history-btn" @click="downloadHistory(r)">⬇ 下载</button>
-              <button class="history-btn danger" @click="removeHistory(r.id)">🗑 删除</button>
+              <button class="history-btn danger" @click="removeHistory(r.id)"><Icon name="trash" /> 删除</button>
             </div>
           </div>
         </div>

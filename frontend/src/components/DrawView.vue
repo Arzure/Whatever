@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { api } from '../api';
 
@@ -301,7 +302,7 @@ function useAsRef(item) {
     <div class="draw-layout">
       <!-- 左侧：参数面板 -->
       <aside class="draw-panel">
-        <h2 class="draw-panel-title">🎨 绘图工作台</h2>
+        <h2 class="draw-panel-title"><Icon name="brush" /> 绘图工作台</h2>
 
         <div v-if="!options.enabled" class="draw-disabled">
           服务端未配置图像 API Key（IMAGE_API_KEY 或 LLM_API_KEY），绘图功能不可用。
@@ -309,10 +310,10 @@ function useAsRef(item) {
 
         <!-- 模式切换：文生图 / 图片编辑 -->
         <div class="mode-switch">
-          <button :class="{ active: mode === 'generate' }" @click="mode = 'generate'">✨ 文生图</button>
-          <button :class="{ active: mode === 'edit' }" @click="mode = 'edit'">🖼️ 图片编辑</button>
-          <button :class="{ active: mode === 'imitate' }" @click="mode = 'imitate'">🎨 风格模仿</button>
-          <button :class="{ active: mode === 'extract' }" @click="mode = 'extract'">🔍 图转提示词</button>
+          <button :class="{ active: mode === 'generate' }" @click="mode = 'generate'"><Icon name="sparkle" /> 文生图</button>
+          <button :class="{ active: mode === 'edit' }" @click="mode = 'edit'"><Icon name="image" /> 图片编辑</button>
+          <button :class="{ active: mode === 'imitate' }" @click="mode = 'imitate'"><Icon name="brush" /> 风格模仿</button>
+          <button :class="{ active: mode === 'extract' }" @click="mode = 'extract'"><Icon name="search" /> 图转提示词</button>
         </div>
 
         <label class="field">
@@ -390,7 +391,7 @@ function useAsRef(item) {
           <div class="ref-list">
             <div v-for="(img, i) in refImages" :key="i" class="ref-item">
               <img :src="img" alt="参考图" />
-              <button class="ref-remove" @click="removeImage(i)">✕</button>
+              <button class="ref-remove" @click="removeImage(i)"><Icon name="close" /></button>
               <span v-if="i === 0" class="ref-main">主图</span>
             </div>
             <label class="ref-add" title="上传参考图（至多 5 张）">
@@ -414,7 +415,7 @@ function useAsRef(item) {
             <div class="prompt-history-list">
               <span v-for="ph in promptHistory" :key="ph.id" class="prompt-tag">
                 <span class="prompt-tag-text" :title="ph.prompt" @click="usePrompt(ph)">{{ ph.prompt }}</span>
-                <button class="prompt-tag-del" @click="removePrompt(ph.id)" title="删除该提示词">✕</button>
+                <button class="prompt-tag-del" @click="removePrompt(ph.id)" title="删除该提示词"><Icon name="close" /></button>
               </span>
             </div>
           </div>
@@ -435,7 +436,7 @@ function useAsRef(item) {
               <div class="gallery-actions">
                 <button class="gallery-ref-btn" @click="useAsRef(item)" title="以此图继续编辑">以此图编辑</button>
                 <button class="gallery-ref-btn" @click="download(item)" title="选择格式下载">⬇ 下载</button>
-                <button class="gallery-ref-btn danger" @click="removeItem(i)" title="从画廊删除">🗑 删除</button>
+                <button class="gallery-ref-btn danger" @click="removeItem(i)" title="从画廊删除"><Icon name="trash" /> 删除</button>
               </div>
             </div>
           </div>
@@ -446,7 +447,7 @@ function useAsRef(item) {
         <Transition name="ovl">
           <div v-if="previewItem" class="preview-overlay" @click.self="closePreview">
             <div class="preview-box">
-              <button class="preview-close" @click="closePreview">✕</button>
+              <button class="preview-close" @click="closePreview"><Icon name="close" /></button>
               <img :src="previewItem.src" :alt="previewItem.prompt" class="preview-img" />
               <div class="preview-meta">
                 <span class="gallery-prompt">{{ previewItem.prompt }}</span>

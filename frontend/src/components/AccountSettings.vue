@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue';
 import { ref } from 'vue';
 import { api, setAuth } from '../api';
 
@@ -107,7 +108,7 @@ async function doDelete() {
     <div class="modal">
       <div class="modal-head">
         <h3>账号设置</h3>
-        <button class="close-btn" @click="emit('close')">✕</button>
+        <button class="close-btn" @click="emit('close')"><Icon name="close" /></button>
       </div>
 
       <div class="tabs">
