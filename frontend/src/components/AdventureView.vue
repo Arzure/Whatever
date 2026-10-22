@@ -201,6 +201,9 @@ const canStart = computed(() => {
 
 <style scoped>
 .adventure {
+  height: 100%;
+  overflow-y: auto; /* 内部滚动：页面级滚动已锁死，内容超出视口时在此滚动 */
+  -webkit-overflow-scrolling: touch; /* iOS 惯性滚动 */
   max-width: 860px;
   margin: 0 auto;
   padding: calc(var(--bar-h, 48px) + 20px) 16px 60px; /* 顶栏悬浮让位 */

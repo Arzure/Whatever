@@ -140,11 +140,11 @@ async function deleteSave(s) {
              对话页下叠加模糊滤镜（类由全局样式接管），降低背景对阅读的干扰 -->
         <SilkBackground v-if="game.state.view === 'home' || game.state.view === 'chat'" :class="{ 'silk-dimmed': game.state.view === 'chat' }" />
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
-          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> 首页</button>
+          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
-          <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> {{ theme === 'light' ? '深色' : '浅色' }}</button>
-          <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'"><Icon name="admin" /> 管理</button>
-          <button class="app-bar-logout" @click="showSaves = true"><Icon name="save" /> 存档</button>
+          <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> <span class="bar-label">{{ theme === 'light' ? '深色' : '浅色' }}</span></button>
+          <button v-if="authUser?.isAdmin" class="app-bar-logout" title="管理" @click="game.state.view = 'admin'"><Icon name="admin" /> <span class="bar-label">管理</span></button>
+          <button class="app-bar-logout" title="存档" @click="showSaves = true"><Icon name="save" /> <span class="bar-label">存档</span></button>
           <button class="app-bar-logout" @click="showSettings = true"><Icon name="settings" /> <span class="label-full">账号设置</span><span class="label-short">设置</span></button>
         </header>
         <div class="app-body">
@@ -422,5 +422,17 @@ html.light .save-overlay {
 @media (min-width: 769px) {
   .label-full { display: inline; }
   .label-short { display: none; }
+}
+/* 窄屏顶栏纯图标化：隐藏全部文字标签与用户名，六个图标按钮单行放得下，不再换行成两行 */
+@media (max-width: 480px) {
+  .bar-label,
+  .label-short,
+  .app-bar-user {
+    display: none;
+  }
+  .app-bar {
+    gap: 4px;
+    padding: 6px 6px;
+  }
 }
 </style>

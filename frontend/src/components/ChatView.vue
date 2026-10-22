@@ -164,7 +164,7 @@ function fmtTime(ts) {
     <!-- 主对话区 -->
     <div class="chat-main">
       <header class="chat-header">
-        <button class="btn ghost" @click="backToHome"><Icon name="back" /> 返回首页</button>
+        <button class="chat-back" title="返回首页" @click="backToHome"><Icon name="back" :size="18" /></button>
         <h2><Icon name="sparkle" /> AI 助手</h2>
         <span class="chat-hint">对话 · 创作 · 问答</span>
       </header>
@@ -220,6 +220,10 @@ function fmtTime(ts) {
   padding: calc(var(--bar-h, 48px) + 16px) 10px 12px;
   border-right: 1px solid transparent;
   border-image: linear-gradient(to bottom, transparent 4%, var(--border) 22%, var(--border) 78%, transparent 96%) 1;
+  /* 毛玻璃：与主对话区形成质感区分，绸缎背景透出被模糊 */
+  background: color-mix(in srgb, var(--panel) 52%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   overflow: hidden;
   transition: width 0.32s cubic-bezier(0.22, 1.2, 0.36, 1), padding 0.32s ease;
 }
@@ -372,8 +376,9 @@ function fmtTime(ts) {
   align-self: flex-start;
 }
 .chat-messages .msg.user .msg-content {
-  background: rgba(212, 161, 44, 0.12);
-  border: 1px solid rgba(212, 161, 44, 0.3);
+  /* 柔和配色：面板底色+金色描边点缀，告别黄底黑字的刺眼感 */
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
 }
 .chat-messages .msg.assistant .msg-content {
   background: var(--panel-2);
@@ -410,7 +415,8 @@ function fmtTime(ts) {
   display: flex;
   gap: 10px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(to right, transparent 2%, var(--border) 18%, var(--border) 82%, transparent 98%) 1;
   /* 输入栏与消息列同宽居中，视觉对齐 */
   max-width: 852px;
   width: 100%;
@@ -451,6 +457,25 @@ function fmtTime(ts) {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
+/* 返回按钮：圆形图标按钮，悬停金色描边，替代生硬的幽灵按钮 */
+.chat-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.18s, border-color 0.18s, transform 0.18s;
+}
+.chat-back:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateX(-2px);
+}
 /* 移动端：侧栏默认收窄，避免挤占消息区 */
 @media (max-width: 640px) {
   .chat-sidebar {
@@ -461,6 +486,17 @@ function fmtTime(ts) {
   }
   .chat-sidebar .sidebar-toggle {
     align-self: center;
+  }
+  /* 头部紧凑化：隐藏副标题，缩小间距，保证单行完整显示 */
+  .chat-hint {
+    display: none;
+  }
+  .chat-header {
+    gap: 10px;
+    padding-top: calc(var(--bar-h, 48px) + 10px);
+  }
+  .chat-header h2 {
+    font-size: 16px;
   }
 }
 </style>
