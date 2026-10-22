@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, inject, Transition } from 'vue';
 import { api } from '../api';
+import SilkBackground from './SilkBackground.vue';
 
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice, openAdventure } = inject('game');
 
@@ -31,75 +32,9 @@ const needTheme = computed(() => !!currentMode.value?.needsTheme);
 const needGenre = computed(() => !!currentMode.value?.needsGenre);
 
 onMounted(async () => {
-  startSilk();
   await Promise.all([loadCatalogs(), refreshSaves()]);
   if (!themeId.value && state.themes.length) themeId.value = state.themes[0].id;
 });
-
-// —— 流体绸缎背景：多层光带缓慢流动，鼠标划过掀起波澜（对标 Silk / Liquid Ether） ——
-const silkRef = ref(null);
-let silkRaf = 0;
-let silkResize = null;
-const silkMouse = { x: -9999, y: -9999, energy: 0 };
-function onHomeMove(e) {
-  silkMouse.x = e.clientX;
-  silkMouse.y = e.clientY;
-  silkMouse.energy = Math.min(1, silkMouse.energy + 0.12);
-}
-function onHomeLeave() {
-  silkMouse.x = -9999;
-  silkMouse.y = -9999;
-}
-function startSilk() {
-  const canvas = silkRef.value;
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const resize = () => {
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-  };
-  resize();
-  silkResize = resize;
-  window.addEventListener('resize', resize);
-  const draw = () => {
-    const w = canvas.width, h = canvas.height, t = performance.now();
-    silkMouse.energy = Math.max(0, silkMouse.energy - 0.008); // 能量缓慢衰减，波澜涟漪式回落
-    ctx.clearRect(0, 0, w, h);
-    const light = document.documentElement.classList.contains('light');
-    const palettes = light
-      ? [[109, 90, 224], [90, 139, 240], [138, 123, 240]] // 浅色：蓝紫绸缎
-      : [[212, 161, 44], [232, 193, 90], [96, 125, 220]]; // 深色：金紫绸缎
-    const bands = [
-      { yb: 0.26, amp: 34, sp: 0.00045, ph: 0, lw: 110, a: 0.10 },
-      { yb: 0.55, amp: 46, sp: 0.00030, ph: 2.1, lw: 150, a: 0.08 },
-      { yb: 0.80, amp: 30, sp: 0.00055, ph: 4.2, lw: 100, a: 0.09 },
-    ];
-    bands.forEach((b, bi) => {
-      const [r, g, bl] = palettes[bi];
-      ctx.beginPath();
-      for (let x = -40; x <= w + 40; x += 16) {
-        const wave = Math.sin(x * 0.004 + t * b.sp + b.ph) * b.amp
-          + Math.sin(x * 0.011 - t * b.sp * 1.7 + b.ph) * b.amp * 0.4;
-        const py = h * b.yb + wave;
-        // 鼠标波澜：光带靠近鼠标处被掀起，正弦扰动形成涟漪
-        const d = Math.hypot(x - silkMouse.x, py - silkMouse.y);
-        const boost = Math.max(0, 1 - d / 240) * 52 * silkMouse.energy;
-        const y = py - Math.sin((x - silkMouse.x) * 0.018) * boost;
-        if (x === -40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, `rgba(${r},${g},${bl},0)`);
-      grad.addColorStop(0.5, `rgba(${r},${g},${bl},${b.a + silkMouse.energy * 0.05})`);
-      grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = b.lw;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-    });
-    silkRaf = requestAnimationFrame(draw);
-  };
-  draw();
-}
 
 // —— 标题翻澜：鼠标靠近时字符波浪式起伏 + 提亮发光（对标 SenseNova U1 Pro 标题效果） ——
 const titleRef = ref(null);
@@ -138,7 +73,7 @@ function onEntryMove(e) {
   const rc = el.getBoundingClientRect();
   const px = (e.clientX - rc.left) / rc.width - 0.5;
   const py = (e.clientY - rc.top) / rc.height - 0.5;
-  el.style.transform = `perspective(640px) rotateX(${(-py * 9).toFixed(2)}deg) rotateY(${(px * 11).toFixed(2)}deg) translateY(-3px)`;
+  el.style.transform = `perspective(560px) rotateX(${(-py * 14).toFixed(2)}deg) rotateY(${(px * 16).toFixed(2)}deg) translateY(-4px) scale(1.03)`;
   el.style.setProperty('--mx', `${((px + 0.5) * 100).toFixed(1)}%`);
   el.style.setProperty('--my', `${((py + 0.5) * 100).toFixed(1)}%`);
 }
@@ -147,9 +82,7 @@ function onEntryLeave(e) {
 }
 
 onBeforeUnmount(() => {
-  if (silkRaf) cancelAnimationFrame(silkRaf);
   if (titleRaf) cancelAnimationFrame(titleRaf);
-  if (silkResize) window.removeEventListener('resize', silkResize);
 });
 
 function pickMode(id) {
@@ -204,8 +137,8 @@ const canStart = computed(() => {
 </script>
 
 <template>
-  <div class="home" @mousemove="onHomeMove" @mouseleave="onHomeLeave">
-    <canvas ref="silkRef" class="silk-bg" aria-hidden="true"></canvas>
+  <div class="home">
+    <SilkBackground />
     <div class="home-card">
       <h1 class="title" ref="titleRef" @mousemove="onTitleMove" @mouseleave="onTitleLeave">
         <span
@@ -263,22 +196,15 @@ const canStart = computed(() => {
     var(--bg);
 }
 
-/* 流体绸缎背景画布：固定全屏 + 大面积模糊，鼠标划过掀起波澜 */
-.silk-bg {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  filter: blur(14px) saturate(1.25);
-  z-index: 0;
-}
 .home-card {
   position: relative;
   z-index: 1;
   width: min(520px, 92vw);
   margin: auto;
-  background: linear-gradient(180deg, rgba(212, 161, 44, 0.03), transparent 30%), var(--panel);
+  /* 半透明毛玻璃：流动的绸缎背景透进卡片，消除孤岛感 */
+  background: linear-gradient(180deg, rgba(212, 161, 44, 0.05), transparent 40%), color-mix(in srgb, var(--panel) 72%, transparent);
+  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 36px;
@@ -364,7 +290,7 @@ const canStart = computed(() => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), rgba(232, 193, 90, 0.16), transparent 65%);
+  background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 65%);
   opacity: 0;
   transition: opacity 0.25s;
   pointer-events: none;
@@ -377,7 +303,7 @@ const canStart = computed(() => {
   inset: -1px;
   border-radius: 11px;
   padding: 1.5px;
-  background: conic-gradient(from var(--ang, 0deg), transparent 0%, rgba(232, 193, 90, 0.85) 12%, transparent 28%);
+  background: conic-gradient(from var(--ang, 0deg), transparent 0%, var(--accent-2) 12%, transparent 28%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -396,8 +322,7 @@ const canStart = computed(() => {
 .play-entry:hover::before { opacity: 1; }
 .play-entry:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 24px rgba(212, 161, 44, 0.1);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 34px color-mix(in srgb, var(--accent-2) 22%, transparent);
 }
 .play-entry:hover .play-icon {
   transform: scale(1.12);
