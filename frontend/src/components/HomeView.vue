@@ -52,8 +52,8 @@ function onTitleMove(e) {
       const force = Math.max(0, 1 - Math.hypot(dx, dy) / 150); // 150px 影响半径
       const f2 = force * force;
       inner.style.transform = `translateY(${-f2 * 16}px) rotate(${(dx > 0 ? -1 : 1) * f2 * 7}deg) scale(${1 + f2 * 0.14})`;
-      inner.style.color = force > 0.04 ? '#f7dc9a' : '';
-      inner.style.textShadow = force > 0.04 ? `0 0 ${20 * force}px rgba(232, 193, 90, ${0.85 * force})` : '';
+      /* 渐变文字不能用 color 提亮，改用 drop-shadow 光晕发光 */
+      inner.style.filter = force > 0.04 ? `drop-shadow(0 0 ${18 * force}px rgba(247, 220, 154, ${0.9 * force}))` : '';
     });
   });
 }
@@ -62,8 +62,7 @@ function onTitleLeave() {
   if (!el) return;
   el.querySelectorAll('.title-char-inner').forEach((inner) => {
     inner.style.transform = '';
-    inner.style.color = '';
-    inner.style.textShadow = '';
+    inner.style.filter = '';
   });
 }
 
@@ -208,14 +207,28 @@ const canStart = computed(() => {
   box-shadow: none;
 }
 
+/* 标题：衬线书法风 + 金色渐变流光（A+C 组合）
+   思源宋体走国内镜像，加载失败自动回退系统衬线，不阻塞渲染 */
 .title {
-  font-size: 38px;
-  letter-spacing: 6px;
+  font-family: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: 8px;
   text-align: center;
   margin: 0;
-  /* 实心金色文字：渐变透明文字多次反馈看不清，改用纯色+轻投影保证绝对清晰 */
-  color: #e8c15a;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(105deg, #b8860b 0%, #d4a12c 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #d4a12c 82%, #b8860b 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
+  animation: title-shine 5.5s ease-in-out infinite;
+}
+/* 流光：高光带从左到右周期性扫过，金属反光质感 */
+@keyframes title-shine {
+  0%, 100% { background-position: 0% 0; }
+  50% { background-position: 100% 0; }
 }
 .title-char {
   display: inline-block;
@@ -722,8 +735,8 @@ const canStart = computed(() => {
     width: min(560px, 94vw);
   }
   .title {
-    font-size: 26px;
-    letter-spacing: 1px;
+    font-size: 32px;
+    letter-spacing: 4px;
   }
   .subtitle {
     margin: 8px 0 18px;
