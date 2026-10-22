@@ -219,10 +219,10 @@ const canStart = computed(() => {
   display: flex;
   justify-content: center;
   overflow-y: auto;
-  background:
-    radial-gradient(ellipse at 30% 20%, rgba(212, 161, 44, 0.12), transparent 50%),
-    radial-gradient(ellipse at 70% 80%, rgba(60, 90, 160, 0.15), transparent 50%),
-    var(--bg);
+  /* 背景透明：绸缎画布已上移至应用外壳层（绘制在内容之下），
+     此处若再铺不透明底色会把画布盖住（返回首页后背景消失的根因）。
+     原径向渐变层此前一直被全屏画布遮盖、从未可见，删除无视觉损失 */
+  background: transparent;
 }
 
 /* hero 布局：无容器背景，内容直接悬浮在流动绸缎上（对标 SenseNova / ReactBits hero 设计） */
