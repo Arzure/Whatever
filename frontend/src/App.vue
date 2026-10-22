@@ -125,13 +125,14 @@ async function deleteSave(s) {
         </header>
         <div class="app-body">
           <HomeView v-if="game.state.view === 'home'" />
-          <DetectiveView v-else-if="game.state.mode === 'detective'" />
-          <WolfView v-else-if="game.state.mode === 'wolf'" />
-          <DeductionView v-else-if="game.state.mode === 'deduction'" />
+          <!-- 具体页面视图优先于游戏模式判断：避免返回首页后 mode 残留导致绘图/办公/管理页面被游戏界面遮挡 -->
           <DrawView v-else-if="game.state.view === 'draw'" />
           <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
           <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
           <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
+          <DetectiveView v-else-if="game.state.mode === 'detective'" />
+          <WolfView v-else-if="game.state.mode === 'wolf'" />
+          <DeductionView v-else-if="game.state.mode === 'deduction'" />
           <WorldView v-else />
         </div>
       </div>
