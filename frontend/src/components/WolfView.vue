@@ -58,7 +58,7 @@ watch(() => state.history.length, scrollToBottom);
         <button class="btn ghost" @click="backToHome">← 主菜单</button>
       </div>
 
-      <div class="phase-badge" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>
+      <div class="phase-badge" :key="phase" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>
 
       <div class="wolf-role">
         <span class="muted">你的身份</span>
@@ -429,4 +429,12 @@ watch(() => state.history.length, scrollToBottom);
     min-height: 44px;
   }
 }
+/* —— 阶段三动效：消息入场 + 按钮微交互 + 阶段标题文字动画（对标 reactbits/animata） —— */
+.msg { animation: msg-in 0.32s ease both; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.btn { transition: transform 0.12s ease, filter 0.15s ease; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.15); }
+.btn:active:not(:disabled) { transform: scale(0.96); }
+.phase-badge { animation: badge-in 0.55s ease both; }
+@keyframes badge-in { from { opacity: 0; letter-spacing: 0.45em; } to { opacity: 1; letter-spacing: normal; } }
 </style>
