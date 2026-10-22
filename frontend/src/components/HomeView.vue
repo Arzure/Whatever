@@ -52,8 +52,8 @@ function onTitleMove(e) {
       const force = Math.max(0, 1 - Math.hypot(dx, dy) / 150); // 150px 影响半径
       const f2 = force * force;
       inner.style.transform = `translateY(${-f2 * 16}px) rotate(${(dx > 0 ? -1 : 1) * f2 * 7}deg) scale(${1 + f2 * 0.14})`;
-      /* 渐变文字不能用 color 提亮，改用 drop-shadow 光晕发光 */
-      inner.style.filter = force > 0.04 ? `drop-shadow(0 0 ${18 * force}px rgba(247, 220, 154, ${0.9 * force}))` : '';
+      /* 渐变文字发光：text-shadow 在透明填充文字上呈金色光晕（filter 会破坏背景裁剪，不可用） */
+      inner.style.textShadow = force > 0.04 ? `0 0 ${18 * force}px rgba(247, 220, 154, ${0.9 * force})` : '';
     });
   });
 }
@@ -62,7 +62,7 @@ function onTitleLeave() {
   if (!el) return;
   el.querySelectorAll('.title-char-inner').forEach((inner) => {
     inner.style.transform = '';
-    inner.style.filter = '';
+    inner.style.textShadow = '';
   });
 }
 
@@ -208,7 +208,7 @@ const canStart = computed(() => {
 }
 
 /* 标题：衬线书法风 + 金色渐变流光（A+C 组合）
-   思源宋体走国内镜像，加载失败自动回退系统衬线，不阻塞渲染 */
+   渐变裁剪放在最内层字符上——外层入场动画的 filter 会使子元素脱离背景裁剪渲染导致文字消失 */
 .title {
   font-family: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
   font-size: 46px;
@@ -216,14 +216,8 @@ const canStart = computed(() => {
   letter-spacing: 8px;
   text-align: center;
   margin: 0;
-  background: linear-gradient(105deg, #b8860b 0%, #d4a12c 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #d4a12c 82%, #b8860b 100%);
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
-  animation: title-shine 5.5s ease-in-out infinite;
+  /* 透明填充文字的 text-shadow 呈现为字形光晕：此处作常态投影 */
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
 }
 /* 流光：高光带从左到右周期性扫过，金属反光质感 */
 @keyframes title-shine {
@@ -234,15 +228,22 @@ const canStart = computed(() => {
   display: inline-block;
   animation: title-reveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-/* 翻澜内层：入场动画在外层，动态变形在内层，互不冲突 */
+/* 翻澜内层：入场动画在外层，动态变形在内层，互不冲突；渐变流光在此层 */
 .title-char-inner {
   display: inline-block;
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s, text-shadow 0.3s;
+  background: linear-gradient(105deg, #b8860b 0%, #d4a12c 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #d4a12c 82%, #b8860b 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: title-shine 5.5s ease-in-out infinite;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), text-shadow 0.3s;
   will-change: transform;
 }
 @keyframes title-reveal {
-  0% { opacity: 0; transform: translateY(14px) scale(0.8); filter: blur(4px); }
-  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  0% { opacity: 0; transform: translateY(14px) scale(0.8); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .subtitle {
