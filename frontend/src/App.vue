@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, provide, ref, computed } from 'vue';
+import { onMounted, provide, ref, computed, watch } from 'vue';
 import { useGame } from './composables/useGame';
 import { getAuthToken, getAuthUser, setAuth, api } from './api';
 import HomeView from './components/HomeView.vue';
@@ -34,6 +34,8 @@ applyTheme();
 const authUser = ref(getAuthToken() ? getAuthUser() : null);
 // —— 全局鼠标跟随光晕：缓动跟随指针，与绸缎背景指针形变联动 ——
 const glowEl = ref(null);
+// —— 顶栏高度同步：顶栏固定悬浮后，用 CSS 变量给内容区让位（手机端换行高度自适应） ——
+const barEl = ref(null);
 // —— 顶栏滚动阴影：任一滚动容器下移后顶栏底部阴影渐显 ——
 const barScrolled = ref(false);
 function onAnyScroll(e) {
@@ -66,13 +68,20 @@ onMounted(async () => {
     const follow = () => {
       pos.x += (pos.tx - pos.x) * 0.12;
       pos.y += (pos.ty - pos.y) * 0.12;
-      if (glowEl.value) glowEl.value.style.transform = 'translate(' + (pos.x - 180) + 'px, ' + (pos.y - 180) + 'px)';
+      if (glowEl.value) glowEl.value.style.transform = 'translate(' + (pos.x - 90) + 'px, ' + (pos.y - 90) + 'px)';
       requestAnimationFrame(follow);
     };
     requestAnimationFrame(follow);
   }
 });
 
+// 顶栏固定悬浮：内容从顶栏下方穿过，毛玻璃才有可模糊的滚动内容；顶栏登录后才渲染，侦听其出现后建立高度同步（换行时 ResizeObserver 自适应）
+watch(barEl, (el) => {
+  if (!el) return;
+  const syncBarH = () => document.documentElement.style.setProperty('--bar-h', el.offsetHeight + 'px');
+  syncBarH();
+  new ResizeObserver(syncBarH).observe(el);
+});
 function onLoggedIn(user) {
   authUser.value = user;
   game.refreshSaves();
@@ -139,7 +148,7 @@ async function deleteSave(s) {
     <template v-else>
       <div class="app-shell">
         <div ref="glowEl" class="cursor-glow" aria-hidden="true"></div>
-        <header class="app-bar" :class="{ scrolled: barScrolled }">
+        <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme">{{ theme === 'light' ? '🌙 深色' : '☀️ 浅色' }}</button>
@@ -212,6 +221,7 @@ async function deleteSave(s) {
   flex: 1;
   min-height: 0; /* 关键：允许子元素在 flex 容器内正确计算高度，避免超出视口 */
   position: relative;
+  padding-top: var(--bar-h, 48px); /* 顶栏固定悬浮后内容区让出顶栏高度，换行时由 ResizeObserver 自适应 */
 }
 .app-body > * {
   height: 100%;
@@ -227,8 +237,8 @@ async function deleteSave(s) {
   position: fixed;
   top: 0;
   left: 0;
-  width: 360px;
-  height: 360px;
+  width: 180px;
+  height: 180px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 60; /* 高于内容、低于浮层(100)，不遮挡存档/设置弹窗 */
@@ -242,7 +252,11 @@ html.light .cursor-glow {
 }
 /* 顶栏：自适应布局（通用方案）——空间不够时按钮组自动整齐换行，不依赖断点 */
 .app-bar {
-  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70; /* 悬浮于内容之上：内容从下方穿过，毛玻璃才能模糊滚动内容 */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
