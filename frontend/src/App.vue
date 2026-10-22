@@ -32,6 +32,15 @@ applyTheme();
 
 // —— 玩家登录状态 ——
 const authUser = ref(getAuthToken() ? getAuthUser() : null);
+// —— 全局鼠标跟随光晕：缓动跟随指针，与绸缎背景指针形变联动 ——
+const glowEl = ref(null);
+// —— 顶栏滚动阴影：任一滚动容器下移后顶栏底部阴影渐显 ——
+const barScrolled = ref(false);
+function onAnyScroll(e) {
+  const t = e.target;
+  const top = (t === document || t === window || t === document.body) ? (window.scrollY || 0) : (t.scrollTop || 0);
+  barScrolled.value = top > 8;
+}
 const authChecking = ref(!!getAuthToken());
 
 onMounted(async () => {
@@ -48,6 +57,20 @@ onMounted(async () => {
     }
   }
   if (authUser.value) game.refreshSaves();
+  // 全局滚动监听（捕获阶段）：捕捉各视图内部滚动容器的滚动位置，驱动顶栏阴影
+  document.addEventListener('scroll', onAnyScroll, true);
+  // 鼠标跟随光晕：仅精确指针设备启用（触屏无悬停概念），rAF 缓动跟随更顺滑
+  if (window.matchMedia('(pointer: fine)').matches) {
+    const pos = { x: window.innerWidth / 2, y: window.innerHeight / 2, tx: window.innerWidth / 2, ty: window.innerHeight / 2 };
+    window.addEventListener('mousemove', (e) => { pos.tx = e.clientX; pos.ty = e.clientY; }, { passive: true });
+    const follow = () => {
+      pos.x += (pos.tx - pos.x) * 0.12;
+      pos.y += (pos.ty - pos.y) * 0.12;
+      if (glowEl.value) glowEl.value.style.transform = 'translate(' + (pos.x - 180) + 'px, ' + (pos.y - 180) + 'px)';
+      requestAnimationFrame(follow);
+    };
+    requestAnimationFrame(follow);
+  }
 });
 
 function onLoggedIn(user) {
@@ -115,7 +138,8 @@ async function deleteSave(s) {
     <LoginView v-else-if="!authUser" @logged-in="onLoggedIn" />
     <template v-else>
       <div class="app-shell">
-        <header class="app-bar">
+        <div ref="glowEl" class="cursor-glow" aria-hidden="true"></div>
+        <header class="app-bar" :class="{ scrolled: barScrolled }">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme">{{ theme === 'light' ? '🌙 深色' : '☀️ 浅色' }}</button>
@@ -198,6 +222,24 @@ async function deleteSave(s) {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* —— 全局鼠标跟随光晕：柔光悬浮于内容之上，穿透交互；深色金色微光 / 浅色紫色薄纱 —— */
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 60; /* 高于内容、低于浮层(100)，不遮挡存档/设置弹窗 */
+  background: radial-gradient(circle, rgba(212, 161, 44, 0.13), transparent 65%);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+html.light .cursor-glow {
+  background: radial-gradient(circle, rgba(109, 90, 224, 0.11), transparent 65%);
+  mix-blend-mode: multiply;
+}
 /* 顶栏：自适应布局（通用方案）——空间不够时按钮组自动整齐换行，不依赖断点 */
 .app-bar {
   flex-shrink: 0;
@@ -208,11 +250,16 @@ async function deleteSave(s) {
   gap: 12px;
   padding: 8px 16px;
   /* 毛玻璃顶栏：深蓝紫半透明底 + 强模糊 + 金色亮边，与内容形成清晰层次 */
-  background: rgba(19, 26, 46, 0.65);
-  backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  background: rgba(19, 26, 46, 0.55);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border-bottom: 1px solid rgba(212, 161, 44, 0.22);
   box-shadow: 0 1px 0 rgba(212, 161, 44, 0.1), 0 6px 28px rgba(0, 0, 0, 0.35);
+  transition: box-shadow 0.3s ease;
+}
+/* 滚动后顶栏：底部阴影渐变加深，强化内容悬浮层次 */
+.app-bar.scrolled {
+  box-shadow: 0 1px 0 rgba(212, 161, 44, 0.12), 0 2px 10px rgba(0, 0, 0, 0.3), 0 12px 36px rgba(0, 0, 0, 0.48);
 }
 .app-bar-user {
   color: #e6edf3;
@@ -320,9 +367,12 @@ async function deleteSave(s) {
 }
 /* —— 浅色主题顶栏适配：白色毛玻璃 + 紫色亮边，避免深蓝顶栏在浅色页面割裂 —— */
 html.light .app-bar {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.7);
   border-bottom: 1px solid rgba(109, 90, 224, 0.28);
   box-shadow: 0 1px 0 rgba(109, 90, 224, 0.08), 0 6px 28px rgba(30, 38, 56, 0.1);
+}
+html.light .app-bar.scrolled {
+  box-shadow: 0 1px 0 rgba(109, 90, 224, 0.1), 0 2px 8px rgba(30, 38, 56, 0.1), 0 12px 32px rgba(30, 38, 56, 0.18);
 }
 html.light .app-bar-user {
   color: #1e2638;
