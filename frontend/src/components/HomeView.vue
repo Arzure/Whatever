@@ -196,20 +196,16 @@ const canStart = computed(() => {
     var(--bg);
 }
 
+/* hero 布局：无容器背景，内容直接悬浮在流动绸缎上（对标 SenseNova / ReactBits hero 设计） */
 .home-card {
   position: relative;
   z-index: 1;
-  width: min(520px, 92vw);
+  width: min(560px, 92vw);
   margin: auto;
-  /* 半透明毛玻璃：流动的绸缎背景透进卡片，消除孤岛感 */
-  background: linear-gradient(180deg, rgba(212, 161, 44, 0.05), transparent 40%), color-mix(in srgb, var(--panel) 72%, transparent);
-  backdrop-filter: blur(12px) saturate(1.25);
-  -webkit-backdrop-filter: blur(12px) saturate(1.25);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 36px;
-  /* 层次光感：深投影打底 + 金色微光晕勾勒轮廓 */
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 50px rgba(212, 161, 44, 0.05);
+  padding: 48px 12px;
+  background: none;
+  border: none;
+  box-shadow: none;
 }
 
 .title {
@@ -721,9 +717,9 @@ const canStart = computed(() => {
 /* 移动端适配：收紧间距、触控目标 ≥44px、输入框 16px 防 iOS 聚焦自动放大 */
 @media (max-width: 768px) {
   .home-card {
-    padding: 20px 16px;
-    margin: 16px auto;
-    width: min(520px, 94vw);
+    padding: 24px 8px;
+    margin: 12px auto;
+    width: min(560px, 94vw);
   }
   .title {
     font-size: 26px;

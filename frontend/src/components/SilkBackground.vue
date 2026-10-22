@@ -6,7 +6,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
    核心：silk 褶皱图案 + 指针拖拽形变 + 点击波纹 + 法线光照/高光 + mipmap 泛光 */
 const props = defineProps({
   speed: { type: Number, default: 5 },
-  darkColor: { type: String, default: '#e8c15a' },
+  darkColor: { type: String, default: '#8a9bff' },
   lightColor: { type: String, default: '#6d5ae0' },
   sheen: { type: Number, default: 0.6 },
   depth: { type: Number, default: 0.6 },
@@ -225,7 +225,7 @@ function frame(t) {
   gl.uniform1i(gl.getUniformLocation(progComp, 'uBloom'), 0);
   gl.uniform3fv(gl.getUniformLocation(progComp, 'uBase'), hexToRgb(light ? '#f0f2fa' : '#0d1530'));
   gl.uniform3fv(gl.getUniformLocation(progComp, 'uColor'), hexToRgb(light ? props.lightColor : props.darkColor));
-  gl.uniform3fv(gl.getUniformLocation(progComp, 'uSheenColor'), hexToRgb(light ? '#ffffff' : '#fff2cc'));
+  gl.uniform3fv(gl.getUniformLocation(progComp, 'uSheenColor'), hexToRgb(light ? '#ffffff' : '#dfe6ff'));
   gl.uniform1f(gl.getUniformLocation(progComp, 'uSheen'), props.sheen);
   gl.uniform1f(gl.getUniformLocation(progComp, 'uDepth'), props.depth);
   gl.uniform1f(gl.getUniformLocation(progComp, 'uGlow'), props.glow);
