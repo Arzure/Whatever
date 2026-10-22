@@ -117,7 +117,7 @@ async function send() {
       s.updated_at = Date.now();
     }
   } catch (e) {
-    messages.value.push({ role: 'assistant', content: `回复失败：${e.message}，请稍后重试。` });
+    messages.value.push({ role: 'assistant', content: `回复失败：${e.message}` });
   } finally {
     sending.value = false;
     scrollToBottom();
@@ -174,7 +174,7 @@ function fmtTime(ts) {
           <div class="msg-content">{{ m.content }}</div>
         </div>
         <div v-if="sending" class="msg assistant">
-          <div class="msg-content loading-text">思考中…</div>
+          <div class="msg-content loading-text"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
         </div>
       </div>
       <div class="chat-input-bar">
@@ -198,9 +198,7 @@ function fmtTime(ts) {
 .chat {
   height: 100%;
   display: flex;
-  max-width: 1080px;
-  margin: 0 auto;
-  width: 100%;
+  width: 100%; /* 全宽布局：侧栏贴合浏览器左缘，消息列单独限宽居中（参考 DeepSeek） */
   /* 飞入由共享元素变换（FLIP）接管：挂载时从入口卡片矩形扩张到全屏（见 script）。
      此动画同时覆盖应用外壳的通用 view-in 入场（仅动 box-shadow，不与 FLIP 的 transform 冲突）。
      落地瞬间金色辉光一拍，强化『框长成页面』的落点感 */
@@ -220,7 +218,8 @@ function fmtTime(ts) {
   flex-direction: column;
   gap: 10px;
   padding: calc(var(--bar-h, 48px) + 16px) 10px 12px;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid transparent;
+  border-image: linear-gradient(to bottom, transparent 4%, var(--border) 22%, var(--border) 78%, transparent 96%) 1;
   overflow: hidden;
   transition: width 0.32s cubic-bezier(0.22, 1.2, 0.36, 1), padding 0.32s ease;
 }
@@ -355,6 +354,10 @@ function fmtTime(ts) {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* 消息列限宽居中：宽屏下阅读舒适，不随浏览器无限拉宽（参考 DeepSeek） */
+  max-width: 820px;
+  width: 100%;
+  margin: 0 auto;
   /* 分层编排②：消息区随后上浮显现 */
   animation: chat-rise-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) 0.2s both;
 }
@@ -385,12 +388,33 @@ function fmtTime(ts) {
 }
 .loading-text {
   color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* 思考中动效：三点依次跳动 */
+.loading-text .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dot-bounce 1.1s ease-in-out infinite;
+}
+.loading-text .dot:nth-child(2) { animation-delay: 0.18s; }
+.loading-text .dot:nth-child(3) { animation-delay: 0.36s; }
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-5px); opacity: 1; }
 }
 .chat-input-bar {
   display: flex;
   gap: 10px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
+  /* 输入栏与消息列同宽居中，视觉对齐 */
+  max-width: 852px;
+  width: 100%;
+  margin: 0 auto;
   /* 分层编排③：输入栏最后弹起落位，节奏收尾 */
   animation: chat-rise-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) 0.3s both;
 }

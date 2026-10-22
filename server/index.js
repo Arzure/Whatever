@@ -902,11 +902,20 @@ app.post('/api/chat/sessions/:id/messages', async (req, res) => {
       if (reply) break;
       lastErr = '模型返回空内容';
     } catch (e) {
-      lastErr = e.message; // 偶发 fetch failed：重试一次
+      lastErr = e.message;
+      // 429 限速：立即重试无效，等待 3 秒让限速窗口过去再试
+      if (attempt === 0 && /429|rate_limit/i.test(e.message)) {
+        await new Promise((r) => setTimeout(r, 3000));
+      } else if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 800)); // 偶发 fetch failed：短暂等待后重试
+      }
     }
   }
   if (!reply) {
-    return res.status(502).json({ error: `助手回复失败：${lastErr}，请稍后重试`, userMessage: userMsg });
+    const friendly = /429|rate_limit/i.test(lastErr)
+      ? '当前使用人数较多，助手暂时忙不过来，请稍等片刻再发送'
+      : `助手回复失败：${lastErr}`;
+    return res.status(502).json({ error: friendly, userMessage: userMsg });
   }
   const replyMsg = storage.addChatMessage(s.id, 'assistant', reply);
   res.json({ userMessage: userMsg, reply: replyMsg });
