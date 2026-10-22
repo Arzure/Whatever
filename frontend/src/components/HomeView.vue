@@ -86,8 +86,6 @@ function onEntryMove(e) {
   const px = (e.clientX - rc.left) / rc.width - 0.5;
   const py = (e.clientY - rc.top) / rc.height - 0.5;
   el.style.transform = `perspective(560px) rotateX(${(-py * 14).toFixed(2)}deg) rotateY(${(px * 16).toFixed(2)}deg) translateY(-4px) scale(1.03)`;
-  el.style.setProperty('--mx', `${((px + 0.5) * 100).toFixed(1)}%`);
-  el.style.setProperty('--my', `${((py + 0.5) * 100).toFixed(1)}%`);
 }
 function onEntryLeave(e) {
   e.currentTarget.style.transform = '';
@@ -319,19 +317,7 @@ const canStart = computed(() => {
   from { opacity: 0; filter: blur(4px); }
   to { opacity: 1; filter: blur(0); }
 }
-/* 鼠标位置高光：随光标移动的径向光斑 */
-.play-entry::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 65%);
-  opacity: 0;
-  transition: opacity 0.25s;
-  pointer-events: none;
-}
-.play-entry:hover::after { opacity: 1; }
-/* 流光边框：hover 时一圈旋转的渐变光带 */
+/* 流光边框：常态即旋转的渐变光带（与对话框主入口同款，hover 提亮） */
 .play-entry::before {
   content: '';
   position: absolute;
@@ -343,7 +329,7 @@ const canStart = computed(() => {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 0.3s;
   pointer-events: none;
   animation: border-spin 2.8s linear infinite;

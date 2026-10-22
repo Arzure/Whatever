@@ -59,6 +59,8 @@ html,
 body,
 #app {
   height: 100%;
+  /* 锁死页面级滚动：所有滚动在视图内部容器发生，避免切换视图时滚动条闪现导致界面左跳 */
+  overflow: hidden;
 }
 
 body {
