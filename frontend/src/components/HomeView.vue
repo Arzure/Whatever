@@ -207,11 +207,13 @@ const canStart = computed(() => {
   text-align: center;
   gap: 6px;
   padding: 20px 14px 16px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(212, 161, 44, 0.18);
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(212, 161, 44, 0.08), rgba(60, 90, 160, 0.08)), var(--panel-2);
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
+  /* 常态微光：静态即可感知的轮廓光感 */
+  box-shadow: 0 0 18px rgba(212, 161, 44, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 .play-entry:hover {
   border-color: var(--accent);
