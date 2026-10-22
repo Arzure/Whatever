@@ -127,6 +127,13 @@ export const api = {
   officeReportStatus: (taskId) => request(`/office/report-status/${encodeURIComponent(taskId)}`),
   officeImitate: (params) => request('/office/imitate', { method: 'POST', body: JSON.stringify(params) }),
   drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
+  // —— AI 对话（会话与消息持久化）——
+  chatSessions: () => request('/chat/sessions'),
+  chatNewSession: () => request('/chat/sessions', { method: 'POST', body: JSON.stringify({}) }),
+  chatSession: (id) => request(`/chat/sessions/${encodeURIComponent(id)}`),
+  chatSend: (id, content) => request(`/chat/sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
+  chatRename: (id, title) => request(`/chat/sessions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
+  chatDelete: (id) => request(`/chat/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   officePpt: (params) => request('/office/ppt', { method: 'POST', body: JSON.stringify(params) }),
   // 文档解析：上传 Word/PDF 提取文本（multipart 文件上传）
   officeDocParse: (file) => {

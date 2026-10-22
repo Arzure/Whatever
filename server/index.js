@@ -853,6 +853,84 @@ app.delete('/api/draw/prompts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// —— AI 对话（会话与消息持久化）——
+// 助手人设：与首页入口文案一致，通用助手定位
+const CHAT_SYSTEM_PROMPT = '你是万象工坊的 AI 助手，一个友好、专业的通用助手，可以帮助用户对话、创作、问答。回答简洁清晰，使用简体中文。';
+// 创建会话
+app.post('/api/chat/sessions', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const s = storage.createChatSession(user.id, String(req.body.title || '').trim() || undefined);
+  res.json(s);
+});
+// 会话列表（最近 100 条）
+app.get('/api/chat/sessions', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  res.json({ rows: storage.listChatSessions(user.id) });
+});
+// 会话详情（含全部消息，按时间正序）
+app.get('/api/chat/sessions/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const s = storage.getChatSession(req.params.id, user.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  res.json({ session: { id: s.id, title: s.title, createdAt: s.created_at, updatedAt: s.updated_at }, messages: storage.listChatMessages(s.id) });
+});
+// 发消息：用户消息落库 → 历史消息调 LLM（失败重试一次）→ 回复落库并返回
+app.post('/api/chat/sessions/:id/messages', async (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const s = storage.getChatSession(req.params.id, user.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  const content = String(req.body.content || '').trim();
+  if (!content) return res.status(400).json({ error: '消息不能为空' });
+  if (content.length > 8000) return res.status(400).json({ error: '消息过长（上限 8000 字）' });
+  const userMsg = storage.addChatMessage(s.id, 'user', content);
+  // 标题自动生成：首条消息时取前 20 字
+  if (s.title === '新对话') {
+    storage.renameChatSession(s.id, user.id, content.slice(0, 20));
+  }
+  // 组装上下文：系统提示 + 全部历史（超长时截断早期轮次，保留最近 40 条防 token 超限）
+  const history = storage.listChatMessages(s.id).slice(-40).map((m) => ({ role: m.role, content: m.content }));
+  const messages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...history];
+  let reply = '';
+  let lastErr = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      reply = (await llmChat(messages, { maxTokens: 4096 })).trim();
+      if (reply) break;
+      lastErr = '模型返回空内容';
+    } catch (e) {
+      lastErr = e.message; // 偶发 fetch failed：重试一次
+    }
+  }
+  if (!reply) {
+    return res.status(502).json({ error: `助手回复失败：${lastErr}，请稍后重试`, userMessage: userMsg });
+  }
+  const replyMsg = storage.addChatMessage(s.id, 'assistant', reply);
+  res.json({ userMessage: userMsg, reply: replyMsg });
+});
+// 重命名会话
+app.patch('/api/chat/sessions/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const s = storage.getChatSession(req.params.id, user.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  const title = String(req.body.title || '').trim();
+  if (!title) return res.status(400).json({ error: '标题不能为空' });
+  storage.renameChatSession(s.id, user.id, title.slice(0, 60));
+  res.json({ ok: true });
+});
+// 删除会话（连同消息）
+app.delete('/api/chat/sessions/:id', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const s = storage.getChatSession(req.params.id, user.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  storage.deleteChatSession(s.id, user.id);
+  res.json({ ok: true });
+});
 app.post('/api/auth/register', (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');

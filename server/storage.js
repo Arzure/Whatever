@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS online_sessions (
   last_active_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_online_sessions_user ON online_sessions(user_id, login_at DESC);
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '新对话',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  role TEXT NOT NULL,          -- user / assistant
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at);
 `);
 // 旧库迁移：users 补充 is_admin 字段（管理员标记，默认 0；管理员由 .env 的 ADMIN_USERNAMES 指定）
 try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0'); } catch { /* 字段已存在 */ }
@@ -255,6 +271,44 @@ function listOnlineSessions(userId) {
   return db.prepare('SELECT login_at, last_active_at FROM online_sessions WHERE user_id = ? ORDER BY login_at DESC LIMIT 50').all(userId);
 }
 
+// —— AI 对话（会话与消息持久化）——
+/** 新建会话 */
+function createChatSession(userId, title) {
+  const id = 'cs_' + crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  db.prepare('INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, userId, title || '新对话', now, now);
+  return { id, title: title || '新对话', createdAt: now, updatedAt: now };
+}
+/** 用户会话列表（最近 100 条） */
+function listChatSessions(userId) {
+  return db.prepare('SELECT id, title, created_at, updated_at FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100').all(userId);
+}
+/** 查会话（校验归属） */
+function getChatSession(id, userId) {
+  return db.prepare('SELECT * FROM chat_sessions WHERE id = ? AND user_id = ?').get(id, userId);
+}
+/** 会话消息列表（按时间正序） */
+function listChatMessages(sessionId) {
+  return db.prepare('SELECT id, role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC').all(sessionId);
+}
+/** 追加消息并刷新会话更新时间 */
+function addChatMessage(sessionId, role, content) {
+  const id = 'cm_' + crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  db.prepare('INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)').run(id, sessionId, role, content, now);
+  db.prepare('UPDATE chat_sessions SET updated_at = ? WHERE id = ?').run(now, sessionId);
+  return { id, role, content, createdAt: now };
+}
+/** 重命名会话 */
+function renameChatSession(id, userId, title) {
+  db.prepare('UPDATE chat_sessions SET title = ? WHERE id = ? AND user_id = ?').run(title, id, userId);
+}
+/** 删除会话（连同消息） */
+function deleteChatSession(id, userId) {
+  db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(id);
+  db.prepare('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?').run(id, userId);
+}
+
 module.exports = {
   db,
   hashPassword,
@@ -265,6 +319,13 @@ module.exports = {
   adminResetPassword,
   recordOnlineSession,
   listOnlineSessions,
+  createChatSession,
+  listChatSessions,
+  getChatSession,
+  listChatMessages,
+  addChatMessage,
+  renameChatSession,
+  deleteChatSession,
   createUser,
   findUserByName,
   getUserById,
