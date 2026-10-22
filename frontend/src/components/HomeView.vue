@@ -223,10 +223,11 @@ const canStart = computed(() => {
 :global(html.light) .title {
   text-shadow: 0 1px 4px rgba(120, 90, 20, 0.35);
 }
-/* 流光：高光带从左到右周期性扫过，金属反光质感 */
+/* 流光：单向匀速无限循环——渐变首尾同色天然周期，200% 尺寸下位移一个周期恰好无缝衔接，
+   高光带永远朝同一方向流动，到边缘后从另一侧自然续上，无往返割裂感 */
 @keyframes title-shine {
-  0%, 100% { background-position: 0% 0; }
-  50% { background-position: 100% 0; }
+  from { background-position: 0% 0; }
+  to { background-position: 200% 0; }
 }
 .title-char {
   display: inline-block;
@@ -236,12 +237,12 @@ const canStart = computed(() => {
 .title-char-inner {
   display: inline-block;
   background: linear-gradient(105deg, #b8860b 0%, #d4a12c 18%, #f7dc9a 38%, #ffe9b0 50%, #f7dc9a 62%, #d4a12c 82%, #b8860b 100%);
-  background-size: 220% 100%;
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: title-shine 5.5s ease-in-out infinite;
+  animation: title-shine 4.5s linear infinite;
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), text-shadow 0.3s;
   will-change: transform;
 }
