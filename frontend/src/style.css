@@ -31,6 +31,16 @@ html.light {
   --danger: #d9483f;
   --hp: #2f9e44;
   --hp-bg: #e3ecdf;
+  /* 昼夜主题浅色适配：推理杀界面重定义 --bg/--panel 指向昼夜变量，此处同步覆盖为浅色调，
+     白天暖白、夜晚冷灰蓝，保留氛围差异的同时保证文字可读 */
+  --bg-day: #faf7ef;
+  --panel-day: #ffffff;
+  --panel-2-day: #f3ecdd;
+  --border-day: #d9cfb4;
+  --bg-night: #eef1f8;
+  --panel-night: #ffffff;
+  --panel-2-night: #e3e8f4;
+  --border-night: #c8d0e4;
 }
 :root {
   /* 昼夜主题：白天暖色调（推理杀界面切换）——沉稳暖棕，与夜晚深蓝对比鲜明 */
