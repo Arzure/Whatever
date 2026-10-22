@@ -211,7 +211,7 @@ watch(() => state.history.length, scrollToBottom);
 .side-panel {
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: calc(var(--bar-h, 48px) + 20px) 18px;
+  padding: calc(var(--bar-h, 48px) + 20px) 18px 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -413,7 +413,7 @@ watch(() => state.history.length, scrollToBottom);
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--bar-h, 48px) + 24px) 28px;
+  padding: calc(var(--bar-h, 48px) + 24px) 28px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
