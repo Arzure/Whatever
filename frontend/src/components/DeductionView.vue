@@ -32,7 +32,7 @@ function campClassOfName(name) {
 }
 function playerColor(name) {
   const idx = (d.value.players || []).findIndex((p) => p.name === name);
-  return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : '#e6edf3';
+  return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : 'var(--text, #e6edf3)';
 }
 // 关键词标记：把发言文本解析为富文本片段（身份声明加粗 / 线索强调 / 质疑警示）
 const CLAIM_RE = /我是(文员|侦探|村民|法医|守卫|赌徒|小偷|狼人|帮凶|酒鬼|观者|邮差|行者|庸医|间谍|小丑|术士)/g;
@@ -1558,13 +1558,13 @@ watch(() => state.history.length, scrollToBottom);
   border: 1px solid var(--border);
 }
 .exec-flip-back {
-  background: repeating-linear-gradient(45deg, #263566, #263566 6px, #2a3a66 6px, #2a3a66 12px);
+  background: repeating-linear-gradient(45deg, var(--panel-2), var(--panel-2) 6px, var(--border) 6px, var(--border) 12px);
   color: var(--text-dim);
   font-size: 18px;
   font-weight: 700;
 }
 .exec-flip-front {
-  background: #1e2a52;
+  background: var(--panel);
   transform: rotateY(180deg);
 }
 @keyframes card-flip {
@@ -1636,7 +1636,7 @@ watch(() => state.history.length, scrollToBottom);
   margin-bottom: 6px;
 }
 .pager-btn {
-  background: #1e2a52;
+  background: var(--panel);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 8px;
@@ -1944,7 +1944,7 @@ watch(() => state.history.length, scrollToBottom);
   padding: 16px;
 }
 .review-modal {
-  background: #131c3a;
+  background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 12px;
   max-width: 720px;
@@ -1981,7 +1981,7 @@ watch(() => state.history.length, scrollToBottom);
   border-radius: 10px;
   padding: 8px;
   margin: 8px 0;
-  background: #131c3a;
+  background: var(--panel-2);
 }
 .night-graph-title {
   font-size: 12px;
@@ -2117,7 +2117,7 @@ watch(() => state.history.length, scrollToBottom);
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(22, 27, 34, 0.95);
+  background: var(--panel);
   color: var(--accent-2);
   font-size: 13px;
   cursor: pointer;
@@ -2331,7 +2331,7 @@ watch(() => state.history.length, scrollToBottom);
     top: 0;
     z-index: 30;
     padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
-    background: rgba(22, 27, 34, 0.95);
+    background: var(--panel);
     border-bottom: 1px solid var(--border);
     font-size: 13px;
     color: var(--text-dim);
@@ -2346,7 +2346,7 @@ watch(() => state.history.length, scrollToBottom);
     left: 0;
     right: 0;
     z-index: 40;
-    background: rgba(22, 27, 34, 0.97);
+    background: var(--panel);
     border-top: 1px solid var(--border);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   }

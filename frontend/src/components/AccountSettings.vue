@@ -184,8 +184,8 @@ async function doDelete() {
 .modal {
   width: 100%;
   max-width: 400px;
-  background: #1e2a52;
-  border: 1px solid #4a5c96;
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 20px;
 }
@@ -197,18 +197,18 @@ async function doDelete() {
 }
 .modal-head h3 {
   margin: 0;
-  color: #e6edf3;
+  color: var(--text);
   font-size: 17px;
 }
 .close-btn {
   background: none;
   border: none;
-  color: #8b949e;
+  color: var(--text-dim);
   font-size: 16px;
   cursor: pointer;
   padding: 4px 8px;
 }
-.close-btn:hover { color: #e6edf3; }
+.close-btn:hover { color: var(--text); }
 /* 标签栏：自适应布局（通用方案）——空间够单行铺满，不够自动整齐换行，不依赖断点 */
 .tabs {
   display: flex;
@@ -221,10 +221,10 @@ async function doDelete() {
   min-width: 4em;
   white-space: nowrap;
   padding: 8px 0;
-  border: 1px solid #4a5c96;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #131c3a;
-  color: #8b949e;
+  background: var(--panel-2);
+  color: var(--text-dim);
   font-size: 13px;
   cursor: pointer;
 }
@@ -252,14 +252,14 @@ async function doDelete() {
 }
 .form label span {
   font-size: 13px;
-  color: #8b949e;
+  color: var(--text-dim);
 }
 .form input {
   padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid #4a5c96;
-  background: #131c3a;
-  color: #e6edf3;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
   font-size: 14px;
 }
 .form input:focus {

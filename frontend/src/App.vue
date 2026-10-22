@@ -18,6 +18,18 @@ import AccountSettings from './components/AccountSettings.vue';
 const game = useGame();
 provide('game', game);
 
+// —— 主题切换（深色定稿 / 浅色对比）：选择存 localStorage，刷新后保持 ——
+const theme = ref(localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
+function applyTheme() {
+  document.documentElement.classList.toggle('light', theme.value === 'light');
+}
+function toggleTheme() {
+  theme.value = theme.value === 'light' ? 'dark' : 'light';
+  localStorage.setItem('theme', theme.value);
+  applyTheme();
+}
+applyTheme();
+
 // —— 玩家登录状态 ——
 const authUser = ref(getAuthToken() ? getAuthUser() : null);
 const authChecking = ref(!!getAuthToken());
@@ -106,6 +118,7 @@ async function deleteSave(s) {
         <header class="app-bar">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
+          <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme">{{ theme === 'light' ? '🌙 深色' : '☀️ 浅色' }}</button>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" @click="game.state.view = 'admin'">🛡 管理</button>
           <button class="app-bar-logout" @click="showSaves = true">📂 存档</button>
           <button class="app-bar-logout" @click="showSettings = true"><span class="label-full">账号设置</span><span class="label-short">设置</span></button>
@@ -303,6 +316,35 @@ async function deleteSave(s) {
 .app-bar-logout:hover {
   color: #f85149;
   border-color: #f85149;
+}
+/* —— 浅色主题顶栏适配：白色毛玻璃 + 紫色亮边，避免深蓝顶栏在浅色页面割裂 —— */
+html.light .app-bar {
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid rgba(109, 90, 224, 0.28);
+  box-shadow: 0 1px 0 rgba(109, 90, 224, 0.08), 0 6px 28px rgba(30, 38, 56, 0.1);
+}
+html.light .app-bar-user {
+  color: #1e2638;
+}
+html.light .app-bar-home {
+  background: #eef1f8;
+  border-color: #d8deeb;
+  color: #1e2638;
+}
+html.light .app-bar-home:hover {
+  border-color: #6d5ae0;
+  color: #6d5ae0;
+}
+html.light .app-bar-logout {
+  border-color: #d8deeb;
+  color: #5b677e;
+}
+html.light .app-bar-logout:hover {
+  color: #6d5ae0;
+  border-color: #6d5ae0;
+}
+html.light .save-overlay {
+  background: rgba(30, 38, 56, 0.35);
 }
 /* 手机端顶栏：隐藏用户名 + 收紧间距，按钮紧凑单行不换行 */
 @media (max-width: 768px) {

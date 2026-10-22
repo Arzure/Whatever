@@ -17,6 +17,22 @@
   --danger: #e05252;
   --hp: #43c25c;
   --hp-bg: #2a3a66;
+}
+/* —— 浅色主题（对比用）：白底 + slate 中性色 + 紫色强调，参考 SenseNova 官网 —— */
+html.light {
+  --bg: #f6f8fc;
+  --panel: #ffffff;
+  --panel-2: #eef1f8;
+  --border: #d8deeb;
+  --text: #1e2638;
+  --text-dim: #5b677e;
+  --accent: #6d5ae0;
+  --accent-2: #8a7bf0;
+  --danger: #d9483f;
+  --hp: #2f9e44;
+  --hp-bg: #e3ecdf;
+}
+:root {
   /* 昼夜主题：白天暖色调（推理杀界面切换）——沉稳暖棕，与夜晚深蓝对比鲜明 */
   --bg-day: #1e170a;
   --panel-day: #2a2010;

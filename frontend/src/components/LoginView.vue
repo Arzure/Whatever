@@ -79,25 +79,25 @@ async function submit() {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: linear-gradient(160deg, #131c3a 0%, #1e2a52 100%);
+  background: linear-gradient(160deg, var(--bg) 0%, var(--panel) 100%);
 }
 .login-card {
   width: 100%;
   max-width: 380px;
-  background: #1e2a52;
-  border: 1px solid #4a5c96;
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 28px 24px;
 }
 .login-title {
   margin: 0 0 6px;
   font-size: 20px;
-  color: #e6edf3;
+  color: var(--text);
 }
 .login-sub {
   margin: 0 0 20px;
   font-size: 13px;
-  color: #8b949e;
+  color: var(--text-dim);
 }
 .login-label {
   display: block;
@@ -106,7 +106,7 @@ async function submit() {
 .login-label span {
   display: block;
   font-size: 13px;
-  color: #8b949e;
+  color: var(--text-dim);
   margin-bottom: 6px;
 }
 .login-label input {
@@ -114,9 +114,9 @@ async function submit() {
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid #4a5c96;
-  background: #131c3a;
-  color: #e6edf3;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
   font-size: 14px;
 }
 .login-label input:focus {
@@ -143,7 +143,7 @@ async function submit() {
 .login-switch {
   margin-top: 16px;
   font-size: 13px;
-  color: #8b949e;
+  color: var(--text-dim);
   text-align: center;
 }
 .login-switch a { color: #58a6ff; text-decoration: none; }
