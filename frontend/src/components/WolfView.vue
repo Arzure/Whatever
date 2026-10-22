@@ -384,29 +384,6 @@ watch(() => state.history.length, scrollToBottom);
   font-weight: 600;
 }
 
-.btn {
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  transition: opacity 0.15s;
-}
-.btn.primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #1a1303;
-}
-.btn.ghost {
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  background: transparent;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 /* 移动端适配：侧栏改顶部通栏，触控目标 ≥44px */
 @media (max-width: 768px) {
   .game {
@@ -432,9 +409,6 @@ watch(() => state.history.length, scrollToBottom);
 /* —— 阶段三动效：消息入场 + 按钮微交互 + 阶段标题文字动画（对标 reactbits/animata） —— */
 .msg { animation: msg-in 0.32s ease both; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.btn { transition: transform 0.12s ease, filter 0.15s ease; }
-.btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.15); }
-.btn:active:not(:disabled) { transform: scale(0.96); }
 .phase-badge { animation: badge-in 0.55s ease both; }
 @keyframes badge-in { from { opacity: 0; letter-spacing: 0.45em; } to { opacity: 1; letter-spacing: normal; } }
 </style>

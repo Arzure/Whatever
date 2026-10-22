@@ -117,3 +117,46 @@ button, a, input, select, textarea {
 ::selection {
   background: rgba(212, 161, 44, 0.3);
 }
+/* —— 统一按钮体系：四层级（主/危险/幽灵/通栏），深浅主题经 CSS 变量自动适配 —— */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.12s ease, filter 0.15s ease, opacity 0.15s;
+}
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #1a1303;
+}
+.btn.danger {
+  background: linear-gradient(135deg, #b3262b, #e5484d);
+  color: #fff;
+}
+.btn.ghost {
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: transparent;
+}
+.btn.full {
+  width: 100%;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+/* 浅色主题主按钮：紫色渐变底配白字（深色主题为金底深字） */
+html.light .btn.primary {
+  color: #fff;
+}

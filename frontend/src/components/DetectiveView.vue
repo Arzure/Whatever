@@ -1041,41 +1041,6 @@ watch(phase, (p) => {
   margin-top: 3px;
 }
 
-.btn {
-  padding: 12px 22px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  transition: opacity 0.15s;
-}
-
-.btn.primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #1a1303;
-}
-
-.btn.danger {
-  background: linear-gradient(135deg, #b3262b, #e5484d);
-  color: #fff;
-}
-
-.btn.ghost {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.btn.full {
-  width: 100%;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .input-row {
   display: flex;
   gap: 10px;
@@ -1114,9 +1079,6 @@ watch(phase, (p) => {
 /* —— 阶段三动效：消息入场 + 按钮微交互 + 阶段标题文字动画（对标 reactbits/animata） —— */
 .msg { animation: msg-in 0.32s ease both; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.btn { transition: transform 0.12s ease, filter 0.15s ease; }
-.btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.15); }
-.btn:active:not(:disabled) { transform: scale(0.96); }
 .phase-badge { animation: badge-in 0.55s ease both; }
 @keyframes badge-in { from { opacity: 0; letter-spacing: 0.45em; } to { opacity: 1; letter-spacing: normal; } }
 </style>

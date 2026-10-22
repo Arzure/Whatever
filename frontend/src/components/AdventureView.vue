@@ -322,30 +322,6 @@ const canStart = computed(() => {
   color: #3fb950;
   margin: 6px 0 0;
 }
-.btn {
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.btn.primary {
-  background: linear-gradient(135deg, #d4a12c, #3c5aa0);
-  color: #fff;
-  font-weight: 600;
-}
-.btn.ghost {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 .start-box {
   display: flex;
   gap: 10px;
