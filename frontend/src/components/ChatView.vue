@@ -45,7 +45,7 @@ onMounted(async () => {
     });
   }
   await loadSessions();
-  await newSession();
+  // 不自动新建会话：进入页面仅加载历史列表，发送首条消息时才创建（避免反复进出堆积空会话）
 });
 
 // 会话列表
@@ -58,18 +58,11 @@ async function loadSessions() {
   }
 }
 
-// 新建会话
-async function newSession() {
+// 开始新对话：仅重置为未开始状态，真正创建发生在发送首条消息时
+function newSession() {
   if (sending.value) return;
   sessionId.value = '';
   messages.value = [];
-  try {
-    const s = await api.chatNewSession();
-    sessionId.value = s.id;
-    sessions.value.unshift({ id: s.id, title: s.title, created_at: s.createdAt, updated_at: s.updatedAt });
-  } catch (e) {
-    console.error('[chat] 新建会话失败:', e.message);
-  }
 }
 
 // 切换到历史会话
@@ -118,7 +111,18 @@ async function clearAllSessions() {
 // 发送消息：流式接口，逐字渲染+思考过程实时展示
 async function send() {
   const text = input.value.trim();
-  if (!text || sending.value || !sessionId.value) return;
+  if (!text || sending.value) return;
+  // 未开始的新对话：发送首条消息时才创建会话（标题由后端按首条消息自动生成）
+  if (!sessionId.value) {
+    try {
+      const s = await api.chatNewSession();
+      sessionId.value = s.id;
+      sessions.value.unshift({ id: s.id, title: '新对话', created_at: s.createdAt, updated_at: s.updatedAt });
+    } catch (e) {
+      messages.value.push({ role: 'assistant', content: `创建会话失败：${e.message}` });
+      return;
+    }
+  }
   messages.value.push({ role: 'user', content: text });
   input.value = '';
   sending.value = true;
