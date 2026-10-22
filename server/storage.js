@@ -308,6 +308,19 @@ function deleteChatSession(id, userId) {
   db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(id);
   db.prepare('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?').run(id, userId);
 }
+/** 清空用户全部会话（连同消息），返回删除的会话数 */
+function deleteAllChatSessions(userId) {
+  const ids = db.prepare('SELECT id FROM chat_sessions WHERE user_id = ?').all(userId).map((r) => r.id);
+  if (!ids.length) return 0;
+  const tx = db.transaction(() => {
+    for (const id of ids) {
+      db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(id);
+    }
+    db.prepare('DELETE FROM chat_sessions WHERE user_id = ?').run(userId);
+  });
+  tx();
+  return ids.length;
+}
 
 module.exports = {
   db,
@@ -326,6 +339,7 @@ module.exports = {
   addChatMessage,
   renameChatSession,
   deleteChatSession,
+  deleteAllChatSessions,
   createUser,
   findUserByName,
   getUserById,
