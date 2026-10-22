@@ -226,10 +226,10 @@ const activeDetail = computed(() => {
 
 <style scoped>
 .night-graph { width: 100%; height: auto; display: block; }
-.node-box { fill: #131a2e; }
+.node-box { fill: #182242; }
 .node-name { fill: #e6edf3; font-size: 15px; font-weight: 600; text-anchor: middle; }
 .node-role { font-size: 12px; text-anchor: middle; }
-.edge-label { font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: #0a0e1a; stroke-width: 4px; stroke-linejoin: round; }
+.edge-label { font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: #0e1428; stroke-width: 4px; stroke-linejoin: round; }
 /* —— 节点弹性入场：依次弹入 —— */
 .node-g {
   cursor: pointer;
@@ -281,9 +281,9 @@ const activeDetail = computed(() => {
 /* —— 行动详情浮层 —— */
 .node-detail {
   margin-top: 8px;
-  border: 1px solid #2e3b63;
+  border: 1px solid #3d4d80;
   border-radius: 8px;
-  background: #131a2e;
+  background: #182242;
   padding: 10px 12px;
   font-size: 13px;
 }
