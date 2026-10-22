@@ -193,8 +193,8 @@ async function deleteSave(s) {
   justify-content: flex-end;
   gap: 12px;
   padding: 8px 16px;
-  /* 毛玻璃顶栏：明显可感知的半透明底 + 强模糊 + 金色亮边，与内容形成清晰层次 */
-  background: rgba(22, 27, 34, 0.65);
+  /* 毛玻璃顶栏：深蓝紫半透明底 + 强模糊 + 金色亮边，与内容形成清晰层次 */
+  background: rgba(19, 26, 46, 0.65);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-bottom: 1px solid rgba(212, 161, 44, 0.22);
@@ -207,9 +207,9 @@ async function deleteSave(s) {
 .app-bar-home {
   margin-right: auto;
   padding: 4px 12px;
-  border: 1px solid #30363d;
+  border: 1px solid #2e3b63;
   border-radius: 6px;
-  background: #21262d;
+  background: #1a2340;
   color: #e6edf3;
   font-size: 13px;
   cursor: pointer;
@@ -293,7 +293,7 @@ async function deleteSave(s) {
 }
 .app-bar-logout {
   background: none;
-  border: 1px solid #30363d;
+  border: 1px solid #2e3b63;
   border-radius: 6px;
   color: #8b949e;
   font-size: 13px;

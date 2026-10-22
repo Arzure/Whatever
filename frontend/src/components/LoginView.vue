@@ -79,13 +79,13 @@ async function submit() {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: linear-gradient(160deg, #0d1117 0%, #161b22 100%);
+  background: linear-gradient(160deg, #0a0e1a 0%, #131a2e 100%);
 }
 .login-card {
   width: 100%;
   max-width: 380px;
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: #131a2e;
+  border: 1px solid #2e3b63;
   border-radius: 12px;
   padding: 28px 24px;
 }
@@ -114,8 +114,8 @@ async function submit() {
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid #30363d;
-  background: #0d1117;
+  border: 1px solid #2e3b63;
+  background: #0a0e1a;
   color: #e6edf3;
   font-size: 14px;
 }

@@ -1558,13 +1558,13 @@ watch(() => state.history.length, scrollToBottom);
   border: 1px solid var(--border);
 }
 .exec-flip-back {
-  background: repeating-linear-gradient(45deg, #21262d, #21262d 6px, #2d333b 6px, #2d333b 12px);
+  background: repeating-linear-gradient(45deg, #1a2340, #1a2340 6px, #1e2a3f 6px, #1e2a3f 12px);
   color: var(--text-dim);
   font-size: 18px;
   font-weight: 700;
 }
 .exec-flip-front {
-  background: #161b22;
+  background: #131a2e;
   transform: rotateY(180deg);
 }
 @keyframes card-flip {
@@ -1636,7 +1636,7 @@ watch(() => state.history.length, scrollToBottom);
   margin-bottom: 6px;
 }
 .pager-btn {
-  background: #161b22;
+  background: #131a2e;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 8px;
@@ -1944,7 +1944,7 @@ watch(() => state.history.length, scrollToBottom);
   padding: 16px;
 }
 .review-modal {
-  background: #0d1117;
+  background: #0a0e1a;
   border: 1px solid var(--border);
   border-radius: 12px;
   max-width: 720px;
@@ -1981,7 +1981,7 @@ watch(() => state.history.length, scrollToBottom);
   border-radius: 10px;
   padding: 8px;
   margin: 8px 0;
-  background: #0d1117;
+  background: #0a0e1a;
 }
 .night-graph-title {
   font-size: 12px;
@@ -2061,7 +2061,7 @@ watch(() => state.history.length, scrollToBottom);
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  color: #0d1117;
+  color: #0a0e1a;
   font-size: 13px;
   font-weight: 700;
   margin-right: 6px;

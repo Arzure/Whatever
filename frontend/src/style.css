@@ -5,17 +5,18 @@
 }
 
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --panel-2: #1c2430;
-  --border: #2d3644;
-  --text: #e6edf3;
-  --text-dim: #9aa7b4;
+  /* 深色加强版色板：深蓝紫底 + 提亮面板，层次与旧近黑灰拉开明显差距 */
+  --bg: #0a0e1a;
+  --panel: #131a2e;
+  --panel-2: #1a2340;
+  --border: #2e3b63;
+  --text: #e8ecf5;
+  --text-dim: #97a3c0;
   --accent: #d4a12c;
   --accent-2: #e8c15a;
-  --danger: #d9524e;
-  --hp: #3fb950;
-  --hp-bg: #2d333b;
+  --danger: #e05252;
+  --hp: #43c25c;
+  --hp-bg: #1e2a3f;
   /* 昼夜主题：白天暖色调（推理杀界面切换）——沉稳暖棕，与夜晚深蓝对比鲜明 */
   --bg-day: #1e170a;
   --panel-day: #2a2010;
