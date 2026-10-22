@@ -1081,4 +1081,7 @@ watch(phase, (p) => {
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .phase-badge { animation: badge-in 0.55s ease both; }
 @keyframes badge-in { from { opacity: 0; letter-spacing: 0.45em; } to { opacity: 1; letter-spacing: normal; } }
+/* —— 阶段三第4项：消息卡片悬停反馈——边框亮起+轻微提亮，操作反馈而非装饰 —— */
+.msg .msg-content { transition: border-color 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease; }
+.msg:hover .msg-content { border-color: var(--accent); filter: brightness(1.06); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
 </style>
