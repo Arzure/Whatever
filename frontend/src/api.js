@@ -123,6 +123,8 @@ export const api = {
   officeChart: (params) => request('/office/chart', { method: 'POST', body: JSON.stringify(params) }),
   officeExcel: (params) => request('/office/excel', { method: 'POST', body: JSON.stringify(params) }),
   officeReport: (params) => request('/office/report', { method: 'POST', body: JSON.stringify(params) }),
+  // 报告任务状态查询（异步生成，前端轮询获取进度与结果）
+  officeReportStatus: (taskId) => request(`/office/report-status/${encodeURIComponent(taskId)}`),
   officeImitate: (params) => request('/office/imitate', { method: 'POST', body: JSON.stringify(params) }),
   drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
   officePpt: (params) => request('/office/ppt', { method: 'POST', body: JSON.stringify(params) }),

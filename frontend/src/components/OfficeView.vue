@@ -41,6 +41,9 @@ const REPORT_STYLES = [
 ];
 const reportHtml = ref('');
 const reportBusy = ref(false);
+// 异步任务进度：提交后轮询，进度条 + 阶段文案实时反馈（长文生成 3-8 分钟）
+const reportProgress = ref(0);
+const reportStage = ref('');
 // 报告写作：主题 + 结构模板 + 补充要求 + 生成的 Markdown 报告
 const writeTopic = ref('');
 const writeDoc = ref(null); // 写作文档素材：{ name, text }（上传解析后填充）
@@ -335,14 +338,35 @@ async function generateReport() {
   reportBusy.value = true;
   error.value = '';
   reportHtml.value = '';
+  reportProgress.value = 0;
+  reportStage.value = '任务提交中…';
   try {
-    const r = await api.officeReport({ content: reportContent.value.trim(), style: reportStyle.value.trim() });
-    reportHtml.value = r.html || '';
+    // 异步模式：提交即返回 taskId，轮询获取进度与结果（替代原 3-8 分钟的同步长挂）
+    const { taskId } = await api.officeReport({ content: reportContent.value.trim(), style: reportStyle.value.trim() });
+    await new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          const s = await api.officeReportStatus(taskId);
+          reportProgress.value = s.progress || 0;
+          reportStage.value = s.stage || '';
+          if (s.status === 'done') { resolve(); return; }
+          if (s.status === 'error') { reject(new Error(s.error || '生成失败')); return; }
+          setTimeout(poll, 5000); // 5 秒一轮，长任务低频轮询不占资源
+        } catch (e) {
+          reject(e);
+        }
+      };
+      setTimeout(poll, 2000); // 首轮 2 秒后启动
+    });
+    const s = await api.officeReportStatus(taskId);
+    reportHtml.value = s.html || '';
     loadOfficeHistory(); // 生成成功后刷新办公历史
   } catch (e) {
     error.value = e.message;
   } finally {
     reportBusy.value = false;
+    reportProgress.value = 0;
+    reportStage.value = '';
   }
 }
 
@@ -778,8 +802,15 @@ async function generate() {
           </div>
           <input v-model="reportStyle" class="style-input" placeholder="示例：深色科技感 / 纸质档案风 / 留白极简（留空由 AI 按内容气质决定）" maxlength="200" />
           <button class="generate" :disabled="reportBusy" @click="generateReport">
-            {{ reportBusy ? '创作中…（长文完整生成约需 3-8 分钟，请耐心等待）' : '生成网页报告' }}
+            {{ reportBusy ? '创作中…' : '生成网页报告' }}
           </button>
+          <!-- 异步任务进度：进度条 + 阶段文案，长文生成 3-8 分钟不再干等 -->
+          <div v-if="reportBusy" class="report-progress">
+            <div class="report-progress-bar">
+              <div class="report-progress-fill" :style="{ width: reportProgress + '%' }"></div>
+            </div>
+            <p class="report-progress-text">{{ reportProgress }}% · {{ reportStage }}</p>
+          </div>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="reportHtml" class="chart-result">
             <label class="field-label">预览（可交互）</label>
@@ -1460,5 +1491,26 @@ async function generate() {
 }
 .fmt-cancel:hover {
   color: var(--text, #eee);
+}
+/* 报告异步任务进度条：轨道 + 渐变填充 + 阶段文案 */
+.report-progress {
+  margin-top: 10px;
+}
+.report-progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.report-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.6s ease;
+}
+.report-progress-text {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 </style>

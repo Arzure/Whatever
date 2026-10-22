@@ -556,7 +556,16 @@ app.post('/api/office/report-write', async (req, res) => {
     res.status(500).json({ error: `报告写作失败：${e.message}` });
   }
 });
-// 报告网页化：Markdown 报告 → 对话模型创作 → 返回自包含单文件 HTML 专题页（不入绘图历史）
+// —— 报告网页化异步任务：生成耗时 3-8 分钟，同步等待期间 HTTP 连接长挂易超时，改为任务提交 + 进度轮询 ——
+const reportTasks = new Map(); // taskId → { userId, status, progress, stage, html, error, createdAt }
+const REPORT_TASK_TTL = 30 * 60 * 1000; // 任务记录保留 30 分钟，过期自动清理
+function cleanupReportTasks() {
+  const now = Date.now();
+  for (const [id, t] of reportTasks) {
+    if (now - t.createdAt > REPORT_TASK_TTL) reportTasks.delete(id);
+  }
+}
+// 报告网页化：Markdown 报告 → 对话模型创作 → 自包含单文件 HTML 专题页（不入绘图历史）
 app.post('/api/office/report', async (req, res) => {
   const p = req.body || {};
   const content = String(p.content || '').trim();
@@ -564,45 +573,82 @@ app.post('/api/office/report', async (req, res) => {
   if (content.length > 20000) return res.status(400).json({ error: '报告内容过长（限 20000 字）' });
   const styleHint = String(p.style || '').trim().slice(0, 200);
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
-  try {
-    const prompt = office.buildReportPrompt(content, styleHint);
-    // 长文+多表格输入生成耗时可能超过 5 分钟，放宽到 8 分钟；失败（超时/空返回/非 HTML）自动重试一次
-    let html = '';
-    let lastErr = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const text = await llmChat([{ role: 'user', content: prompt }], {
-          responseFormat: null, // 自由文本输出（HTML 文档）
-          reasoningEffort: 'none',
-          temperature: 0.5,
-          maxTokens: 32768, // 完整 HTML 页面较长，放宽输出上限（实测 8192/16000 会截断，32768 档模型可自然结束完整输出）
-          timeoutMs: 480000, // 长文创作较慢，放宽超时（8 分钟）
-        });
-        // 容错：剥离模型可能包裹的 markdown 代码块围栏（长文输出可能被截断、结尾无闭合围栏，故宽松剥离）
-        let h = String(text || '').trim();
-        const fenceStart = h.match(/^```[a-zA-Z]*[ \t]*\n/);
-        if (fenceStart) h = h.slice(fenceStart[0].length).trim();
-        if (h.endsWith('```')) h = h.slice(0, -3).trim();
-        const docIdx = h.search(/<!DOCTYPE html>/i);
-        if (docIdx > 0) h = h.slice(docIdx);
-        if (/^<!DOCTYPE html>/i.test(h)) { html = h; break; }
-        lastErr = null; // 非 HTML 但未抛错，重试
-      } catch (e) {
-        console.log(`[报告] 第${attempt + 1}次生成失败: ${e.message}`);
-        lastErr = e;
+  cleanupReportTasks();
+  const user = userFromRequest(req);
+  const taskId = `rpt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const task = { userId: user?.id || null, status: 'running', progress: 3, stage: '正在组装创作提示词…', html: '', error: '', createdAt: Date.now() };
+  reportTasks.set(taskId, task);
+  res.json({ taskId });
+  // 进度模拟：LLM 单次长调用无法取真实进度，按耗时线性推进封顶 95%，完成后置 100
+  const progressTimer = setInterval(() => {
+    if (task.status !== 'running') return;
+    task.progress = Math.min(95, task.progress + 4);
+  }, 15000);
+  (async () => {
+    try {
+      const prompt = office.buildReportPrompt(content, styleHint);
+      task.stage = 'AI 正在创作报告页面（长文生成约 3-8 分钟，可离开此页稍后回来查看）…';
+      task.progress = 10;
+      // 失败（超时/空返回/非 HTML）自动重试一次
+      let html = '';
+      let lastErr = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          if (attempt > 0) { task.stage = '首次生成未成功，正在自动重试…'; task.progress = 50; }
+          const text = await llmChat([{ role: 'user', content: prompt }], {
+            responseFormat: null, // 自由文本输出（HTML 文档）
+            reasoningEffort: 'none',
+            temperature: 0.5,
+            maxTokens: 32768, // 完整 HTML 页面较长，放宽输出上限（实测 8192/16000 会截断，32768 档模型可自然结束完整输出）
+            timeoutMs: 480000, // 长文创作较慢，放宽超时（8 分钟）
+          });
+          // 容错：剥离模型可能包裹的 markdown 代码块围栏（长文输出可能被截断、结尾无闭合围栏，故宽松剥离）
+          let h = String(text || '').trim();
+          const fenceStart = h.match(/^```[a-zA-Z]*[ \t]*\n/);
+          if (fenceStart) h = h.slice(fenceStart[0].length).trim();
+          if (h.endsWith('```')) h = h.slice(0, -3).trim();
+          const docIdx = h.search(/<!DOCTYPE html>/i);
+          if (docIdx > 0) h = h.slice(docIdx);
+          if (/^<!DOCTYPE html>/i.test(h)) { html = h; break; }
+          lastErr = null; // 非 HTML 但未抛错，重试
+        } catch (e) {
+          console.log(`[报告任务 ${taskId}] 第${attempt + 1}次生成失败: ${e.message}`);
+          lastErr = e;
+        }
       }
+      if (!html) {
+        task.status = 'error';
+        task.error = lastErr ? `报告生成失败：${lastErr.message}` : '生成结果不是有效的 HTML 文档，请重试';
+        return;
+      }
+      // 历史标题取首个非空标题行（去掉 # 前缀），避免整段 Markdown 原文进列表
+      const reportTitle = (content.split('\n').map((l) => l.trim()).find((l) => l) || '').replace(/^#+\s*/, '').slice(0, 100) || '未命名报告';
+      saveOfficeResult(req, 'report', reportTitle, html, 'html'); // 24 小时暂存（req 闭包仍可解析用户）
+      task.html = html;
+      task.progress = 100;
+      task.stage = '生成完成';
+      task.status = 'done';
+    } catch (e) {
+      task.status = 'error';
+      task.error = `报告生成失败：${e.message}`;
+    } finally {
+      clearInterval(progressTimer);
     }
-    if (!html) {
-      if (lastErr) throw lastErr;
-      return res.status(502).json({ error: '生成结果不是有效的 HTML 文档，请重试' });
-    }
-    // 历史标题取首个非空标题行（去掉 # 前缀），避免整段 Markdown 原文进列表
-    const reportTitle = (content.split('\n').map((l) => l.trim()).find((l) => l) || '').replace(/^#+\s*/, '').slice(0, 100) || '未命名报告';
-    saveOfficeResult(req, 'report', reportTitle, html, 'html'); // 24 小时暂存
-    res.json({ html });
-  } catch (e) {
-    res.status(500).json({ error: `报告生成失败：${e.message}` });
-  }
+  })();
+});
+// 报告任务状态查询：前端轮询获取进度与结果（完成时才返回完整 HTML）
+app.get('/api/office/report-status/:taskId', (req, res) => {
+  const task = reportTasks.get(String(req.params.taskId || ''));
+  if (!task) return res.status(404).json({ error: '任务不存在或已过期' });
+  const user = userFromRequest(req);
+  if (task.userId && user && user.id !== task.userId) return res.status(403).json({ error: '无权访问该任务' });
+  res.json({
+    status: task.status,
+    progress: task.progress,
+    stage: task.stage,
+    html: task.status === 'done' ? task.html : undefined,
+    error: task.error || undefined,
+  });
 });
 // —— PPT 简化版（移植 sn-ppt-story 大纲方法论 + sn-ppt-standard 渲染思路）：主题 → 大纲 → 逐页配图 → 自包含 HTML 幻灯片 ——
 app.post('/api/office/ppt', async (req, res) => {
