@@ -348,8 +348,10 @@ async function deleteSave(s) {
 }
 /* —— 浅色主题顶栏适配：白色毛玻璃 + 紫色亮边，避免深蓝顶栏在浅色页面割裂 —— */
 html.light .app-bar {
-  /* 不透明度降至 0.28：内容透过率更高，毛玻璃模糊效果更明显 */
-  background: rgba(255, 255, 255, 0.28);
+  /* 不透明度降至 0.15 + 模糊单独加强到 30px：磨砂质感一次到位 */
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
   border-bottom: 1px solid rgba(109, 90, 224, 0.28);
   box-shadow: 0 1px 0 rgba(109, 90, 224, 0.08), 0 6px 28px rgba(30, 38, 56, 0.1);
 }
