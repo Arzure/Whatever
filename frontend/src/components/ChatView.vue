@@ -2,6 +2,7 @@
 import { ref, nextTick, inject, onMounted } from 'vue';
 import Icon from './Icon.vue';
 import { api, getAuthToken, getAccessToken } from '../api';
+import { marked } from 'marked';
 
 const { state, backToHome } = inject('game');
 
@@ -181,6 +182,11 @@ function scrollToBottom() {
   });
 }
 
+// 助手消息渲染 Markdown（加粗/列表/代码等），与办公视图同款用法；用户消息保持纯文本防注入
+function renderMd(text) {
+  return marked.parse(String(text || ''));
+}
+
 function fmtTime(ts) {
   const d = new Date(ts);
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -231,8 +237,10 @@ function fmtTime(ts) {
             <span class="reasoning-label"><Icon name="sparkle" :size="12" /> 思考过程</span>
             <div class="reasoning-body">{{ m.reasoning }}</div>
           </div>
-          <div v-if="m.content || !m.streaming" class="msg-content">
-            {{ m.content }}<span v-if="m.streaming" class="stream-cursor"></span>
+          <div v-if="m.content || !m.streaming" class="msg-content" :class="{ md: m.role === 'assistant' && !m.failed }">
+            <template v-if="m.role === 'assistant' && !m.failed"><span v-html="renderMd(m.content)"></span></template>
+            <template v-else>{{ m.content }}</template>
+            <span v-if="m.streaming" class="stream-cursor"></span>
           </div>
           <div v-else class="msg-content loading-text"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
         </div>
@@ -491,6 +499,38 @@ function fmtTime(ts) {
 @keyframes cursor-blink {
   50% { opacity: 0; }
 }
+/* 气泡内 Markdown 排版：列表/引用/代码等元素与气泡风格协调 */
+.msg-content.md :deep(p) { margin: 0 0 8px; }
+.msg-content.md :deep(p:last-child) { margin-bottom: 0; }
+.msg-content.md :deep(ul), .msg-content.md :deep(ol) { margin: 4px 0 8px; padding-left: 20px; }
+.msg-content.md :deep(li) { margin: 2px 0; }
+.msg-content.md :deep(strong) { color: var(--accent); font-weight: 600; }
+.msg-content.md :deep(h1), .msg-content.md :deep(h2), .msg-content.md :deep(h3) {
+  margin: 10px 0 6px;
+  font-size: 15px;
+}
+.msg-content.md :deep(blockquote) {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 2px solid var(--border);
+  color: var(--text-dim);
+}
+.msg-content.md :deep(code) {
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 13px;
+}
+.msg-content.md :deep(pre) {
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.msg-content.md :deep(pre code) { background: none; padding: 0; }
+.msg-content.md :deep(a) { color: var(--accent); }
 .loading-text {
   color: var(--text-dim);
   display: inline-flex;
