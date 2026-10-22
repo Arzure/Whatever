@@ -85,7 +85,7 @@ const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '127.0
 app.use('/api/draw', express.json({ limit: '40mb' }));
 // 办公助手单独放宽：图表解读需上传图片 Base64（单张限制 12MB，与绘图参考图一致）
 app.use('/api/office', express.json({ limit: '20mb' }));
-app.use(express.json({ limit: '64kb' }));
+app.use(express.json({ limit: '1mb' })); // 默认 64kb 偏小，长文本输入（游戏操作/主题解析等）可能触发 413
 
 // CORS：Access-Control-Allow-Origin 取 FRONTEND_ORIGIN（默认 localhost:5173）。
 // 注意：开发模式下前端走 Vite 代理（浏览器只与 5173 同源通信，/api 由 Vite 转发到 3001），
@@ -586,7 +586,6 @@ app.post('/api/office/report', async (req, res) => {
         const docIdx = h.search(/<!DOCTYPE html>/i);
         if (docIdx > 0) h = h.slice(docIdx);
         if (/^<!DOCTYPE html>/i.test(h)) { html = h; break; }
-        console.log(`[报告] 第${attempt + 1}次生成结果非 HTML（长度${h.length}）: ${JSON.stringify(h.slice(0, 300))}`);
         lastErr = null; // 非 HTML 但未抛错，重试
       } catch (e) {
         console.log(`[报告] 第${attempt + 1}次生成失败: ${e.message}`);
