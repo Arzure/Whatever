@@ -302,24 +302,26 @@ function fmtTime(ts) {
   border-right-color: transparent;
 }
 .sidebar-toggle {
+  /* 无框裸图标：与带边框的圆形返回按钮形成明显区分，避免误触 */
   align-self: flex-end;
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: none;
   color: var(--text-dim);
+  opacity: 0.7;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, opacity 0.15s;
 }
 .chat-sidebar.collapsed .sidebar-toggle {
   align-self: center;
 }
 .sidebar-toggle:hover {
   color: var(--accent);
-  border-color: var(--accent);
+  opacity: 1;
 }
 .sidebar-new {
   white-space: nowrap;
