@@ -2,17 +2,30 @@
 import Icon from './Icon.vue';
 import { ref, computed, onMounted, onBeforeUnmount, inject, Transition } from 'vue';
 import { api } from '../api';
-import SilkBackground from './SilkBackground.vue';
 
 const { state, loadCatalogs, refreshSaves, parseTheme, startGame, loadSave, openDraw, openOffice, openAdventure, openChat } = inject('game');
 
-// —— 对话框入口：点击后飞入过渡——首页缩小后退模糊淡出，对话页从输入框位置弹性放大 ——
+// —— 对话框入口：点击后飞入过渡——记录卡片矩形供对话页做共享元素扩张（FLIP），
+// 点击瞬间在卡片位置炸开光晕，首页缩小后退模糊淡出 ——
 const homeEl = ref(null);
+const chatEntryEl = ref(null);
 function enterChat() {
   const home = homeEl.value;
+  const entry = chatEntryEl.value;
+  if (entry) {
+    const r = entry.getBoundingClientRect();
+    state.chatRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+    // 点击光晕：在卡片中心炸开一圈径向光（方案C）
+    const burst = document.createElement('span');
+    burst.className = 'chat-burst';
+    burst.style.left = `${r.left + r.width / 2}px`;
+    burst.style.top = `${r.top + r.height / 2}px`;
+    document.body.appendChild(burst);
+    setTimeout(() => burst.remove(), 700);
+  }
   if (home) {
     home.classList.add('leaving'); // 首页被推远：缩小+模糊+淡出
-    setTimeout(() => openChat(), 260); // 过渡中段切换视图，衔接无缝
+    setTimeout(() => openChat(), 300); // 离场 0.42s 播至七成再切视图，避免动画被腰斩
   } else {
     openChat();
   }
@@ -148,7 +161,6 @@ const canStart = computed(() => {
 
 <template>
   <div class="home" ref="homeEl">
-    <SilkBackground />
     <div class="home-card">
       <h1 class="title" ref="titleRef" @mousemove="onTitleMove" @mouseleave="onTitleLeave">
         <span
@@ -162,7 +174,7 @@ const canStart = computed(() => {
       <div class="title-divider" aria-hidden="true"></div>
 
       <!-- AI 助手对话框主入口：点击飞入对话页 -->
-      <div class="chat-entry" style="animation-delay: 0.43s" role="button" tabindex="0" @click="enterChat()" @keydown.enter="enterChat()">
+      <div ref="chatEntryEl" class="chat-entry" style="animation-delay: 0.43s" role="button" tabindex="0" @click="enterChat()" @keydown.enter="enterChat()">
         <span class="chat-entry-icon"><Icon name="sparkle" :size="20" /></span>
         <span class="chat-entry-text">有什么可以帮您？</span>
         <span class="chat-entry-send"><Icon name="send" :size="16" /></span>
@@ -475,7 +487,7 @@ const canStart = computed(() => {
 .chat-entry:hover::before { opacity: 1; }
 /* —— 飞入过渡：首页被推远（缩小+模糊+淡出），对话页从输入框位置放大展开 —— */
 .home.leaving {
-  animation: home-leave 0.5s cubic-bezier(0.5, 0, 0.75, 0) both;
+  animation: home-leave 0.42s cubic-bezier(0.5, 0, 0.75, 0) both;
   pointer-events: none;
 }
 @keyframes home-leave {

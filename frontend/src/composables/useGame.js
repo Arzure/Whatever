@@ -12,6 +12,7 @@ export function useGame() {
   const state = reactive({
     view: 'home', // home | game
     mode: 'world',
+    chatRect: null, // 对话入口卡片屏幕矩形：首页点击时记录，ChatView 挂载后据此做共享元素飞入（FLIP）
     theme: null,
     genre: null,
     gameId: '',

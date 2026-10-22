@@ -1,8 +1,36 @@
 <script setup>
-import { ref, nextTick, inject } from 'vue';
+import { ref, nextTick, inject, onMounted } from 'vue';
 import Icon from './Icon.vue';
 
-const { backToHome } = inject('game');
+const { state, backToHome } = inject('game');
+
+// —— 共享元素飞入（FLIP）：挂载时从首页入口卡片的屏幕位置/尺寸平滑扩张成整个对话页 ——
+const chatEl = ref(null);
+onMounted(() => {
+  const el = chatEl.value;
+  const from = state.chatRect;
+  if (!el || !from) return;
+  const cur = el.getBoundingClientRect();
+  const sx = from.width / cur.width;
+  const sy = from.height / cur.height;
+  const dx = (from.left + from.width / 2) - (cur.left + cur.width / 2);
+  const dy = (from.top + from.height / 2) - (cur.top + cur.height / 2);
+  el.style.transformOrigin = 'center';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  el.style.opacity = '0.55';
+  el.style.borderRadius = '14px';
+  requestAnimationFrame(() => {
+    el.style.transition = 'transform 0.55s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.45s ease, border-radius 0.55s ease';
+    el.style.transform = 'none';
+    el.style.opacity = '1';
+    el.style.borderRadius = '0';
+    setTimeout(() => {
+      el.style.transition = '';
+      el.style.transform = '';
+      state.chatRect = null;
+    }, 620);
+  });
+});
 
 // —— 对话状态（骨架：消息流 + 输入栏，后端 LLM 接线后续任务） ——
 const messages = ref([
@@ -35,7 +63,7 @@ function scrollToBottom() {
 </script>
 
 <template>
-  <div class="chat">
+  <div ref="chatEl" class="chat">
     <header class="chat-header">
       <button class="btn ghost" @click="backToHome"><Icon name="back" /> 返回首页</button>
       <h2><Icon name="sparkle" /> AI 助手</h2>
@@ -73,26 +101,24 @@ function scrollToBottom() {
   max-width: 860px;
   margin: 0 auto;
   width: 100%;
-  /* 飞入入场：从缩小模糊状态弹性放大展开，与首页飞离动画衔接成连续过渡 */
-  animation: chat-enter 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+  /* 飞入由共享元素变换（FLIP）接管：挂载时从入口卡片矩形扩张到全屏（见 script）。
+     此动画同时覆盖应用外壳的通用 view-in 入场（仅动 box-shadow，不与 FLIP 的 transform 冲突）。
+     落地瞬间金色辉光一拍，强化『框长成页面』的落点感 */
+  will-change: transform;
+  animation: chat-land-glow 0.9s ease 0.3s both;
 }
-@keyframes chat-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
+@keyframes chat-land-glow {
+  0% { box-shadow: 0 0 0 0 rgba(212, 161, 44, 0); }
+  35% { box-shadow: 0 0 46px rgba(212, 161, 44, 0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 161, 44, 0); }
 }
 .chat-header {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: calc(var(--bar-h, 48px) + 16px) 16px 12px;
+  /* 分层编排①：头部自上而下落位 */
+  animation: chat-drop-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) 0.1s both;
 }
 .chat-header h2 {
   margin: 0;
@@ -113,6 +139,8 @@ function scrollToBottom() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* 分层编排②：消息区随后上浮显现 */
+  animation: chat-rise-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) 0.2s both;
 }
 .chat-messages .msg {
   max-width: 78%;
@@ -147,6 +175,8 @@ function scrollToBottom() {
   gap: 10px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
+  /* 分层编排③：输入栏最后弹起落位，节奏收尾 */
+  animation: chat-rise-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) 0.3s both;
 }
 .chat-input {
   flex: 1;
@@ -171,6 +201,14 @@ function scrollToBottom() {
 }
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes chat-drop-in {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes chat-rise-in {
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
 </style>

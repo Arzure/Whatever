@@ -70,6 +70,30 @@ body {
   font-size: 15px;
   line-height: 1.7;
 }
+/* 对话入口点击光晕：卡片中心炸开的一圈径向光（挂在 body 上，须全局样式） */
+.chat-burst {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 90;
+  background: radial-gradient(circle, rgba(212, 161, 44, 0.55), rgba(212, 161, 44, 0.18) 45%, transparent 70%);
+  animation: chat-burst 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes chat-burst {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(26);
+    opacity: 0;
+  }
+}
 
 button {
   font-family: inherit;
