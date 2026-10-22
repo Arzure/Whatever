@@ -186,6 +186,7 @@ const canStart = computed(() => {
 <style scoped>
 .home {
   height: 100%;
+  padding-top: var(--bar-h, 48px); /* 顶栏悬浮让位：内容滚动时从毛玻璃后穿过 */
   display: flex;
   justify-content: center;
   overflow-y: auto;

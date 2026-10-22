@@ -32,9 +32,7 @@ applyTheme();
 
 // —— 玩家登录状态 ——
 const authUser = ref(getAuthToken() ? getAuthUser() : null);
-// —— 全局鼠标跟随光晕：缓动跟随指针，与绸缎背景指针形变联动 ——
-const glowEl = ref(null);
-// —— 顶栏高度同步：顶栏固定悬浮后，用 CSS 变量给内容区让位（手机端换行高度自适应） ——
+// —— 顶栏高度同步：顶栏固定悬浮后，用 CSS 变量给各视图滚动容器让位（手机端换行高度自适应） ——
 const barEl = ref(null);
 // —— 顶栏滚动阴影：任一滚动容器下移后顶栏底部阴影渐显 ——
 const barScrolled = ref(false);
@@ -61,18 +59,6 @@ onMounted(async () => {
   if (authUser.value) game.refreshSaves();
   // 全局滚动监听（捕获阶段）：捕捉各视图内部滚动容器的滚动位置，驱动顶栏阴影
   document.addEventListener('scroll', onAnyScroll, true);
-  // 鼠标跟随光晕：仅精确指针设备启用（触屏无悬停概念），rAF 缓动跟随更顺滑
-  if (window.matchMedia('(pointer: fine)').matches) {
-    const pos = { x: window.innerWidth / 2, y: window.innerHeight / 2, tx: window.innerWidth / 2, ty: window.innerHeight / 2 };
-    window.addEventListener('mousemove', (e) => { pos.tx = e.clientX; pos.ty = e.clientY; }, { passive: true });
-    const follow = () => {
-      pos.x += (pos.tx - pos.x) * 0.12;
-      pos.y += (pos.ty - pos.y) * 0.12;
-      if (glowEl.value) glowEl.value.style.transform = 'translate(' + (pos.x - 90) + 'px, ' + (pos.y - 90) + 'px)';
-      requestAnimationFrame(follow);
-    };
-    requestAnimationFrame(follow);
-  }
 });
 
 // 顶栏固定悬浮：内容从顶栏下方穿过，毛玻璃才有可模糊的滚动内容；顶栏登录后才渲染，侦听其出现后建立高度同步（换行时 ResizeObserver 自适应）
@@ -147,7 +133,6 @@ async function deleteSave(s) {
     <LoginView v-else-if="!authUser" @logged-in="onLoggedIn" />
     <template v-else>
       <div class="app-shell">
-        <div ref="glowEl" class="cursor-glow" aria-hidden="true"></div>
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome">🏠 首页</button>
           <span class="app-bar-user" :title="authUser.username">👤 {{ displayUsername }}</span>
@@ -221,7 +206,7 @@ async function deleteSave(s) {
   flex: 1;
   min-height: 0; /* 关键：允许子元素在 flex 容器内正确计算高度，避免超出视口 */
   position: relative;
-  padding-top: var(--bar-h, 48px); /* 顶栏固定悬浮后内容区让出顶栏高度，换行时由 ResizeObserver 自适应 */
+  /* 不加让位内边距：各视图滚动容器自行让位（padding 在滚动区内），内容滚动时从毛玻璃顶栏后方穿过 */
 }
 .app-body > * {
   height: 100%;
@@ -231,24 +216,6 @@ async function deleteSave(s) {
 @keyframes view-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-/* —— 全局鼠标跟随光晕：柔光悬浮于内容之上，穿透交互；深色金色微光 / 浅色紫色薄纱 —— */
-.cursor-glow {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 60; /* 高于内容、低于浮层(100)，不遮挡存档/设置弹窗 */
-  background: radial-gradient(circle, rgba(212, 161, 44, 0.13), transparent 65%);
-  mix-blend-mode: screen;
-  will-change: transform;
-}
-html.light .cursor-glow {
-  background: radial-gradient(circle, rgba(109, 90, 224, 0.11), transparent 65%);
-  mix-blend-mode: multiply;
 }
 /* 顶栏：自适应布局（通用方案）——空间不够时按钮组自动整齐换行，不依赖断点 */
 .app-bar {

@@ -481,6 +481,7 @@ function useAsRef(item) {
 <style scoped>
 .draw {
   height: 100%;
+  padding-top: var(--bar-h, 48px); /* 顶栏悬浮让位 */
   overflow-y: auto;
   background:
     radial-gradient(ellipse at 20% 10%, rgba(212, 161, 44, 0.08), transparent 50%),

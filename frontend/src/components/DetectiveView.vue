@@ -474,7 +474,7 @@ watch(phase, (p) => {
 .side-panel {
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 20px 18px;
+  padding: calc(var(--bar-h, 48px) + 20px) 18px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -845,7 +845,7 @@ watch(phase, (p) => {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: calc(var(--bar-h, 48px) + 24px) 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;

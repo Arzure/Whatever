@@ -202,7 +202,7 @@ const canStart = computed(() => {
 .adventure {
   max-width: 860px;
   margin: 0 auto;
-  padding: 20px 16px 60px;
+  padding: calc(var(--bar-h, 48px) + 20px) 16px 60px; /* 顶栏悬浮让位 */
 }
 .adventure-header {
   display: flex;
