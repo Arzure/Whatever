@@ -54,7 +54,7 @@ function loadAssets(onDone) {
   const loader = new GLTFLoader();
   const swordParts = [];
   let pending = 4; // 3 剑部件 + 收尾
-  const done = () => { if (--pending === 0) onDone(); };
+  const done = () => { if (--pending === 0) onDone(swordParts); };
   // 剑三段拼装（参考 SlashSaber：blade / guard / hilt）
   for (const part of ['blade_default', 'guard_default', 'hilt_default']) {
     loader.load(`/3d/sword/${part}.glb`, (gltf) => {
@@ -72,7 +72,7 @@ function buildSword(swordParts) {
     // GLB 模型剑：按参考项目定位（模型自身 up 为 Z 轴），整体前伸
     const model = new THREE.Group();
     for (const part of swordParts) model.add(part);
-    model.position.set(0, 0.65, -0.8);
+    model.position.set(0, 0, -0.6); // 参考项目为相机相对定位(0,0.65,-0.8)，此处适配鼠标跟随：居中于光标、刀刃朝前
     model.up.set(0, 0, 1);
     g.add(model);
     g.userData.isGLB = true;
@@ -353,8 +353,15 @@ onMounted(() => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   canvasWrap.value.appendChild(renderer.domElement);
   flashDiv = canvasWrap.value.querySelector('.hit-flash');
-  const swordParts = loadAssets(() => {}); // 剑素材异步加载，失败自动降级几何剑
-  buildScene(swordParts);
+  buildScene([]); // 先用几何剑立即可玩
+  // GLB 剑素材异步加载，就绪后替换几何剑
+  // （修复 bug：此前同步取用空素材数组，GLB 剑从未显示过，一直降级为几何剑）
+  loadAssets((parts) => {
+    if (parts && parts.length === 3 && scene && sword) {
+      scene.remove(sword);
+      sword = buildSword(parts);
+    }
+  });
   onResize();
   window.addEventListener('resize', onResize);
   window.addEventListener('pointermove', onPointerMove);
