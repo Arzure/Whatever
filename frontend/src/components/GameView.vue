@@ -42,6 +42,9 @@
 import { ref, onMounted, onBeforeUnmount, inject } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 
 const canvasWrap = ref(null);
 const score = ref(0);
@@ -60,6 +63,7 @@ let obBox = new THREE.Box3();
 let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
 // 剑的活动范围：按相机视锥实时计算（z=0 平面的可见半宽/半高），保证剑精确贴合光标
 let halfW = 5.5, halfH = 3.2;
+const CAM_Y = 1.2; // 相机高度：z=0 平面的视场中心在 y=1.2 而非 0，剑跟随必须补偿此偏移
 let spawnTimer = 0;
 let flashDiv = null;
 // 拖尾：记录刀尖最近 N 个世界坐标
@@ -109,15 +113,24 @@ function buildSword(swordParts) {
     hilt.position.z = 0.18;
     g.add(blade, guard, hilt);
   }
+  g.scale.setScalar(1.8); // 剑整体放大：原尺寸在场景中偏小
   scene.add(g);
   return g;
 }
 
 function buildTrail() {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_LEN * 3), 3));
-  const mat = new THREE.LineBasicMaterial({ color: 0x9dd0e3, transparent: true, opacity: 0.55 });
-  trailLine = new THREE.Line(geo, mat);
+  // 宽线拖尾（Line2）：普通 Line 线宽恒为 1 像素看不清，改用 5 像素发光带
+  const geo = new LineGeometry();
+  geo.setPositions(new Float32Array(TRAIL_LEN * 3));
+  const mat = new LineMaterial({
+    color: 0xbfe8ff,
+    linewidth: 5,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+  });
+  mat.resolution.set(canvasWrap.value.clientWidth, canvasWrap.value.clientHeight);
+  trailLine = new Line2(geo, mat);
   trailLine.frustumCulled = false;
   scene.add(trailLine);
 }
@@ -125,13 +138,17 @@ function buildTrail() {
 function updateTrail() {
   trailPts.unshift(swordTipWorld.clone());
   if (trailPts.length > TRAIL_LEN) trailPts.pop();
-  const attr = trailLine.geometry.getAttribute('position');
+  const arr = new Float32Array(TRAIL_LEN * 3);
   for (let i = 0; i < TRAIL_LEN; i++) {
     const p = trailPts[Math.min(i, trailPts.length - 1)] || swordTipWorld;
-    attr.setXYZ(i, p.x, p.y, p.z);
+    arr[i * 3] = p.x;
+    arr[i * 3 + 1] = p.y;
+    arr[i * 3 + 2] = p.z;
   }
-  attr.needsUpdate = true;
-  trailLine.material.opacity = Math.min(0.85, mouse.speed / 5);
+  trailLine.geometry.setPositions(arr);
+  const op = Math.min(0.95, mouse.speed / 3.5); // 挥得越快拖尾越亮
+  trailLine.material.opacity = op;
+  trailLine.material.uniforms.opacity.value = op;
 }
 
 function buildScene(swordParts) {
@@ -165,7 +182,7 @@ function spawnObstacle() {
       emissive: new THREE.Color().setHSL(hue, 0.9, 0.18),
     })
   );
-  mesh.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3.4, -48);
+  mesh.position.set((Math.random() - 0.5) * 10.4, (Math.random() - 0.5) * 4.4, -48); // 生成范围扩大到完整可视区域
   mesh.userData = {
     speed: 7.5 + Math.random() * 4 + Math.min(score.value * 0.1, 6),
     spin: new THREE.Vector3((Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2),
@@ -243,7 +260,7 @@ function trySlash() {
 function tick(dt) {
   if (!sword) return; // 剑未就绪（GLB 加载中）：跳过本帧，障碍物仅在开始后才生成
   const tx = mouse.x * halfW;
-  const ty = mouse.y * halfH;
+  const ty = mouse.y * halfH + CAM_Y; // 补偿相机高度：剑精确贴合光标
   sword.position.x += (tx - sword.position.x) * 0.5;
   sword.position.y += (ty - sword.position.y) * 0.5;
   // —— 挥舞动画：三轴联动——横向甩动倾斜 z、纵向挥动俯仰 x、挥动越快剑身前刺 ——
@@ -253,10 +270,10 @@ function tick(dt) {
   sword.rotation.x += (tiltX - sword.rotation.x) * 0.32;
   const lunge = Math.min(0.7, mouse.speed * 0.07);
   sword.position.z += (-lunge - sword.position.z) * 0.22;
-  swordTipWorld.set(sword.position.x, sword.position.y, -1.2);
-  // 碰撞盒扩大：扫过范围更宽容，更容易砍中
-  swordBox.min.set(sword.position.x - 0.55, sword.position.y - 0.55, -2.9);
-  swordBox.max.set(sword.position.x + 0.55, sword.position.y + 0.55, 0.3);
+  swordTipWorld.set(sword.position.x, sword.position.y, -2.2);
+  // 碰撞盒随剑放大同步扩展：扫过范围更宽容
+  swordBox.min.set(sword.position.x - 0.7, sword.position.y - 0.7, -3.6);
+  swordBox.max.set(sword.position.x + 0.7, sword.position.y + 0.7, 0.4);
   updateTrail();
 
   // 挥砍速度与方向累计量随时间衰减
@@ -385,6 +402,7 @@ function onResize() {
   // 视锥可见范围（z=0 平面）：随窗口尺寸/宽高比变化，剑的活动范围与之同步
   halfH = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
   halfW = halfH * camera.aspect;
+  if (trailLine) trailLine.material.resolution.set(w, h); // 宽线拖尾分辨率随窗口同步
 }
 
 let lastT = 0;
