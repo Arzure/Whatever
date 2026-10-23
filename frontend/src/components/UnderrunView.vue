@@ -23,7 +23,7 @@ import { api } from '../api';
 // 3D 资源已纳入登录票据保护：先领取票据（HttpOnly cookie，Path=/3d/），
 // 成功后再挂载 iframe——否则 iframe 首个请求就会收到 401
 const ready = ref(false);
-const waitMsg = ref('正在进入欠载行动...');
+const waitMsg = ref('正在进入欠载危机...');
 onMounted(async () => {
   try {
     await api.ticket3d();

@@ -1,4 +1,4 @@
-<!-- 铁壁行动：完整搬迁自开源项目 StarKnightt/operation-ironhold（MIT License）
+<!-- 铁壁防线：完整搬迁自开源项目 StarKnightt/operation-ironhold（MIT License）
      https://github.com/StarKnightt/operation-ironhold
      游戏为单文件 FPS（index.html），整体存放于 public/3d/ironhold/，
      本组件仅以 iframe 全屏承载，游戏代码零改动，效果与原版完全一致 -->
@@ -9,7 +9,7 @@
       v-if="ready"
       class="ironhold-frame"
       src="/3d/ironhold/index.html"
-      title="铁壁行动"
+      title="铁壁防线"
       allow="fullscreen"
     ></iframe>
     <div v-else class="ironhold-wait">{{ waitMsg }}</div>
@@ -22,7 +22,7 @@ import { api } from '../api';
 // 3D 资源已纳入登录票据保护：先领取票据（HttpOnly cookie，Path=/3d/），
 // 成功后再挂载 iframe——否则 iframe 首个请求就会收到 401
 const ready = ref(false);
-const waitMsg = ref('正在进入铁壁行动...');
+const waitMsg = ref('正在进入铁壁防线...');
 onMounted(async () => {
   try {
     await api.ticket3d();
