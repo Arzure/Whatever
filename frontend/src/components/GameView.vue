@@ -41,6 +41,8 @@ let sword, swordTipWorld = new THREE.Vector3();
 let swordBox = new THREE.Box3();
 let obBox = new THREE.Box3();
 let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
+// 剑的活动范围：按相机视锥实时计算（z=0 平面的可见半宽/半高），保证剑精确贴合光标
+let halfW = 5.5, halfH = 3.2;
 let spawnTimer = 0;
 let flashDiv = null;
 // 拖尾：记录刀尖最近 N 个世界坐标
@@ -223,10 +225,10 @@ function trySlash() {
 
 function tick(dt) {
   if (!sword) return; // 剑未就绪（GLB 加载中）：跳过本帧，障碍物仅在开始后才生成
-  const tx = mouse.x * 5.5;
-  const ty = mouse.y * 3.2;
-  sword.position.x += (tx - sword.position.x) * 0.4;
-  sword.position.y += (ty - sword.position.y) * 0.4;
+  const tx = mouse.x * halfW;
+  const ty = mouse.y * halfH;
+  sword.position.x += (tx - sword.position.x) * 0.5;
+  sword.position.y += (ty - sword.position.y) * 0.5;
   // —— 挥舞动画：三轴联动——横向甩动倾斜 z、纵向挥动俯仰 x、挥动越快剑身前刺 ——
   const tiltZ = Math.max(-1.15, Math.min(1.15, mouse.ax * 2.4));
   const tiltX = Math.max(-0.55, Math.min(0.55, mouse.ay * 1.4));
@@ -339,6 +341,9 @@ function onResize() {
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  // 视锥可见范围（z=0 平面）：随窗口尺寸/宽高比变化，剑的活动范围与之同步
+  halfH = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
+  halfW = halfH * camera.aspect;
 }
 
 let lastT = 0;
