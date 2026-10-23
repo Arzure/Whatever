@@ -149,7 +149,6 @@ const CUBE_COLORS = {
   top: '#6d5ae0',
   bottom: '#f2c14e',
   inner: '#e9edf2',
-  inner: '#0d1322',
 };
 function cubieTransform(i) {
   const c = (i - 1) % 3;
