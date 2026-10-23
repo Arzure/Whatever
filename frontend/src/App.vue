@@ -228,7 +228,7 @@ function backUp() {
   border: 1px solid #3d4d80;
   border-radius: 6px;
   /* 半透明底：与首页按钮一致，透明度低于顶栏自身 */
-  background: rgba(31, 43, 82, 0.35);
+  background: rgba(31, 43, 82, 0.7);
   color: #e6edf3;
   font-size: 13px;
   line-height: 16px; /* 行高对齐首页按钮的图标高度（16px），按钮上下方向等高 */
@@ -248,7 +248,7 @@ function backUp() {
   border: 1px solid #3d4d80;
   border-radius: 6px;
   /* 半透明底：与右侧按钮一致，且透明度低于顶栏自身（0.55） */
-  background: rgba(31, 43, 82, 0.35);
+  background: rgba(31, 43, 82, 0.7);
   color: #e6edf3;
   font-size: 13px;
   cursor: pointer;
@@ -263,7 +263,7 @@ function backUp() {
 
 .app-bar-logout {
   /* 半透明底：与左侧按钮一致，透明度低于顶栏自身 */
-  background: rgba(31, 43, 82, 0.35);
+  background: rgba(31, 43, 82, 0.7);
   border: 1px solid #3d4d80;
   border-radius: 6px;
   color: #8b949e;
@@ -292,12 +292,12 @@ html.light .app-bar-user {
   color: #1e2638;
 }
 html.light .app-bar-home {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   border-color: #d8deeb;
   color: #1e2638;
 }
 html.light .app-bar-back {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   border-color: #d8deeb;
   color: #1e2638;
 }
@@ -310,7 +310,7 @@ html.light .app-bar-home:hover {
   color: #6d5ae0;
 }
 html.light .app-bar-logout {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   border-color: #d8deeb;
   color: #5b677e;
 }
