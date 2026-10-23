@@ -92,7 +92,7 @@ onMounted(() => {
 // 游戏清单：数据驱动，以后加游戏只需注册一条数据
 const games = [
   {
-    id: 'game',
+    id: 'slash',
     name: '挥剑挑战',
     desc: '挥剑切割 · 面状拖尾 · 计分挑战',
     icon: 'sword',

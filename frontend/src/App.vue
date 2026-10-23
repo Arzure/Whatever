@@ -14,7 +14,7 @@ const OfficeView = defineAsyncComponent(() => import('./components/OfficeView.vu
 const AdminView = defineAsyncComponent(() => import('./components/AdminView.vue'));
 const AdventureView = defineAsyncComponent(() => import('./components/AdventureView.vue'));
 const ChatView = defineAsyncComponent(() => import('./components/ChatView.vue'));
-const GameView = defineAsyncComponent(() => import('./components/GameView.vue'));
+const SlashView = defineAsyncComponent(() => import('./components/SlashView.vue'));
 const GameHubView = defineAsyncComponent(() => import('./components/GameHubView.vue'));
 const VoxelView = defineAsyncComponent(() => import('./components/VoxelView.vue'));
 const IronholdView = defineAsyncComponent(() => import('./components/IronholdView.vue'));
@@ -105,7 +105,7 @@ function onDeleted() {
 // 游戏中心 → 首页；挥剑挑战/方块世界 → 游戏中心；文字冒险游戏进行中 → 文字冒险模式页；其余视图 → 首页
 function backUp() {
   const v = game.state.view;
-  if (v === 'game' || v === 'voxel' || v === 'ironhold' || v === 'jungle') {
+  if (v === 'slash' || v === 'voxel' || v === 'ironhold' || v === 'jungle') {
     game.state.view = 'hub';
   } else if (v === 'story') {
     game.state.view = 'adventure';
@@ -140,7 +140,7 @@ function backUp() {
           <AdminView v-else-if="game.state.view === 'admin'" />
           <AdventureView v-else-if="game.state.view === 'adventure'" />
           <ChatView v-else-if="game.state.view === 'chat'" />
-          <GameView v-else-if="game.state.view === 'game'" />
+          <SlashView v-else-if="game.state.view === 'slash'" />
           <GameHubView v-else-if="game.state.view === 'hub'" />
           <VoxelView v-else-if="game.state.view === 'voxel'" />
           <IronholdView v-else-if="game.state.view === 'ironhold'" />

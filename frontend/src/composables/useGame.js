@@ -133,7 +133,7 @@ export function useGame() {
     state.gameOver = isOver(data, data.player);
     state.inBattle = false;
     state.lastEffects = [];
-    // 文字冒险游戏进行中：独立视图值 'story'，与挥剑挑战的 'game' 区分
+    // 文字冒险游戏进行中：独立视图值 'story'，与挥剑挑战的 'slash' 区分
     // （渲染分支中 mode 视图在 view='story' 时自然命中，避免被挥剑挑战优先拦截）
     state.view = 'story';
   }
