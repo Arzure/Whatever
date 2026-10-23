@@ -146,8 +146,9 @@ const CUBE_COLORS = {
   back: '#4a7fd4',
   left: '#e8833a',
   right: '#d9534f',
-  top: '#e9edf2',
+  top: '#6d5ae0',
   bottom: '#f2c14e',
+  inner: '#e9edf2',
   inner: '#0d1322',
 };
 function cubieTransform(i) {
@@ -159,7 +160,7 @@ function faceStyle(ly, i, f) {
   const c = (i - 1) % 3;
   const r = Math.floor((i - 1) / 3);
   // 外露面按标准六面配色；内面统一白色，展开时干净清爽
-  let color = CUBE_COLORS.top;
+  let color = CUBE_COLORS.inner;
   if (f === 1 && r === 0) color = CUBE_COLORS.front;
   else if (f === 2 && r === 2) color = CUBE_COLORS.back;
   else if (f === 3 && c === 0) color = CUBE_COLORS.left;
