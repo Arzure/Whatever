@@ -55,6 +55,25 @@
               </span>
             </span>
           </template>
+          <template v-else-if="g.id === 'tower'">
+            <span class="gp-tsky"></span>
+            <span class="gp-ttower">
+              <span class="gp-tfloor gp-tf1"></span>
+              <span class="gp-tfloor gp-tf2"></span>
+              <span class="gp-tfloor gp-tf3"></span>
+            </span>
+            <span class="gp-trope"></span>
+            <span class="gp-tblock"></span>
+          </template>
+          <template v-else-if="g.id === 'underrun'">
+            <span class="gp-usky"></span>
+            <span class="gp-ucross"></span>
+            <span class="gp-ubullet gp-ub1"></span>
+            <span class="gp-ubullet gp-ub2"></span>
+            <span class="gp-ubullet gp-ub3"></span>
+            <span class="gp-uenemy gp-ue1"></span>
+            <span class="gp-uenemy gp-ue2"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -137,6 +156,20 @@ const games = [
     desc: '挥剑切割 · 面状拖尾 · 计分挑战',
     icon: 'sword',
     badge: 'LIVE 3D',
+  },
+  {
+    id: 'tower',
+    name: '盖楼游戏',
+    desc: '经典叠楼 · 吊臂落块 · 冲击高分',
+    icon: 'sword',
+    badge: 'ARCADE',
+  },
+  {
+    id: 'underrun',
+    name: '双摇杆射击',
+    desc: '复古像素 · 俯视角射击 · 弹幕生存',
+    icon: 'sword',
+    badge: 'RETRO',
   },
 ];
 
@@ -507,6 +540,126 @@ function onCardLeave(e) {
 .gp-rf4 { transform: rotateY(90deg) translateZ(10px); }
 .gp-rf5 { transform: rotateX(90deg) translateZ(10px); }
 .gp-rf6 { transform: rotateX(-90deg) translateZ(10px); }
+/* —— 盖楼游戏预览：暖色天空 + 摇摆吊臂 + 逐层叠高的楼块 —— */
+.gp-tsky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #ffb199 0%, #f95240 70%);
+}
+.gp-ttower {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 84px;
+  margin-left: -42px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+}
+.gp-tfloor {
+  height: 14px;
+  border-radius: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  animation: gp-tfloor-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.gp-tf1 { background: #7ec8e3; width: 84px; }
+.gp-tf2 { background: #f7d774; width: 72px; margin: 0 auto; animation-delay: 0.5s; }
+.gp-tf3 { background: #9fe29f; width: 60px; margin: 0 auto; animation-delay: 1s; }
+@keyframes gp-tfloor-in {
+  from { transform: translateY(-90px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.gp-trope {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 2px;
+  height: 46px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.75);
+  transform-origin: top center;
+  animation: gp-trope-swing 2.2s ease-in-out infinite;
+}
+.gp-tblock {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  width: 26px;
+  height: 16px;
+  margin-left: -13px;
+  border-radius: 3px;
+  background: #7ec8e3;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  animation: gp-tblock-swing 2.2s ease-in-out infinite;
+}
+@keyframes gp-trope-swing {
+  0%, 100% { transform: rotate(18deg); }
+  50% { transform: rotate(-18deg); }
+}
+@keyframes gp-tblock-swing {
+  0%, 100% { transform: translateX(16px); }
+  50% { transform: translateX(-16px); }
+}
+/* —— 双摇杆射击预览：暗色像素夜空 + 准星 + 弹幕 + 敌机 —— */
+.gp-usky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 1px at 20% 25%, rgba(255, 255, 255, 0.7), transparent 100%),
+    radial-gradient(circle 1px at 70% 15%, rgba(255, 255, 255, 0.5), transparent 100%),
+    radial-gradient(circle 1px at 45% 40%, rgba(255, 255, 255, 0.6), transparent 100%),
+    radial-gradient(circle 1px at 85% 55%, rgba(255, 255, 255, 0.4), transparent 100%),
+    linear-gradient(180deg, #0a0e1a, #131a2e);
+}
+.gp-ucross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 2px solid rgba(122, 240, 150, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(122, 240, 150, 0.5);
+  animation: gp-ucross-pulse 1.4s ease-in-out infinite;
+}
+@keyframes gp-ucross-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+.gp-ubullet {
+  position: absolute;
+  width: 3px;
+  height: 10px;
+  background: #7af096;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(122, 240, 150, 0.8);
+  animation: gp-ubullet-fly 0.9s linear infinite;
+}
+.gp-ub1 { left: 46%; animation-delay: 0s; }
+.gp-ub2 { left: 50%; animation-delay: 0.3s; }
+.gp-ub3 { left: 54%; animation-delay: 0.6s; }
+@keyframes gp-ubullet-fly {
+  0% { top: 46%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 8%; opacity: 0; }
+}
+.gp-uenemy {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #e05656;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+  animation: gp-uenemy-drift 3.4s ease-in-out infinite;
+}
+.gp-ue1 { left: 22%; top: 30%; }
+.gp-ue2 { right: 20%; top: 55%; animation-delay: 1.7s; background: #c05ae0; }
+@keyframes gp-uenemy-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(14px, 10px); }
+}
 .hub-info {
   display: flex;
   align-items: center;
