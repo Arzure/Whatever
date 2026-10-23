@@ -32,16 +32,27 @@
           </template>
           <template v-else-if="g.id === 'cube'">
             <span class="gp-cshine"></span>
-            <span class="gp-cface">
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
-              <span class="gp-sticker"></span>
+            <span class="gp-rcube">
+              <span class="gp-rscene">
+                <span v-for="ly in 3" :key="ly" class="gp-rlayer" :class="'gp-rl' + ly">
+                  <span class="gp-rturn" :class="'gp-rt' + ly">
+                    <span
+                      v-for="i in 9"
+                      :key="i"
+                      class="gp-rcubie"
+                      :style="cubieTransform(i)"
+                    >
+                      <span
+                        v-for="f in 6"
+                        :key="f"
+                        class="gp-rface"
+                        :class="'gp-rf' + f"
+                        :style="faceStyle(ly, i, f)"
+                      ></span>
+                    </span>
+                  </span>
+                </span>
+              </span>
             </span>
           </template>
           <template v-else>
@@ -128,6 +139,34 @@ const games = [
     badge: 'LIVE 3D',
   },
 ];
+
+// —— 魔方预览：3x3x3 立方体，三层各自独立旋转，周期性展开/收拢 ——
+const CUBE_COLORS = {
+  front: '#4a9e5c',
+  back: '#4a7fd4',
+  left: '#e8833a',
+  right: '#d9534f',
+  top: '#e9edf2',
+  bottom: '#f2c14e',
+  inner: '#0d1322',
+};
+function cubieTransform(i) {
+  const c = (i - 1) % 3;
+  const r = Math.floor((i - 1) / 3);
+  return { transform: `translate3d(${(c - 1) * 22}px, 0, ${(r - 1) * 22}px)` };
+}
+function faceStyle(ly, i, f) {
+  const c = (i - 1) % 3;
+  const r = Math.floor((i - 1) / 3);
+  let color = CUBE_COLORS.inner;
+  if (f === 1 && r === 0) color = CUBE_COLORS.front;
+  else if (f === 2 && r === 2) color = CUBE_COLORS.back;
+  else if (f === 3 && c === 0) color = CUBE_COLORS.left;
+  else if (f === 4 && c === 2) color = CUBE_COLORS.right;
+  else if (f === 5 && ly === 1) color = CUBE_COLORS.top;
+  else if (f === 6 && ly === 3) color = CUBE_COLORS.bottom;
+  return { background: color };
+}
 
 function enterGame(id) {
   state.view = id;
@@ -385,48 +424,88 @@ function onCardLeave(e) {
   90% { opacity: 1; }
   100% { left: 96%; opacity: 0; }
 }
-/* —— 魔方预览：光晕背景 + 九宫格魔方面阵（六面配色 · 逐格呼吸 · 整体缓旋） —— */
+/* —— 魔方预览：3D 立方体，三层独立旋转 + 周期性展开收拢 —— */
 .gp-cshine {
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse 70% 55% at 50% 45%, rgba(109, 90, 224, 0.3), transparent 70%), linear-gradient(180deg, #0b1122, #141d3d);
 }
-.gp-cface {
+.gp-rcube {
+  position: absolute;
+  inset: 0;
+  perspective: 620px;
+}
+.gp-rscene {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 108px;
-  height: 108px;
-  margin: -54px 0 0 -54px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-  padding: 7px;
-  border-radius: 12px;
-  background: #0a0f1e;
-  border: 1px solid rgba(212, 161, 44, 0.25);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 0 26px rgba(109, 90, 224, 0.18);
-  animation: gp-cface-sway 7s ease-in-out infinite;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  animation: gp-rscene-spin 16s linear infinite;
 }
-.gp-sticker {
-  border-radius: 7px;
-  animation: gp-sticker-breathe 2.4s ease-in-out infinite;
+@keyframes gp-rscene-spin {
+  from { transform: rotateX(-26deg) rotateY(0deg); }
+  to { transform: rotateX(-26deg) rotateY(360deg); }
 }
-/* 六面配色循环：黄/橙/白/红/蓝/绿，按格错峰呼吸 */
-.gp-sticker:nth-child(6n+1) { background: linear-gradient(135deg, #f2c14e, #d4a12c); }
-.gp-sticker:nth-child(6n+2) { background: linear-gradient(135deg, #e8833a, #c96a24); animation-delay: 0.4s; }
-.gp-sticker:nth-child(6n+3) { background: linear-gradient(135deg, #e9edf2, #c3ccd6); animation-delay: 0.8s; }
-.gp-sticker:nth-child(6n+4) { background: linear-gradient(135deg, #d9534f, #b03b38); animation-delay: 1.2s; }
-.gp-sticker:nth-child(6n+5) { background: linear-gradient(135deg, #4a7fd4, #33619f); animation-delay: 1.6s; }
-.gp-sticker:nth-child(6n+6) { background: linear-gradient(135deg, #4a9e5c, #2e7d43); animation-delay: 2s; }
-@keyframes gp-sticker-breathe {
-  0%, 100% { filter: brightness(1); transform: scale(1); }
-  50% { filter: brightness(1.35); transform: scale(0.92); }
+/* 三层：上层向上展开、下层向下展开、中层保持，周期性分离再收拢回完美立方体 */
+.gp-rlayer {
+  position: absolute;
+  transform-style: preserve-3d;
 }
-@keyframes gp-cface-sway {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
+.gp-rl1 { animation: gp-rl-explode-up 9s ease-in-out infinite; }
+.gp-rl2 { transform: translateY(0); }
+.gp-rl3 { animation: gp-rl-explode-down 9s ease-in-out infinite; }
+@keyframes gp-rl-explode-up {
+  0%, 16% { transform: translateY(-22px); }
+  36%, 60% { transform: translateY(-52px); }
+  82%, 100% { transform: translateY(-22px); }
 }
+@keyframes gp-rl-explode-down {
+  0%, 16% { transform: translateY(22px); }
+  36%, 60% { transform: translateY(52px); }
+  82%, 100% { transform: translateY(22px); }
+}
+/* 每层独立做 90° 逐级转动，错峰延迟；周期结束回到 360°=还原状态 */
+.gp-rturn {
+  position: absolute;
+  transform-style: preserve-3d;
+}
+.gp-rt1 { animation: gp-rl-turn 12s cubic-bezier(0.45, 0.05, 0.25, 1) infinite; }
+.gp-rt2 { animation: gp-rl-turn 12s cubic-bezier(0.45, 0.05, 0.25, 1) infinite; animation-delay: -4s; }
+.gp-rt3 { animation: gp-rl-turn 12s cubic-bezier(0.45, 0.05, 0.25, 1) infinite; animation-delay: -8s; }
+@keyframes gp-rl-turn {
+  0% { transform: rotateY(0deg); }
+  8% { transform: rotateY(90deg); }
+  30% { transform: rotateY(90deg); }
+  38% { transform: rotateY(180deg); }
+  60% { transform: rotateY(180deg); }
+  68% { transform: rotateY(270deg); }
+  90% { transform: rotateY(270deg); }
+  100% { transform: rotateY(360deg); }
+}
+/* 27 个小方块：外露面按标准六面配色，内面深色 */
+.gp-rcubie {
+  position: absolute;
+  left: -10px;
+  top: -10px;
+  width: 20px;
+  height: 20px;
+  transform-style: preserve-3d;
+}
+.gp-rface {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  border: 1px solid rgba(5, 8, 16, 0.55);
+  backface-visibility: hidden;
+}
+.gp-rf1 { transform: translateZ(10px); }
+.gp-rf2 { transform: rotateY(180deg) translateZ(10px); }
+.gp-rf3 { transform: rotateY(-90deg) translateZ(10px); }
+.gp-rf4 { transform: rotateY(90deg) translateZ(10px); }
+.gp-rf5 { transform: rotateX(90deg) translateZ(10px); }
+.gp-rf6 { transform: rotateX(-90deg) translateZ(10px); }
 .hub-info {
   display: flex;
   align-items: center;
