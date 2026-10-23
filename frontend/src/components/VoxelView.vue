@@ -6,16 +6,31 @@
   <div class="voxel">
     <!-- 返回游戏中心的入口统一由顶栏『<』按钮接管，游戏内不再放固定按钮 -->
     <iframe
+      v-if="ready"
       class="voxel-frame"
       src="/3d/mineworld/index.html"
       title="像素方块世界"
       allow="fullscreen"
     ></iframe>
+    <div v-else class="voxel-wait">{{ waitMsg }}</div>
   </div>
 </template>
 
 <script setup>
-// 纯承载视图：游戏运行于 iframe 内，无交互逻辑
+import { ref, onMounted } from 'vue';
+import { api } from '../api';
+// 3D 资源已纳入登录票据保护：先领取票据（HttpOnly cookie，Path=/3d/），
+// 成功后再挂载 iframe——否则 iframe 首个请求就会收到 401
+const ready = ref(false);
+const waitMsg = ref('正在进入方块世界...');
+onMounted(async () => {
+  try {
+    await api.ticket3d();
+    ready.value = true;
+  } catch {
+    waitMsg.value = '进入失败：请先登录，再从游戏中心进入';
+  }
+});
 </script>
 
 <style scoped>
@@ -31,5 +46,13 @@
   height: 100%;
   border: none;
   display: block;
+}
+.voxel-wait {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a94b8;
+  font-size: 14px;
 }
 </style>

@@ -41,6 +41,7 @@
 import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { api } from '../api';
 
 const canvasWrap = ref(null);
 const score = ref(0);
@@ -439,9 +440,13 @@ onMounted(() => {
   canvasWrap.value.appendChild(renderer.domElement);
   flashDiv = canvasWrap.value.querySelector('.hit-flash');
   buildScene(); // 不预建几何剑：避免先抽象剑后突变真剑的闪变
-  // GLB 剑素材加载完成才创建剑（开始面板正好遮住加载期）；加载失败降级几何剑
-  loadAssets((parts) => {
-    if (scene) sword = buildSword(parts && parts.length === 3 ? parts : []);
+  // 3D 资源已纳入登录票据保护：先领取票据（HttpOnly cookie，Path=/3d/），再加载剑模型
+  // 票据失败（未登录/过期）时仍尝试加载——服务端会拒绝，走几何剑降级，游戏可玩
+  api.ticket3d().catch(() => {}).finally(() => {
+    // GLB 剑素材加载完成才创建剑（开始面板正好遮住加载期）；加载失败降级几何剑
+    loadAssets((parts) => {
+      if (scene) sword = buildSword(parts && parts.length === 3 ? parts : []);
+    });
   });
   onResize();
   window.addEventListener('resize', onResize);

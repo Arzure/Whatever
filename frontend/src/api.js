@@ -93,6 +93,8 @@ async function request(path, opts = {}) {
 
 export const api = {
   health: () => request('/health'),
+  // —— 3D 游戏资源票据：登录用户领取短期 cookie（Path=/3d/），游戏文件仅对持票者开放 ——
+  ticket3d: () => request('/3d/ticket', { method: 'POST' }),
   // —— 账号体系 ——
   register: (username, password) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),

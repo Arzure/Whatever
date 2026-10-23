@@ -1622,6 +1622,39 @@ app.post('/api/games/:id/action', async (req, res) => {
   }
 });
 
+// —— 3D 游戏资源保护：登录票据 cookie 鉴权 ——
+// /3d/ 下的游戏文件（方块世界、挥剑挑战剑模型）仅对登录用户开放：
+// 登录用户领取短期票据 cookie（HttpOnly，Path=/3d/），浏览器请求 /3d/ 资源时自动携带；
+// iframe 与模型加载器无法携带 JWT 头，靠 cookie 完成鉴权；无票据或过期一律 401
+const T3D_COOKIE = 'rpg_3d_ticket';
+const T3D_TTL_MS = 2 * 60 * 60 * 1000; // 票据有效期 2 小时，过期前端自动重新领取
+function sign3dTicket(uid, exp) {
+  return crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'draw-secret')).update(`${uid}:${exp}`).digest('hex').slice(0, 32);
+}
+function cookieFromReq(req, name) {
+  const header = req.headers.cookie || '';
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx > 0 && part.slice(0, idx).trim() === name) return decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return '';
+}
+app.post('/api/3d/ticket', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const exp = Date.now() + T3D_TTL_MS;
+  const val = `${user.id}.${exp}.${sign3dTicket(user.id, exp)}`;
+  res.setHeader('Set-Cookie', `${T3D_COOKIE}=${val}; HttpOnly; Secure; SameSite=Lax; Path=/3d/; Max-Age=${T3D_TTL_MS / 1000}`);
+  res.json({ ok: true });
+});
+app.use('/3d', (req, res, next) => {
+  const raw = cookieFromReq(req, T3D_COOKIE);
+  const [uid, exp, sig] = raw.split('.');
+  if (!uid || !exp || !sig || Number(exp) < Date.now() || sign3dTicket(uid, exp) !== sig) {
+    return res.status(401).send('请先登录，并从站内进入游戏');
+  }
+  next();
+});
 // 生产模式：托管前端构建产物
 const dist = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(dist));
