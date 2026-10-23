@@ -1567,18 +1567,30 @@ async function generate() {
 /* 报告异步任务进度条：轨道 + 渐变填充 + 阶段文案 */
 .report-progress {
   margin-top: 10px;
+  animation: gen-progress-in 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) both; /* 弹性入场，与新进度条统一 */
 }
 .report-progress-bar {
   height: 8px;
-  border-radius: 4px;
-  background: var(--panel-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 .report-progress-fill {
   height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width 0.6s ease;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  position: relative;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.report-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.35) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: gen-shimmer 1.6s ease-in-out infinite; /* 流光高光扫过，与新进度条统一 */
 }
 .report-progress-text {
   margin: 6px 0 0;
