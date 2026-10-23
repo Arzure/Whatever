@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "marked": "^18.1.1",
+    "three": "^0.186.1",
     "vue": "^3.4.31"
   },
   "devDependencies": {

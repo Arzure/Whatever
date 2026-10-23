@@ -1,18 +1,20 @@
 <script setup>
-import { onMounted, provide, ref, computed, watch } from 'vue';
+import { onMounted, provide, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useGame } from './composables/useGame';
 import { getAuthToken, getAuthUser, setAuth, api } from './api';
-import HomeView from './components/HomeView.vue';
 import SilkBackground from './components/SilkBackground.vue';
-import WorldView from './components/WorldView.vue';
-import DetectiveView from './components/DetectiveView.vue';
-import WolfView from './components/WolfView.vue';
-import DeductionView from './components/DeductionView.vue';
-import DrawView from './components/DrawView.vue';
-import OfficeView from './components/OfficeView.vue';
-import AdminView from './components/AdminView.vue';
-import AdventureView from './components/AdventureView.vue';
-import ChatView from './components/ChatView.vue';
+// —— 视图懒加载：各页面拆成独立分包，进入时才下载，首屏不背全站代码 ——
+const HomeView = defineAsyncComponent(() => import('./components/HomeView.vue'));
+const WorldView = defineAsyncComponent(() => import('./components/WorldView.vue'));
+const DetectiveView = defineAsyncComponent(() => import('./components/DetectiveView.vue'));
+const WolfView = defineAsyncComponent(() => import('./components/WolfView.vue'));
+const DeductionView = defineAsyncComponent(() => import('./components/DeductionView.vue'));
+const DrawView = defineAsyncComponent(() => import('./components/DrawView.vue'));
+const OfficeView = defineAsyncComponent(() => import('./components/OfficeView.vue'));
+const AdminView = defineAsyncComponent(() => import('./components/AdminView.vue'));
+const AdventureView = defineAsyncComponent(() => import('./components/AdventureView.vue'));
+const ChatView = defineAsyncComponent(() => import('./components/ChatView.vue'));
+const GameView = defineAsyncComponent(() => import('./components/GameView.vue'));
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -144,6 +146,7 @@ async function deleteSave(s) {
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> <span class="bar-label">{{ theme === 'light' ? '深色' : '浅色' }}</span></button>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" title="管理" @click="game.state.view = 'admin'"><Icon name="admin" /> <span class="bar-label">管理</span></button>
+          <button class="app-bar-logout" title="挥剑挑战" @click="game.state.view = 'game'"><Icon name="sword" /> <span class="bar-label">游戏</span></button>
           <button class="app-bar-logout" title="存档" @click="showSaves = true"><Icon name="save" /> <span class="bar-label">存档</span></button>
           <button class="app-bar-logout" @click="showSettings = true"><Icon name="settings" /> <span class="label-full">账号设置</span><span class="label-short">设置</span></button>
         </header>
@@ -155,6 +158,7 @@ async function deleteSave(s) {
           <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
           <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
           <ChatView v-else-if="game.state.view === 'chat'" @back="game.backToHome" />
+          <GameView v-else-if="game.state.view === 'game'" />
           <DetectiveView v-else-if="game.state.mode === 'detective'" />
           <WolfView v-else-if="game.state.mode === 'wolf'" />
           <DeductionView v-else-if="game.state.mode === 'deduction'" />
