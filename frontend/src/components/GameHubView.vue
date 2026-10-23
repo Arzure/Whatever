@@ -74,6 +74,24 @@
             <span class="gp-uenemy gp-ue1"></span>
             <span class="gp-uenemy gp-ue2"></span>
           </template>
+          <!-- 未来赛车：霓虹赛道透视飞驰 + 赛船尾焰 -->
+          <template v-else-if="g.id === 'hexgl'">
+            <span class="gp-hsky"></span>
+            <span class="gp-hroad"></span>
+            <span class="gp-hline gp-hl1"></span>
+            <span class="gp-hline gp-hl2"></span>
+            <span class="gp-hline gp-hl3"></span>
+            <span class="gp-hship"></span>
+          </template>
+          <!-- 天际深潜：星域隧道穿梭 + 激光射击 -->
+          <template v-else-if="g.id === 'descent'">
+            <span class="gp-dsky"></span>
+            <span class="gp-dtunnel"></span>
+            <span class="gp-dlaser gp-dl1"></span>
+            <span class="gp-dlaser gp-dl2"></span>
+            <span class="gp-drock gp-dr1"></span>
+            <span class="gp-drock gp-dr2"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -170,6 +188,20 @@ const games = [
     desc: '复古像素 · 俯视角射击 · 弹幕生存',
     icon: 'sword',
     badge: 'RETRO',
+  },
+  {
+    id: 'hexgl',
+    name: '未来赛车',
+    desc: 'HexGL · 反重力竞速 · WebGL',
+    icon: 'sword',
+    badge: 'RACE',
+  },
+  {
+    id: 'descent',
+    name: '天际深潜',
+    desc: 'Descent · 六自由度 · 太空射击',
+    icon: 'sword',
+    badge: '6DOF',
   },
 ];
 
@@ -661,6 +693,118 @@ function onCardLeave(e) {
 @keyframes gp-uenemy-drift {
   0%, 100% { transform: translate(0, 0); }
   50% { transform: translate(14px, 10px); }
+}
+/* —— 未来赛车：霓虹赛道透视飞驰 + 赛船尾焰 —— */
+.gp-hsky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 1px at 15% 20%, rgba(255, 255, 255, 0.6), transparent 100%),
+    radial-gradient(circle 1px at 60% 12%, rgba(255, 255, 255, 0.5), transparent 100%),
+    radial-gradient(circle 1px at 82% 30%, rgba(255, 255, 255, 0.4), transparent 100%),
+    linear-gradient(180deg, #05060f, #0d1030);
+}
+.gp-hroad {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 120px;
+  height: 78%;
+  margin-left: -60px;
+  background: linear-gradient(180deg, rgba(30, 40, 90, 0.2), #1a2350);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  border-bottom: 2px solid #4a5ee0;
+}
+.gp-hline {
+  position: absolute;
+  left: 50%;
+  width: 34%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #6ee0ff, transparent);
+  box-shadow: 0 0 8px rgba(110, 224, 255, 0.8);
+  animation: gp-hline-rush 1.1s linear infinite;
+}
+.gp-hl1 { bottom: 6%; animation-delay: 0s; }
+.gp-hl2 { bottom: 26%; animation-delay: 0.37s; }
+.gp-hl3 { bottom: 46%; animation-delay: 0.74s; }
+@keyframes gp-hline-rush {
+  0% { transform: translateX(-50%) scaleX(0.3); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateX(-50%) scaleX(1.6); opacity: 0; }
+}
+.gp-hship {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 26px;
+  height: 14px;
+  margin-left: -13px;
+  background: linear-gradient(180deg, #e8ecff, #8a94c8);
+  clip-path: polygon(50% 0, 100% 100%, 50% 78%, 0 100%);
+  filter: drop-shadow(0 0 6px rgba(110, 224, 255, 0.9));
+  animation: gp-hship-hover 2.2s ease-in-out infinite;
+}
+@keyframes gp-hship-hover {
+  0%, 100% { transform: translate(-6px, 0); }
+  50% { transform: translate(6px, 3px); }
+}
+/* —— 天际深潜：星域隧道穿梭 + 激光射击 —— */
+.gp-dsky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 1px at 25% 18%, rgba(255, 255, 255, 0.7), transparent 100%),
+    radial-gradient(circle 1px at 70% 22%, rgba(255, 255, 255, 0.5), transparent 100%),
+    radial-gradient(circle 1px at 40% 60%, rgba(255, 255, 255, 0.6), transparent 100%),
+    radial-gradient(circle 1px at 85% 70%, rgba(255, 255, 255, 0.4), transparent 100%),
+    linear-gradient(180deg, #060a18, #101830);
+}
+.gp-dtunnel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90px;
+  height: 90px;
+  margin: -45px 0 0 -45px;
+  border: 2px solid rgba(120, 200, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(120, 200, 255, 0.35), inset 0 0 14px rgba(120, 200, 255, 0.25);
+  animation: gp-dtunnel-spin 5s linear infinite;
+}
+@keyframes gp-dtunnel-spin {
+  0% { transform: scale(0.35) rotate(0deg); opacity: 0.9; }
+  100% { transform: scale(1.5) rotate(180deg); opacity: 0; }
+}
+.gp-dlaser {
+  position: absolute;
+  width: 2px;
+  height: 12px;
+  background: #ff5a5a;
+  box-shadow: 0 0 6px rgba(255, 90, 90, 0.9);
+  border-radius: 2px;
+  animation: gp-dlaser-fire 0.8s linear infinite;
+}
+.gp-dl1 { left: 48%; top: 40%; animation-delay: 0s; }
+.gp-dl2 { left: 52%; top: 44%; animation-delay: 0.4s; }
+@keyframes gp-dlaser-fire {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(34px); opacity: 0; }
+}
+.gp-drock {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #6a7290;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  animation: gp-drock-drift 3.8s ease-in-out infinite;
+}
+.gp-dr1 { left: 20%; top: 28%; }
+.gp-dr2 { right: 18%; top: 58%; animation-delay: 1.9s; background: #90706a; }
+@keyframes gp-drock-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(10px, -8px) rotate(18deg); }
 }
 .hub-info {
   display: flex;
