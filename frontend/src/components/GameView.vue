@@ -15,8 +15,9 @@
       <div class="panel">
         <h2>{{ over ? '游戏结束' : '挥剑挑战' }}</h2>
         <p v-if="over" class="final-score">本局得分 <b>{{ score }}</b> · 最高 {{ best }}</p>
-        <p class="tip" v-if="!over">快速滑动鼠标挥剑切割飞来的方块<br />带紫色指示条的方块必须按指示方向砍 · 漏 3 个即结束</p>
+        <p class="tip" v-if="!over">快速滑动鼠标挥剑，斩断飞来的竹子<br />漏 3 根竹子即结束</p>
         <button class="play-btn" @click="start">{{ over ? '再来一局' : '开始游戏' }}</button>
+        <p class="credit">3D 素材来自开源项目 SlashSaber（CC BY 4.0）</p>
       </div>
     </div>
   </div>
@@ -25,6 +26,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvasWrap = ref(null);
 const score = ref(0);
@@ -36,44 +38,68 @@ const over = ref(false);
 let renderer, scene, camera, rafId;
 let obstacles = [];
 let sword, swordTipWorld = new THREE.Vector3();
-let swordBox = new THREE.Box3();      // 剑的碰撞盒（每帧随剑更新）
+let swordBox = new THREE.Box3();
 let obBox = new THREE.Box3();
 let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
 let spawnTimer = 0;
 let flashDiv = null;
-// 拖尾：记录刀尖最近 N 个世界坐标，用发光线条渲染
+// 模型模板：竹子障碍物（加载后 clone 生成实例）
+let bambooTemplates = [];
+let assetsReady = false;
+// 拖尾：记录刀尖最近 N 个世界坐标
 const TRAIL_LEN = 22;
 let trailPts = [];
 let trailLine = null;
 
 const isLight = () => document.documentElement.classList.contains('light');
 
-function buildSword() {
-  // —— 三段式剑（参考 SlashSaber：blade / guard / hilt 拼装）——
+function loadAssets(onDone) {
+  const loader = new GLTFLoader();
+  const swordParts = [];
+  let pending = 8; // 3 剑部件 + 4 竹子 + 收尾
+  const done = () => { if (--pending === 0) { assetsReady = true; onDone(); } };
+  // 剑三段拼装（参考 SlashSaber：blade / guard / hilt）
+  for (const part of ['blade_default', 'guard_default', 'hilt_default']) {
+    loader.load(`/3d/sword/${part}.glb`, (gltf) => {
+      swordParts.push(gltf.scene);
+      done();
+    }, undefined, () => done()); // 加载失败也放行，降级用几何剑
+  }
+  // 竹子障碍物模板
+  for (const name of ['bamboo_mid_1', 'bamboo_mid_3', 'bamboo_mid_5', 'bamboo_mid_7']) {
+    loader.load(`/3d/obstacles/${name}.glb`, (gltf) => {
+      bambooTemplates.push(gltf.scene);
+      done();
+    }, undefined, () => done());
+  }
+  done(); // 计数对齐
+  return swordParts;
+}
+
+function buildSword(swordParts) {
   const g = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: 0xcfd6e4, metalness: 0.95, roughness: 0.18 });
-  const gold = new THREE.MeshStandardMaterial({ color: 0xd4a12c, metalness: 0.8, roughness: 0.28 });
-  const grip = new THREE.MeshStandardMaterial({ color: 0x3a2c14, metalness: 0.2, roughness: 0.7 });
-
-  // 刀刃：细长四面锥体（CylinderGeometry 4 边，顶半径小底半径大），有剑的锋锐感
-  const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.055, 2.5, 4), steel);
-  blade.rotation.x = Math.PI / 2;   // 圆柱默认沿 Y，转到指向 -Z（前方）
-  blade.position.z = -1.45;
-  // 刀刃中脊高光条
-  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 2.3), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  ridge.position.z = -1.4;
-  // 护手：十字横梁
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.07, 0.09), gold);
-  guard.position.z = -0.18;
-  // 握柄：细圆柱
-  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 8), grip);
-  hilt.rotation.x = Math.PI / 2;
-  hilt.position.z = 0.18;
-  // 柄尾：小圆头
-  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), gold);
-  pommel.position.z = 0.48;
-
-  g.add(blade, ridge, guard, hilt, pommel);
+  if (swordParts && swordParts.length === 3) {
+    // GLB 模型剑：按参考项目定位（模型自身 up 为 Z 轴），整体前伸
+    const model = new THREE.Group();
+    for (const part of swordParts) model.add(part);
+    model.position.set(0, 0.65, -0.8);
+    model.up.set(0, 0, 1);
+    g.add(model);
+    g.userData.isGLB = true;
+  } else {
+    // 降级：几何剑（素材加载失败时兜底）
+    const steel = new THREE.MeshStandardMaterial({ color: 0xcfd6e4, metalness: 0.95, roughness: 0.18 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xd4a12c, metalness: 0.8, roughness: 0.28 });
+    const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.055, 2.5, 4), steel);
+    blade.rotation.x = Math.PI / 2;
+    blade.position.z = -1.45;
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.07, 0.09), gold);
+    guard.position.z = -0.18;
+    const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 8), gold);
+    hilt.rotation.x = Math.PI / 2;
+    hilt.position.z = 0.18;
+    g.add(blade, guard, hilt);
+  }
   scene.add(g);
   return g;
 }
@@ -81,7 +107,7 @@ function buildSword() {
 function buildTrail() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_LEN * 3), 3));
-  const mat = new THREE.LineBasicMaterial({ color: 0xd4a12c, transparent: true, opacity: 0.55 });
+  const mat = new THREE.LineBasicMaterial({ color: 0x9dd0e3, transparent: true, opacity: 0.55 });
   trailLine = new THREE.Line(geo, mat);
   trailLine.frustumCulled = false;
   scene.add(trailLine);
@@ -96,11 +122,10 @@ function updateTrail() {
     attr.setXYZ(i, p.x, p.y, p.z);
   }
   attr.needsUpdate = true;
-  // 挥砍速度越大拖尾越亮
   trailLine.material.opacity = Math.min(0.75, mouse.speed / 8);
 }
 
-function buildScene() {
+function buildScene(swordParts) {
   const light = isLight();
   scene = new THREE.Scene();
   scene.background = new THREE.Color(light ? 0xdfe6f5 : 0x0b1122);
@@ -109,8 +134,8 @@ function buildScene() {
   camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
   camera.position.set(0, 1.2, 6);
 
-  scene.add(new THREE.AmbientLight(0xffffff, light ? 0.9 : 0.5));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  scene.add(new THREE.AmbientLight(0xffffff, light ? 0.95 : 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.3);
   dir.position.set(3, 6, 4);
   scene.add(dir);
 
@@ -118,45 +143,47 @@ function buildScene() {
   grid.position.y = -2.2;
   scene.add(grid);
 
-  sword = buildSword();
+  sword = buildSword(swordParts);
   buildTrail();
 }
 
 function spawnObstacle() {
-  const needDir = Math.random() < 0.35;
-  const dirH = Math.random() < 0.5;
-  const geo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
-  const hue = 0.08 + Math.random() * 0.12;
-  const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(hue, 0.75, 0.55),
-    emissive: new THREE.Color().setHSL(hue, 0.9, 0.18),
-  });
-  const mesh = new THREE.Mesh(geo, mat);
+  let mesh;
+  if (assetsReady && bambooTemplates.length) {
+    // 竹子模型：随机模板 clone
+    const tpl = bambooTemplates[Math.floor(Math.random() * bambooTemplates.length)];
+    mesh = tpl.clone(true);
+    mesh.scale.setScalar(1.6);
+  } else {
+    // 降级：几何方块
+    const hue = 0.08 + Math.random() * 0.12;
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 1.1, 1.1),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(hue, 0.75, 0.55),
+        emissive: new THREE.Color().setHSL(hue, 0.9, 0.18),
+      })
+    );
+  }
   mesh.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3.4, -48);
   mesh.userData = {
     speed: 9 + Math.random() * 5 + Math.min(score.value * 0.12, 8),
-    spin: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2),
-    needDir, dirH, cut: false, colliding: false,
+    spin: new THREE.Vector3((Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2),
+    cut: false,
   };
-  if (needDir) {
-    const bar = new THREE.Mesh(
-      new THREE.BoxGeometry(dirH ? 1.5 : 0.16, dirH ? 0.16 : 1.5, 0.06),
-      new THREE.MeshBasicMaterial({ color: 0x6d5ae0 })
-    );
-    bar.position.z = 0.58;
-    mesh.add(bar);
-  }
   scene.add(mesh);
   obstacles.push(mesh);
 }
 
-function slashEffect(pos, color) {
+function slashEffect(pos) {
+  // 竹屑：绿色小片飞散
   for (let i = 0; i < 10; i++) {
     const frag = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.2, 0.2),
-      new THREE.MeshStandardMaterial({ color, emissive: color })
+      new THREE.BoxGeometry(0.18, 0.06, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0x7fae5a, emissive: 0x2c4419 })
     );
     frag.position.copy(pos);
+    frag.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
     frag.userData = {
       vel: new THREE.Vector3((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, Math.random() * 7),
       life: 0.7,
@@ -166,42 +193,37 @@ function slashEffect(pos, color) {
   }
 }
 
-// —— 砍击判定（参考 SlashSaber：碰撞盒相交 + 挥砍速度阈值 + 方向判定）——
+// —— 砍击判定：碰撞盒相交 + 挥砍速度阈值（方向判定已按需求移除）——
 function trySlash() {
-  if (mouse.speed < 2.2) return; // 挥砍速度阈值（归一化坐标/秒）：慢移不判砍，快速挥动可达 5~10
-  const horizontal = Math.abs(mouse.ax) >= Math.abs(mouse.ay);
+  if (mouse.speed < 2.2) return;
   for (const ob of obstacles) {
     if (!ob.userData || ob.userData.cut || ob.userData.life !== undefined) continue;
-    // 障碍物世界包围盒
     obBox.setFromObject(ob);
-    if (!swordBox.intersectsBox(obBox)) continue; // 剑碰撞盒与障碍物相交才可砍
-    if (ob.userData.needDir && ob.userData.dirH !== horizontal) continue; // 方向不符砍不动
+    if (!swordBox.intersectsBox(obBox)) continue;
     ob.userData.cut = true;
-    slashEffect(ob.position.clone(), ob.material.color.getHex());
+    slashEffect(ob.position.clone());
     scene.remove(ob);
     score.value++;
   }
 }
 
 function tick(dt) {
-  // 剑跟随鼠标（映射到 z=0 平面），并按移动方向倾斜——像真的挥剑
   const tx = mouse.x * 5.5;
   const ty = mouse.y * 3.2;
   sword.position.x += (tx - sword.position.x) * 0.4;
   sword.position.y += (ty - sword.position.y) * 0.4;
-  // 挥砍速度与方向累计量随时间衰减（停止移动后约 0.17s 归零，不会残留误判）
-  const decay = Math.max(0, 1 - 6 * dt);
-  mouse.speed *= decay;
-  mouse.ax *= decay;
-  mouse.ay *= decay;
-  // 挥动时剑身朝移动方向倾斜
   const targetTilt = Math.max(-0.9, Math.min(0.9, mouse.ax * 1.5));
   sword.rotation.z += (targetTilt - sword.rotation.z) * 0.25;
-  // 刀尖世界坐标 + 剑碰撞盒（沿剑身的长条盒）
   swordTipWorld.set(sword.position.x, sword.position.y, -1.2);
   swordBox.min.set(sword.position.x - 0.35, sword.position.y - 0.35, -2.7);
   swordBox.max.set(sword.position.x + 0.35, sword.position.y + 0.35, 0.1);
   updateTrail();
+
+  // 挥砍速度与方向累计量随时间衰减
+  const decay = Math.max(0, 1 - 6 * dt);
+  mouse.speed *= decay;
+  mouse.ax *= decay;
+  mouse.ay *= decay;
 
   if (playing.value) {
     spawnTimer -= dt;
@@ -270,12 +292,11 @@ function onPointerMove(e) {
   const dx = nx - mouse.x;
   const dy = ny - mouse.y;
   if (mouse.lastT) {
-    // 真实速度：位移 / 时间间隔（归一化坐标每秒），事件触发频率不再影响结果
     const dt = Math.max((now - mouse.lastT) / 1000, 0.004);
     const v = Math.hypot(dx, dy) / dt;
-    mouse.speed = Math.max(mouse.speed * 0.5, v); // 峰值保持：挥砍取近期峰值速度
+    mouse.speed = Math.max(mouse.speed * 0.5, v);
   }
-  mouse.ax += dx; // 累计位移：供挥砍方向判定（横砍/竖砍）
+  mouse.ax += dx;
   mouse.ay += dy;
   mouse.x = nx;
   mouse.y = ny;
@@ -305,7 +326,8 @@ onMounted(() => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   canvasWrap.value.appendChild(renderer.domElement);
   flashDiv = canvasWrap.value.querySelector('.hit-flash');
-  buildScene();
+  const swordParts = loadAssets(() => {}); // 素材异步加载，竹子就绪后自动启用
+  buildScene(swordParts);
   onResize();
   window.addEventListener('resize', onResize);
   window.addEventListener('pointermove', onPointerMove);
@@ -396,4 +418,5 @@ onBeforeUnmount(() => {
 }
 html.light .play-btn { color: #fff; }
 .play-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.credit { margin: 16px 0 0; font-size: 11px; color: var(--muted, #8a94b8); opacity: 0.7; }
 </style>
