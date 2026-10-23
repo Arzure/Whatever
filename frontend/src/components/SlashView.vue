@@ -259,6 +259,45 @@ function popScore(worldPos) {
 
 
 // —— 砍击判定：碰撞盒相交 + 挥砍速度阈值（方向判定已按需求移除）——
+// —— 命中音效：Web Audio 程序化金属砍击声（高频振荡快衰减 + 噪声脉冲，无外部素材）——
+let audioCtx = null;
+function playHitSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    // 金属高频"锵"：两个失谐振荡器快速衰减
+    for (const [freq, vol, dur] of [[2350, 0.16, 0.09], [3580, 0.1, 0.06]]) {
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.72, t0 + dur);
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      osc.connect(g).connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur);
+    }
+    // 砍击瞬态：短噪声脉冲带通滤波
+    const len = Math.floor(audioCtx.sampleRate * 0.05);
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 4200;
+    bp.Q.value = 1.2;
+    const ng = audioCtx.createGain();
+    ng.gain.setValueAtTime(0.22, t0);
+    ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05);
+    src.connect(bp).connect(ng).connect(audioCtx.destination);
+    src.start(t0);
+  } catch { /* 音频不可用时静默降级 */ }
+}
+
 function trySlash() {
   if (mouse.speed < 1.0) return; // 阈值大幅降低：正常速度挥动即可砍中
   for (let i = obstacles.length - 1; i >= 0; i--) {
@@ -270,6 +309,7 @@ function trySlash() {
     slashEffect(ob.position.clone(), ob.material.color.getHex());
     flashRing(ob.position.clone());
     popScore(ob.position.clone());
+    playHitSound();
     scene.remove(ob);
     obstacles.splice(i, 1); // 关键：同步从数组移除，否则已砍掉的方块仍会飞过判定线误扣血
     score.value++;
