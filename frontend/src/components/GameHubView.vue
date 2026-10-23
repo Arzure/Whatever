@@ -24,6 +24,18 @@
             <span class="gp-vblock gp-vb2"></span>
             <span class="gp-vblock gp-vb3"></span>
           </template>
+          <template v-else-if="g.id === 'ironhold'">
+            <span class="gp-iground"></span>
+            <span class="gp-cross"></span>
+            <span class="gp-target gp-t1"></span>
+            <span class="gp-target gp-t2"></span>
+          </template>
+          <template v-else-if="g.id === 'jungle'">
+            <span class="gp-jcanopy"></span>
+            <span class="gp-leaf gp-l1"></span>
+            <span class="gp-leaf gp-l2"></span>
+            <span class="gp-leaf gp-l3"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -92,6 +104,20 @@ const games = [
     desc: '像素沙盒 · 自由建造 · 探索世界',
     icon: 'sword',
     badge: 'VOXEL 3D',
+  },
+  {
+    id: 'ironhold',
+    name: '铁壁行动',
+    desc: '第一人称射击 · 守住防线 · 火力全开',
+    icon: 'sword',
+    badge: 'FPS 3D',
+  },
+  {
+    id: 'jungle',
+    name: '丛林小径',
+    desc: '程序化丛林 · 第一人称 · 自由探索',
+    icon: 'sword',
+    badge: 'JUNGLE 3D',
   },
 ];
 
@@ -294,6 +320,89 @@ function onCardLeave(e) {
 @keyframes gp-vfloat {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-10px) rotate(6deg); }
+}
+/* —— 铁壁行动预览：地平线网格 + 呼吸准星 + 移动靶 —— */
+.gp-iground {
+  position: absolute;
+  left: -40%;
+  right: -40%;
+  bottom: -30px;
+  height: 80px;
+  background:
+    repeating-linear-gradient(90deg, rgba(212, 161, 44, 0.24) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(0deg, rgba(212, 161, 44, 0.18) 0 1px, transparent 1px 20px);
+  transform: perspective(210px) rotateX(58deg);
+  transform-origin: top center;
+  opacity: 0.5;
+  animation: gp-scroll 1.2s linear infinite;
+}
+.gp-cross {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 2px solid rgba(230, 237, 243, 0.92);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(212, 161, 44, 0.5);
+  animation: gp-cross-pulse 1.6s ease-in-out infinite;
+}
+.gp-cross::before,
+.gp-cross::after {
+  content: '';
+  position: absolute;
+  background: rgba(230, 237, 243, 0.92);
+}
+.gp-cross::before { left: 50%; top: -8px; bottom: -8px; width: 2px; margin-left: -1px; }
+.gp-cross::after { top: 50%; left: -8px; right: -8px; height: 2px; margin-top: -1px; }
+@keyframes gp-cross-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+.gp-target {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(212, 161, 44, 0.9);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212, 161, 44, 0.35) 0 30%, transparent 32%);
+  animation: gp-target-move 3s linear infinite;
+}
+.gp-t1 { top: 28%; }
+.gp-t2 { top: 52%; animation-delay: 1.5s; border-color: rgba(109, 90, 224, 0.9); background: radial-gradient(circle, rgba(109, 90, 224, 0.35) 0 30%, transparent 32%); }
+@keyframes gp-target-move {
+  0% { left: -12%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 96%; opacity: 0; }
+}
+/* —— 丛林小径预览：层叠树冠 + 飘落叶片 —— */
+.gp-jcanopy {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(94, 168, 82, 0.5), transparent 70%),
+    radial-gradient(ellipse 50% 36% at 55% 0%, rgba(74, 138, 66, 0.55), transparent 70%),
+    radial-gradient(ellipse 64% 42% at 85% 0%, rgba(94, 168, 82, 0.45), transparent 70%),
+    linear-gradient(180deg, #0f2415, #0b1122);
+}
+.gp-leaf {
+  position: absolute;
+  width: 12px;
+  height: 8px;
+  background: rgba(120, 190, 100, 0.9);
+  border-radius: 0 100% 0 100%;
+  animation: gp-leaf-fall 3.2s linear infinite;
+}
+.gp-l1 { left: 24%; }
+.gp-l2 { left: 52%; animation-delay: 1.1s; background: rgba(94, 168, 82, 0.9); }
+.gp-l3 { left: 74%; animation-delay: 2.2s; background: rgba(150, 200, 120, 0.9); }
+@keyframes gp-leaf-fall {
+  0% { top: -12%; transform: rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 108%; transform: rotate(220deg); opacity: 0; }
 }
 .hub-info {
   display: flex;
