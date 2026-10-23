@@ -247,7 +247,6 @@ const canStart = computed(() => {
             <b>3D 世界</b>
             <em>实时 3D 中心</em>
           </span>
-          <span class="play-arrow">›</span>
         </div>
       </div>
 

@@ -32,10 +32,16 @@
           </template>
           <template v-else-if="g.id === 'cube'">
             <span class="gp-cshine"></span>
-            <span class="gp-cubie">
-              <span class="gp-face gp-f1"></span>
-              <span class="gp-face gp-f2"></span>
-              <span class="gp-face gp-f3"></span>
+            <span class="gp-cface">
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
+              <span class="gp-sticker"></span>
             </span>
           </template>
           <template v-else>
@@ -379,44 +385,47 @@ function onCardLeave(e) {
   90% { opacity: 1; }
   100% { left: 96%; opacity: 0; }
 }
-/* —— 魔方预览：光晕背景 + 三面旋转魔方块 —— */
+/* —— 魔方预览：光晕背景 + 九宫格魔方面阵（六面配色 · 逐格呼吸 · 整体缓旋） —— */
 .gp-cshine {
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse 70% 55% at 50% 45%, rgba(109, 90, 224, 0.3), transparent 70%), linear-gradient(180deg, #0b1122, #141d3d);
 }
-.gp-cubie {
+.gp-cface {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 56px;
-  height: 56px;
-  margin: -28px 0 0 -28px;
-  transform-style: preserve-3d;
-  animation: gp-cubie-spin 5.5s linear infinite;
+  width: 108px;
+  height: 108px;
+  margin: -54px 0 0 -54px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  padding: 7px;
+  border-radius: 12px;
+  background: #0a0f1e;
+  border: 1px solid rgba(212, 161, 44, 0.25);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 0 26px rgba(109, 90, 224, 0.18);
+  animation: gp-cface-sway 7s ease-in-out infinite;
 }
-.gp-face {
-  position: absolute;
-  inset: 0;
-  border: 2px solid rgba(0, 0, 0, 0.35);
-  border-radius: 6px;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.25);
+.gp-sticker {
+  border-radius: 7px;
+  animation: gp-sticker-breathe 2.4s ease-in-out infinite;
 }
-.gp-f1 {
-  background: linear-gradient(135deg, #d4a12c, #b8860b);
-  transform: translateZ(28px);
+/* 六面配色循环：黄/橙/白/红/蓝/绿，按格错峰呼吸 */
+.gp-sticker:nth-child(6n+1) { background: linear-gradient(135deg, #f2c14e, #d4a12c); }
+.gp-sticker:nth-child(6n+2) { background: linear-gradient(135deg, #e8833a, #c96a24); animation-delay: 0.4s; }
+.gp-sticker:nth-child(6n+3) { background: linear-gradient(135deg, #e9edf2, #c3ccd6); animation-delay: 0.8s; }
+.gp-sticker:nth-child(6n+4) { background: linear-gradient(135deg, #d9534f, #b03b38); animation-delay: 1.2s; }
+.gp-sticker:nth-child(6n+5) { background: linear-gradient(135deg, #4a7fd4, #33619f); animation-delay: 1.6s; }
+.gp-sticker:nth-child(6n+6) { background: linear-gradient(135deg, #4a9e5c, #2e7d43); animation-delay: 2s; }
+@keyframes gp-sticker-breathe {
+  0%, 100% { filter: brightness(1); transform: scale(1); }
+  50% { filter: brightness(1.35); transform: scale(0.92); }
 }
-.gp-f2 {
-  background: linear-gradient(135deg, #6d5ae0, #4b3bc0);
-  transform: rotateY(90deg) translateZ(28px);
-}
-.gp-f3 {
-  background: linear-gradient(135deg, #4a9e5c, #2e7d43);
-  transform: rotateX(90deg) translateZ(28px);
-}
-@keyframes gp-cubie-spin {
-  from { transform: rotateX(-24deg) rotateY(0deg); }
-  to { transform: rotateX(-24deg) rotateY(360deg); }
+@keyframes gp-cface-sway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
 .hub-info {
   display: flex;
