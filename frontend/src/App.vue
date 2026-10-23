@@ -412,6 +412,15 @@ html.light .app-bar-home {
   border-color: #d8deeb;
   color: #1e2638;
 }
+html.light .app-bar-back {
+  background: #eef1f8;
+  border-color: #d8deeb;
+  color: #1e2638;
+}
+html.light .app-bar-back:hover {
+  border-color: #6d5ae0;
+  color: #6d5ae0;
+}
 html.light .app-bar-home:hover {
   border-color: #6d5ae0;
   color: #6d5ae0;

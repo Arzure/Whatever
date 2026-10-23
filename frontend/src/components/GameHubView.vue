@@ -1,6 +1,6 @@
 <template>
   <div class="hub" ref="hubEl" :class="{ expanding: expanding }">
-      <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /> <span>返回</span></button>
+      <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /></button>
     <div class="hub-head">
       <h1 class="hub-title">3D 世界</h1>
     </div>
