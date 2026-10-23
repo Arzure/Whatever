@@ -16,6 +16,10 @@ const loadingSession = ref(false);
 const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
 const reasoningOpen = ref({}); // 各消息思考区块的展开状态（流式时自动展开，完成后可点击切换）
+const copiedIdx = ref(-1); // 复制成功反馈：短暂显示对勾
+const abortCtrl = ref(null); // 流式中断控制器（停止生成按钮）
+const nearBottom = ref(true); // 是否贴近消息底部：用户上滚时暂停自动跟随
+const inputEl = ref(null); // 输入框（textarea 自动增高）
 
 // —— 共享元素飞入（FLIP）：挂载时从首页入口卡片的屏幕位置/尺寸平滑扩张成整个对话页 ——
 const chatEl = ref(null);
@@ -73,7 +77,8 @@ async function openSession(id) {
     const data = await api.chatSession(id);
     sessionId.value = data.session.id;
     messages.value = (data.messages || []).map((m) => ({ role: m.role, content: m.content }));
-    scrollToBottom();
+    nearBottom.value = true;
+    scrollToBottom(true); // 切换会话强制定位到底部
   } catch (e) {
     console.error('[chat] 会话加载失败:', e.message);
   } finally {
@@ -125,7 +130,10 @@ async function send() {
   }
   messages.value.push({ role: 'user', content: text });
   input.value = '';
+  nextTick(() => autoGrow()); // 输入框清空后重置高度
   sending.value = true;
+  nearBottom.value = true; // 发送后必然跟随到底
+  abortCtrl.value = new AbortController();
   scrollToBottom();
   // 流式占位气泡（取代理对象，直接修改可触发更新）
   messages.value.push({ role: 'assistant', content: '', reasoning: '', streaming: true });
@@ -140,6 +148,7 @@ async function send() {
       method: 'POST',
       headers,
       body: JSON.stringify({ content: text }),
+      signal: abortCtrl.value.signal, // 支持停止生成
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -185,19 +194,76 @@ async function send() {
       s.updated_at = Date.now();
     }
   } catch (e) {
-    streamMsg.content = `回复失败：${e.message}`;
-    streamMsg.failed = true;
+    if (e.name === 'AbortError') {
+      // 用户主动停止：保留已生成内容，标记 stopped（非失败，可重新生成）
+      streamMsg.stopped = true;
+      if (!streamMsg.content) streamMsg.content = '（已停止生成）';
+    } else {
+      streamMsg.content = `回复失败：${e.message}`;
+      streamMsg.failed = true;
+    }
   } finally {
     streamMsg.streaming = false;
     sending.value = false;
+    abortCtrl.value = null;
     scrollToBottom();
   }
 }
 
-function scrollToBottom() {
+function scrollToBottom(force = false) {
   nextTick(() => {
-    if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+    if (messagesEl.value && (force || nearBottom.value)) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
   });
+}
+function jumpBottom() {
+  nearBottom.value = true;
+  scrollToBottom(true);
+}
+function onMessagesScroll() {
+  const el = messagesEl.value;
+  if (!el) return;
+  nearBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+}
+async function copyMsg(i) {
+  const m = messages.value[i];
+  if (!m || !m.content) return;
+  try {
+    await navigator.clipboard.writeText(m.content);
+    copiedIdx.value = i;
+    setTimeout(() => { if (copiedIdx.value === i) copiedIdx.value = -1; }, 1500);
+  } catch (e) {
+    console.error('[chat] 复制失败:', e.message);
+  }
+}
+function regenerate() {
+  if (sending.value) return;
+  // 截掉最后一条用户消息及其之后的内容，重新发送该消息
+  const lastUserIdx = messages.value.map((m) => m.role).lastIndexOf('user');
+  if (lastUserIdx < 0) return;
+  const text = messages.value[lastUserIdx].content;
+  messages.value = messages.value.slice(0, lastUserIdx);
+  input.value = text;
+  send();
+}
+function stopStream() {
+  if (abortCtrl.value) abortCtrl.value.abort();
+}
+async function renameSession(s) {
+  if (sending.value) return;
+  const title = prompt('重命名会话', s.title);
+  if (!title || !title.trim() || title.trim() === s.title) return;
+  try {
+    await api.chatRename(s.id, title.trim());
+    s.title = title.trim();
+  } catch (e) {
+    console.error('[chat] 重命名失败:', e.message);
+  }
+}
+function autoGrow() {
+  const el = inputEl.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
 }
 
 // 助手消息渲染 Markdown（加粗/列表/代码等），与办公视图同款用法；用户消息保持纯文本防注入
@@ -232,7 +298,10 @@ function fmtTime(ts) {
           >
             <span class="sidebar-item-title">{{ s.title }}</span>
             <span class="sidebar-item-time">{{ fmtTime(s.updated_at) }}</span>
-            <button class="sidebar-item-del" title="删除会话" @click.stop="removeSession(s.id)">×</button>
+            <span class="sidebar-item-ops">
+              <button class="sidebar-item-op" title="重命名" @click.stop="renameSession(s)"><Icon name="doc" :size="12" /></button>
+              <button class="sidebar-item-op del" title="删除会话" @click.stop="removeSession(s.id)"><Icon name="trash" :size="12" /></button>
+            </span>
           </div>
         </div>
       </template>
@@ -244,7 +313,12 @@ function fmtTime(ts) {
         <h2><Icon name="sparkle" /> AI 助手</h2>
         <span class="chat-hint">对话 · 创作 · 问答</span>
       </header>
-      <div ref="messagesEl" class="chat-messages">
+      <div ref="messagesEl" class="chat-messages" @scroll.passive="onMessagesScroll">
+        <div v-if="!messages.length && !loadingSession" class="chat-empty">
+          <div class="chat-empty-icon"><Icon name="sparkle" :size="26" /></div>
+          <div class="chat-empty-title">有什么可以帮您？</div>
+          <div class="chat-empty-sub">对话 · 创作 · 问答，输入内容即可开始</div>
+        </div>
         <div v-if="loadingSession" class="msg assistant"><div class="msg-content loading-text">加载中…</div></div>
         <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
           <div
@@ -262,18 +336,32 @@ function fmtTime(ts) {
             <span v-if="m.streaming" class="stream-cursor"></span>
           </div>
           <div v-else class="msg-content loading-text"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <div v-if="m.role === 'assistant' && !m.streaming && m.content" class="msg-actions">
+            <button class="msg-action" :title="copiedIdx === i ? '已复制' : '复制'" @click="copyMsg(i)">
+              <Icon :name="copiedIdx === i ? 'check' : 'copy'" :size="13" />
+            </button>
+            <button v-if="m.failed || m.stopped" class="msg-action" title="重新生成" @click="regenerate">
+              <Icon name="refresh" :size="13" />
+            </button>
+          </div>
         </div>
       </div>
+      <button v-show="!nearBottom" class="scroll-bottom" title="回到底部" @click="jumpBottom"><Icon name="back" :size="14" /></button>
       <div class="chat-input-bar">
-        <input
+        <textarea
+          ref="inputEl"
           v-model="input"
           class="chat-input"
-          type="text"
+          rows="1"
           placeholder="有什么可以帮您？"
           :disabled="sending"
-          @keydown.enter="send"
-        />
-        <button class="btn primary chat-send" :disabled="sending || !input.trim()" @click="send">
+          @input="autoGrow"
+          @keydown.enter.exact.prevent="send"
+        ></textarea>
+        <button v-if="sending" class="btn ghost chat-stop" title="停止生成" @click="stopStream">
+          <Icon name="close" :size="14" /> 停止
+        </button>
+        <button v-else class="btn primary chat-send" :disabled="!input.trim()" @click="send">
           <Icon name="send" /> 发送
         </button>
       </div>
@@ -385,45 +473,54 @@ function fmtTime(ts) {
 .sidebar-item.active {
   background: var(--panel-2);
   border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent); /* 左缘金色竖条：当前会话高亮增强 */
 }
 .sidebar-item-title {
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 18px;
+  padding-right: 44px; /* 给 hover 浮出的重命名/删除按钮组留位 */
 }
 .sidebar-item-time {
   font-size: 11px;
   color: var(--text-dim);
 }
-.sidebar-item-del {
+.sidebar-item-ops {
   position: absolute;
-  top: 6px;
+  top: 5px;
   right: 6px;
-  width: 18px;
-  height: 18px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sidebar-item:hover .sidebar-item-ops {
+  opacity: 1;
+}
+.sidebar-item-op {
+  width: 20px;
+  height: 20px;
   border-radius: 5px;
   border: none;
   background: transparent;
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
-.sidebar-item:hover .sidebar-item-del {
-  opacity: 1;
+.sidebar-item-op:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.sidebar-item-del:hover {
+.sidebar-item-op.del:hover {
   color: #ff6b6b;
   background: rgba(255, 107, 107, 0.1);
 }
 /* —— 主对话区 —— */
 .chat-main {
+  position: relative; /* 回到底部悬浮按钮的定位基准 */
   flex: 1;
   min-width: 0;
   display: flex;
@@ -602,7 +699,12 @@ function fmtTime(ts) {
   background: var(--panel);
   color: var(--text);
   font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  max-height: 140px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .chat-input:focus {
@@ -614,6 +716,89 @@ function fmtTime(ts) {
 }
 .chat-send {
   flex-shrink: 0;
+}
+.chat-stop {
+  flex-shrink: 0;
+}
+/* 消息操作条：hover 浮现，复制/重新生成 */
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.msg:hover .msg-actions {
+  opacity: 1;
+}
+.msg-action {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.msg-action:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* 回到底部悬浮按钮 */
+.scroll-bottom {
+  position: absolute;
+  right: 24px;
+  bottom: 110px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  backdrop-filter: blur(10px);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-90deg); /* back 图标转向下箭头 */
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: color 0.15s, border-color 0.15s;
+  z-index: 5;
+}
+.scroll-bottom:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+/* 空态引导 */
+.chat-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 0;
+}
+.chat-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-empty-title {
+  font-size: 17px;
+  color: var(--text);
+}
+.chat-empty-sub {
+  font-size: 13px;
 }
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(10px); }
