@@ -736,7 +736,6 @@ async function generate() {
 <template>
   <div class="office">
     <header class="office-header">
-      <button class="back" @click="$emit('back')">‹ 返回首页</button>
       <h2><Icon name="chart" /> 办公助手</h2>
       <span class="hint">信息图 · 简历图 · 生成结果自动进入绘图历史</span>
     </header>

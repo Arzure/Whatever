@@ -125,7 +125,6 @@ const canStart = computed(() => {
 <template>
   <div class="adventure">
     <header class="adventure-header">
-      <button class="back" @click="$emit('back')">‹ 返回首页</button>
       <h2><Icon name="sword" /> 文字冒险</h2>
       <span class="hint">你的每一个选择都将改变命运</span>
       <button class="saves-btn" title="存档" @click="showSaves = true"><Icon name="save" :size="16" /> 存档</button>

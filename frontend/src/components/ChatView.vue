@@ -4,7 +4,7 @@ import Icon from './Icon.vue';
 import { api, getAuthToken, getAccessToken } from '../api';
 import { marked } from 'marked';
 
-const { state, backToHome } = inject('game');
+const { state } = inject('game');
 
 // —— 会话与消息（真实接口：持久化到后端） ——
 const sessions = ref([]);
@@ -309,7 +309,6 @@ function fmtTime(ts) {
     <!-- 主对话区 -->
     <div class="chat-main">
       <header class="chat-header">
-        <button class="chat-back" title="返回首页" @click="backToHome"><Icon name="home" :size="17" /></button>
         <h2><Icon name="sparkle" /> AI 助手</h2>
         <span class="chat-hint">对话 · 创作 · 问答</span>
       </header>

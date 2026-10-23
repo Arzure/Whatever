@@ -133,7 +133,9 @@ export function useGame() {
     state.gameOver = isOver(data, data.player);
     state.inBattle = false;
     state.lastEffects = [];
-    state.view = 'game';
+    // 文字冒险游戏进行中：独立视图值 'story'，与挥剑挑战的 'game' 区分
+    // （渲染分支中 mode 视图在 view='story' 时自然命中，避免被挥剑挑战优先拦截）
+    state.view = 'story';
   }
 
   /** 从任意响应中判定「游戏是否已结束」：优先模式判定，其次生命归零 */

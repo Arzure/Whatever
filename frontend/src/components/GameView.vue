@@ -21,7 +21,6 @@
         <div class="pause-actions">
           <button class="play-btn" @click="resume">继续</button>
           <button class="ghost-btn" @click="restart">重新开始</button>
-          <button class="ghost-btn" @click="quit">返回游戏中心</button>
         </div>
       </div>
     </div>
@@ -372,11 +371,6 @@ function resume() {
 function restart() {
   paused.value = false;
   start();
-}
-function quit() {
-  paused.value = false;
-  playing.value = false;
-  state.view = 'hub'; // 返回游戏中心（首页 ⇄ 游戏中心 ⇄ 游戏 层级）
 }
 function onKeydown(e) {
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {

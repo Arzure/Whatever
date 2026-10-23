@@ -99,6 +99,18 @@ function onDeleted() {
   showSettings.value = false;
   authUser.value = null;
 }
+// —— 返回上一级：全站统一层级映射（顶栏『<』按钮唯一入口） ——
+// 游戏中心 → 首页；挥剑挑战/方块世界 → 游戏中心；文字冒险游戏进行中 → 文字冒险模式页；其余视图 → 首页
+function backUp() {
+  const v = game.state.view;
+  if (v === 'game' || v === 'voxel') {
+    game.state.view = 'hub';
+  } else if (v === 'story') {
+    game.state.view = 'adventure';
+  } else {
+    game.backToHome();
+  }
+}
 </script>
 <template>
   <AccessGate>
@@ -110,9 +122,9 @@ function onDeleted() {
              对话页下叠加模糊滤镜（类由全局样式接管），降低背景对阅读的干扰 -->
         <SilkBackground v-if="game.state.view === 'home' || game.state.view === 'hub' || game.state.view === 'chat'" :class="{ 'silk-dimmed': game.state.view === 'chat' }" />
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
-          <button v-if="game.state.view !== 'home'" class="app-bar-home" :class="{ 'in-game': game.state.view === 'game' || game.state.view === 'voxel' }" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
-          <!-- 进入游戏后：返回游戏中心的轻量入口，紧贴首页按钮右侧 -->
-          <button v-if="game.state.view === 'game' || game.state.view === 'voxel'" class="app-bar-back" title="返回游戏中心" @click="game.state.view = 'hub'">‹</button>
+          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
+          <!-- 返回上一级：非首页时始终显示，全站唯一的层级返回入口 -->
+          <button v-if="game.state.view !== 'home'" class="app-bar-back" title="返回上一级" @click="backUp">‹</button>
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> <span class="bar-label">{{ theme === 'light' ? '深色' : '浅色' }}</span></button>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" title="管理" @click="game.state.view = 'admin'"><Icon name="admin" /> <span class="bar-label">管理</span></button>
@@ -122,10 +134,10 @@ function onDeleted() {
           <HomeView v-if="game.state.view === 'home'" />
           <!-- 具体页面视图优先于游戏模式判断：避免返回首页后 mode 残留导致绘图/办公/管理页面被游戏界面遮挡 -->
           <DrawView v-else-if="game.state.view === 'draw'" />
-          <OfficeView v-else-if="game.state.view === 'office'" @back="game.backToHome" />
-          <AdminView v-else-if="game.state.view === 'admin'" @back="game.backToHome" />
-          <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
-          <ChatView v-else-if="game.state.view === 'chat'" @back="game.backToHome" />
+          <OfficeView v-else-if="game.state.view === 'office'" />
+          <AdminView v-else-if="game.state.view === 'admin'" />
+          <AdventureView v-else-if="game.state.view === 'adventure'" />
+          <ChatView v-else-if="game.state.view === 'chat'" />
           <GameView v-else-if="game.state.view === 'game'" />
           <GameHubView v-else-if="game.state.view === 'hub'" />
           <VoxelView v-else-if="game.state.view === 'voxel'" />
@@ -238,8 +250,7 @@ function onDeleted() {
   border-color: #58a6ff;
   color: #58a6ff;
 }
-/* 游戏内：首页按钮不再占右侧弹性间距，由『<』按钮接管，两按钮紧邻 */
-.app-bar-home.in-game { margin-right: 0; }
+
 .app-bar-logout {
   background: none;
   border: 1px solid #3d4d80;

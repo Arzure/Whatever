@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
 
-const { state, submitAction, voteTarget, backToHome, restart } = inject('game');
+const { state, submitAction, voteTarget, restart } = inject('game');
 
 const input = ref('');
 const messagesEl = ref(null);
@@ -55,7 +55,6 @@ watch(() => state.history.length, scrollToBottom);
     <aside class="side-panel">
       <div class="panel-head">
         <h2>{{ state.player?.name }}</h2>
-        <button class="btn ghost" @click="backToHome">← 主菜单</button>
       </div>
 
       <div class="phase-badge" :key="phase" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>

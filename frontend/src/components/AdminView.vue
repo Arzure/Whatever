@@ -91,7 +91,6 @@ async function doReset() {
 <template>
   <div class="admin">
     <header class="admin-header">
-      <button class="back" @click="$emit('back')">‹ 返回</button>
       <h2><Icon name="admin" /> 用户管理</h2>
       <button class="refresh" @click="load">刷新</button>
     </header>

@@ -4,7 +4,7 @@ import { api } from '../api';
 import NightActionGraph from './NightActionGraph.vue';
 import EndModal from './EndModal.vue';
 
-const { state, listenSpeeches, adjudicateTarget, backToHome, restart } = inject('game');
+const { state, listenSpeeches, adjudicateTarget, restart } = inject('game');
 
 const messagesEl = ref(null);
 const showRoles = ref(false);
@@ -585,7 +585,6 @@ watch(() => state.history.length, scrollToBottom);
     <aside class="side-panel">
       <div class="panel-head">
         <h2>⚖️ {{ state.player?.name }}</h2>
-        <button class="btn ghost" @click="backToHome">← 主菜单</button>
       </div>
 
       <div class="phase-badge" :key="phase" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>

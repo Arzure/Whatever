@@ -1,6 +1,5 @@
 <template>
   <div class="hub" ref="hubEl" :class="{ expanding: expanding }">
-      <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /></button>
     <div class="hub-head">
       <h1 class="hub-title">3D 世界</h1>
     </div>
@@ -99,9 +98,6 @@ const games = [
 function enterGame(id) {
   state.view = id;
 }
-function backHome() {
-  state.view = 'home';
-}
 
 // 卡片 3D 倾斜跟随（与首页入口卡片同款手感）
 function onCardMove(e) {
@@ -137,24 +133,6 @@ function onCardLeave(e) {
   from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
-.hub-back {
-  position: fixed;
-  top: calc(var(--bar-h, 48px) + 14px);
-  left: 18px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 14px;
-  background: var(--panel);
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-.hub-back:hover { border-color: var(--accent); }
 .hub-title {
   margin: 0;
   font-size: 30px;

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch, inject } from 'vue';
 
 const { state, hpPercent, expPercent } = inject('game');
-const { submitAction, backToHome, restart, useItem, discardItem, equipItem, unequipItem, cancelPending } =
+const { submitAction, restart, useItem, discardItem, equipItem, unequipItem, cancelPending } =
   inject('game');
 
 const input = ref('');
@@ -73,7 +73,6 @@ watch(() => state.history.length, scrollToBottom);
     <aside class="side-panel">
       <div class="panel-head">
         <h2>{{ state.player.name }}</h2>
-        <button class="btn ghost" @click="backToHome">← 主菜单</button>
       </div>
 
       <div v-if="stats.includes('exp')" class="stat">

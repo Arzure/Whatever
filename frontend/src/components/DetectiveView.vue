@@ -5,7 +5,6 @@ const {
   state,
   hpPercent,
   submitAction,
-  backToHome,
   restart,
   equipItem,
   unequipItem,
@@ -181,7 +180,6 @@ watch(phase, (p) => {
     <aside class="side-panel">
       <div class="panel-head">
         <h2>{{ state.player?.name }}</h2>
-        <button class="btn ghost" @click="backToHome">← 主菜单</button>
       </div>
 
       <div class="phase-badge" :key="phase" :class="phase">{{ PHASE_TEXT[phase] || phase }}</div>
