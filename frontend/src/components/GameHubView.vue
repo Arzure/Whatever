@@ -145,7 +145,7 @@ const games = [
   },
   {
     id: 'cube',
-    name: '魔方',
+    name: '魔方还原',
     desc: '经典魔方 · 打乱还原 · 多阶挑战',
     icon: 'sword',
     badge: 'CUBE 3D',
@@ -159,14 +159,14 @@ const games = [
   },
   {
     id: 'tower',
-    name: '盖楼游戏',
+    name: '叠楼挑战',
     desc: '经典叠楼 · 吊臂落块 · 冲击高分',
     icon: 'sword',
     badge: 'ARCADE',
   },
   {
     id: 'underrun',
-    name: '双摇杆射击',
+    name: '欠载行动',
     desc: '复古像素 · 俯视角射击 · 弹幕生存',
     icon: 'sword',
     badge: 'RETRO',
