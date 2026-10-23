@@ -21,8 +21,6 @@ const IronholdView = defineAsyncComponent(() => import('./components/IronholdVie
 const CubeView = defineAsyncComponent(() => import('./components/CubeView.vue'));
 const TowerView = defineAsyncComponent(() => import('./components/TowerView.vue'));
 const UnderrunView = defineAsyncComponent(() => import('./components/UnderrunView.vue'));
-const G2048View = defineAsyncComponent(() => import('./components/G2048View.vue'));
-const MineView = defineAsyncComponent(() => import('./components/MineView.vue'));
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -109,7 +107,7 @@ function onDeleted() {
 // 游戏中心 → 首页；挥剑挑战/方块世界 → 游戏中心；文字冒险游戏进行中 → 文字冒险模式页；其余视图 → 首页
 function backUp() {
   const v = game.state.view;
-  if (v === 'slash' || v === 'voxel' || v === 'ironhold' || v === 'cube' || v === 'tower' || v === 'underrun' || v === 'g2048' || v === 'mine') {
+  if (v === 'slash' || v === 'voxel' || v === 'ironhold' || v === 'cube' || v === 'tower' || v === 'underrun') {
     game.state.view = 'hub';
   } else if (v === 'story') {
     game.state.view = 'adventure';
@@ -151,8 +149,6 @@ function backUp() {
           <CubeView v-else-if="game.state.view === 'cube'" />
           <TowerView v-else-if="game.state.view === 'tower'" />
           <UnderrunView v-else-if="game.state.view === 'underrun'" />
-          <G2048View v-else-if="game.state.view === 'g2048'" />
-          <MineView v-else-if="game.state.view === 'mine'" />
           <DetectiveView v-else-if="game.state.mode === 'detective'" />
           <WolfView v-else-if="game.state.mode === 'wolf'" />
           <DeductionView v-else-if="game.state.mode === 'deduction'" />
@@ -231,7 +227,8 @@ function backUp() {
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
-  background: #1f2b52;
+  /* 半透明底：与首页按钮一致，透明度低于顶栏自身 */
+  background: rgba(31, 43, 82, 0.35);
   color: #e6edf3;
   font-size: 13px;
   line-height: 16px; /* 行高对齐首页按钮的图标高度（16px），按钮上下方向等高 */
@@ -250,7 +247,8 @@ function backUp() {
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
-  background: #1f2b52;
+  /* 半透明底：与右侧按钮一致，且透明度低于顶栏自身（0.55） */
+  background: rgba(31, 43, 82, 0.35);
   color: #e6edf3;
   font-size: 13px;
   cursor: pointer;
@@ -264,7 +262,8 @@ function backUp() {
 }
 
 .app-bar-logout {
-  background: none;
+  /* 半透明底：与左侧按钮一致，透明度低于顶栏自身 */
+  background: rgba(31, 43, 82, 0.35);
   border: 1px solid #3d4d80;
   border-radius: 6px;
   color: #8b949e;
@@ -293,12 +292,12 @@ html.light .app-bar-user {
   color: #1e2638;
 }
 html.light .app-bar-home {
-  background: #eef1f8;
+  background: rgba(255, 255, 255, 0.08);
   border-color: #d8deeb;
   color: #1e2638;
 }
 html.light .app-bar-back {
-  background: #eef1f8;
+  background: rgba(255, 255, 255, 0.08);
   border-color: #d8deeb;
   color: #1e2638;
 }
@@ -311,6 +310,7 @@ html.light .app-bar-home:hover {
   color: #6d5ae0;
 }
 html.light .app-bar-logout {
+  background: rgba(255, 255, 255, 0.08);
   border-color: #d8deeb;
   color: #5b677e;
 }
