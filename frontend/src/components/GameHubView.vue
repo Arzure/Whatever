@@ -158,7 +158,8 @@ function cubieTransform(i) {
 function faceStyle(ly, i, f) {
   const c = (i - 1) % 3;
   const r = Math.floor((i - 1) / 3);
-  let color = CUBE_COLORS.inner;
+  // 外露面按标准六面配色；内面统一白色，展开时干净清爽
+  let color = CUBE_COLORS.top;
   if (f === 1 && r === 0) color = CUBE_COLORS.front;
   else if (f === 2 && r === 2) color = CUBE_COLORS.back;
   else if (f === 3 && c === 0) color = CUBE_COLORS.left;
