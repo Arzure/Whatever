@@ -38,7 +38,7 @@ let obstacles = [];
 let sword, swordTipWorld = new THREE.Vector3();
 let swordBox = new THREE.Box3();      // 剑的碰撞盒（每帧随剑更新）
 let obBox = new THREE.Box3();
-let mouse = { x: 0, y: 0, vx: 0, vy: 0, speed: 0 };
+let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
 let spawnTimer = 0;
 let flashDiv = null;
 // 拖尾：记录刀尖最近 N 个世界坐标，用发光线条渲染
@@ -97,7 +97,7 @@ function updateTrail() {
   }
   attr.needsUpdate = true;
   // 挥砍速度越大拖尾越亮
-  trailLine.material.opacity = Math.min(0.75, mouse.speed / 40);
+  trailLine.material.opacity = Math.min(0.75, mouse.speed / 8);
 }
 
 function buildScene() {
@@ -168,8 +168,8 @@ function slashEffect(pos, color) {
 
 // —— 砍击判定（参考 SlashSaber：碰撞盒相交 + 挥砍速度阈值 + 方向判定）——
 function trySlash() {
-  if (mouse.speed < 14) return; // 挥砍速度阈值：慢移不判砍
-  const horizontal = Math.abs(mouse.vx) > Math.abs(mouse.vy);
+  if (mouse.speed < 2.2) return; // 挥砍速度阈值（归一化坐标/秒）：慢移不判砍，快速挥动可达 5~10
+  const horizontal = Math.abs(mouse.ax) >= Math.abs(mouse.ay);
   for (const ob of obstacles) {
     if (!ob.userData || ob.userData.cut || ob.userData.life !== undefined) continue;
     // 障碍物世界包围盒
@@ -189,8 +189,13 @@ function tick(dt) {
   const ty = mouse.y * 3.2;
   sword.position.x += (tx - sword.position.x) * 0.4;
   sword.position.y += (ty - sword.position.y) * 0.4;
-  // 挥动时剑身朝速度方向倾斜
-  const targetTilt = Math.max(-0.9, Math.min(0.9, mouse.vx * 2.2));
+  // 挥砍速度与方向累计量随时间衰减（停止移动后约 0.17s 归零，不会残留误判）
+  const decay = Math.max(0, 1 - 6 * dt);
+  mouse.speed *= decay;
+  mouse.ax *= decay;
+  mouse.ay *= decay;
+  // 挥动时剑身朝移动方向倾斜
+  const targetTilt = Math.max(-0.9, Math.min(0.9, mouse.ax * 1.5));
   sword.rotation.z += (targetTilt - sword.rotation.z) * 0.25;
   // 刀尖世界坐标 + 剑碰撞盒（沿剑身的长条盒）
   swordTipWorld.set(sword.position.x, sword.position.y, -1.2);
@@ -261,11 +266,20 @@ function onPointerMove(e) {
   const r = canvasWrap.value.getBoundingClientRect();
   const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
   const ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
-  mouse.vx = nx - mouse.x;
-  mouse.vy = ny - mouse.y;
+  const now = performance.now();
+  const dx = nx - mouse.x;
+  const dy = ny - mouse.y;
+  if (mouse.lastT) {
+    // 真实速度：位移 / 时间间隔（归一化坐标每秒），事件触发频率不再影响结果
+    const dt = Math.max((now - mouse.lastT) / 1000, 0.004);
+    const v = Math.hypot(dx, dy) / dt;
+    mouse.speed = Math.max(mouse.speed * 0.5, v); // 峰值保持：挥砍取近期峰值速度
+  }
+  mouse.ax += dx; // 累计位移：供挥砍方向判定（横砍/竖砍）
+  mouse.ay += dy;
   mouse.x = nx;
   mouse.y = ny;
-  mouse.speed = Math.hypot(mouse.vx, mouse.vy) * 60;
+  mouse.lastT = now;
 }
 
 function onResize() {
