@@ -32,7 +32,6 @@
         <p v-if="over" class="final-score">本局得分 <b>{{ score }}</b> · 最高 {{ best }}</p>
         <p class="tip" v-if="!over">快速滑动鼠标挥剑，砍碎飞来的方块<br />漏 3 个方块即结束</p>
         <button class="play-btn" @click="start">{{ over ? '再来一局' : '开始游戏' }}</button>
-        <p class="credit">3D 素材来自开源项目 SlashSaber（CC BY 4.0）</p>
       </div>
     </div>
   </div>
@@ -82,7 +81,7 @@ function loadAssets(onDone) {
   const swordParts = [];
   let pending = 4; // 3 剑部件 + 收尾
   const done = () => { if (--pending === 0) onDone(swordParts); };
-  // 剑三段拼装（参考 SlashSaber：blade / guard / hilt）
+  // 剑三段拼装（blade / guard / hilt 模型来自开源项目 SlashSaber，CC BY 4.0，仅代码注释记录来源）
   for (const part of ['blade_default', 'guard_default', 'hilt_default']) {
     loader.load(`/3d/sword/${part}.glb`, (gltf) => {
       swordParts.push(gltf.scene);
@@ -577,7 +576,6 @@ onBeforeUnmount(() => {
 }
 html.light .play-btn { color: #fff; }
 .play-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-.credit { margin: 16px 0 0; font-size: 11px; color: var(--muted, #8a94b8); opacity: 0.7; }
 .score-pop {
   position: absolute;
   transform: translate(-50%, -50%);
