@@ -231,7 +231,7 @@ const canStart = computed(() => {
           <span class="play-icon"><Icon name="sword" :size="22" /></span>
           <span class="play-text">
             <b>3D 世界</b>
-            <em>实时 3D 游戏中心 · 挥剑挑战已上线 · 更多游戏持续加入</em>
+            <em>实时 3D 中心</em>
           </span>
           <span class="play-arrow">›</span>
         </div>

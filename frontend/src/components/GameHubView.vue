@@ -3,7 +3,6 @@
     <div class="hub-head">
       <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /> <span>首页</span></button>
       <h1 class="hub-title">3D 世界</h1>
-      <p class="hub-sub">实时 3D 游戏中心 · 每个游戏独立加载</p>
     </div>
     <div class="hub-grid">
       <div
