@@ -34,4 +34,9 @@
 
 	<script type="text/javascript" src="source/terminal.js"></script>
 	<script type="text/javascript" src="source/main.js"></script>
+	<script type="text/javascript">
+		// iframe 内运行修复：游戏 onmousedown 的 preventDefault 会取消 mousedown 的默认聚焦行为，
+		// 导致 iframe 拿不到键盘焦点、WASD/方向键失效。捕获阶段先聚焦窗口，不改动游戏逻辑。
+		document.addEventListener('mousedown', function() { window.focus(); }, true);
+	</script>
 </body></html>
