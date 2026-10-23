@@ -4,7 +4,41 @@ import { ref, computed, onMounted, inject } from 'vue';
 import { api } from '../api';
 
 // 文字冒险模式选择：独立视图页面（从首页入口跳转进入）
-const { state, loadCatalogs, parseTheme, startGame } = inject('game');
+const { state, loadCatalogs, parseTheme, startGame, loadSave, refreshSaves } = inject('game');
+// —— 存档管理（原顶栏入口迁移至此：存档仅属于文字冒险） ——
+const showSaves = ref(false);
+const deletingId = ref('');
+const deletingAll = ref(false);
+async function deleteAllSaves() {
+  if (deletingAll.value || deletingId.value) return;
+  const n = state.saves.length;
+  if (!n) return;
+  if (!confirm(`确定清空全部 ${n} 个存档吗？此操作不可恢复，且只影响当前账号。`)) return;
+  deletingAll.value = true;
+  state.error = '';
+  try {
+    await api.deleteAllSaves();
+    await refreshSaves();
+  } catch (e) {
+    state.error = e.message;
+  } finally {
+    deletingAll.value = false;
+  }
+}
+async function deleteSave(s) {
+  if (deletingId.value) return;
+  if (!confirm(`确定删除存档「${s.playerName}」吗？此操作不可恢复。`)) return;
+  deletingId.value = s.id;
+  state.error = '';
+  try {
+    await api.deleteSave(s.id);
+    await refreshSaves();
+  } catch (e) {
+    state.error = e.message;
+  } finally {
+    deletingId.value = '';
+  }
+}
 
 const playerName = ref('');
 const modeId = ref('deduction');
@@ -94,6 +128,7 @@ const canStart = computed(() => {
       <button class="back" @click="$emit('back')">‹ 返回首页</button>
       <h2><Icon name="sword" /> 文字冒险</h2>
       <span class="hint">你的每一个选择都将改变命运</span>
+      <button class="saves-btn" title="存档" @click="showSaves = true"><Icon name="save" :size="16" /> 存档</button>
     </header>
 
     <div class="adventure-body">
@@ -196,10 +231,134 @@ const canStart = computed(() => {
 
       <p v-if="state.error" class="error">{{ state.error }}</p>
     </div>
+    <!-- 存档选择浮层（原顶栏入口迁移至此：存档仅属于文字冒险） -->
+    <div v-if="showSaves" class="save-overlay" @click.self="showSaves = false">
+      <div class="save-modal">
+        <div class="save-modal-head">
+          <h3>📂 继续冒险</h3>
+          <button class="save-modal-close" @click="showSaves = false">✕</button>
+        </div>
+        <div class="save-modal-body">
+          <div v-for="s in state.saves" :key="s.id" class="save-item" @click="showSaves = false; loadSave(s.id)">
+            <span class="save-name">{{ s.playerName }}</span>
+            <span class="save-meta">
+              <em v-if="s.caseTitle">{{ s.caseTitle }}</em>
+              <em v-else-if="s.themeName">{{ s.themeName }}</em>
+              <template v-if="s.caseTitle || s.themeName"> · </template>
+              <template v-if="s.mode !== 'detective'">Lv.{{ s.level }} · </template>
+              {{ new Date(s.updatedAt).toLocaleString() }}
+            </span>
+            <button class="save-delete" :disabled="deletingId === s.id" @click.stop="deleteSave(s)">
+              {{ deletingId === s.id ? '删除中…' : '🗑 删除' }}
+            </button>
+          </div>
+          <button class="save-clear-all" :disabled="deletingAll" @click="deleteAllSaves">
+            {{ deletingAll ? '清空中…' : `🗑 清空全部存档（${state.saves.length}）` }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* —— 存档按钮与浮层（原顶栏入口迁移至此，样式合并自 App.vue 与 HomeView） —— */
+.saves-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.saves-btn:hover { border-color: var(--accent); }
+.save-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.save-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.save-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.save-modal-head h3 { margin: 0; font-size: 15px; }
+.save-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.save-modal-body { overflow-y: auto; padding: 12px 16px; }
+.save-item {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.save-item:hover {
+  border-color: var(--accent);
+  background: rgba(212, 161, 44, 0.06);
+}
+.save-clear-all {
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 6px;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 8px;
+  background: rgba(248, 81, 73, 0.08);
+  color: #f85149;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.save-clear-all:hover:not(:disabled) {
+  border-color: #f85149;
+  background: rgba(248, 81, 73, 0.16);
+}
+.save-delete {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 32px;
+}
+.save-delete:hover { color: var(--danger); border-color: var(--danger); }
+.save-delete:disabled { opacity: 0.6; cursor: not-allowed; }
+.save-name { font-weight: 600; }
+.save-meta { color: var(--text-dim); font-size: 13px; }
+.save-meta em { font-style: normal; color: var(--accent-2); }
+html.light .save-overlay { background: rgba(30, 38, 56, 0.35); }
 .adventure {
   height: 100%;
   overflow-y: auto; /* 内部滚动：页面级滚动已锁死，内容超出视口时在此滚动 */
