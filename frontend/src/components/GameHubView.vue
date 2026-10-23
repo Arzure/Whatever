@@ -159,7 +159,7 @@ const games = [
   },
   {
     id: 'tower',
-    name: '叠楼挑战',
+    name: '摩天叠楼',
     desc: '经典叠楼 · 吊臂落块 · 冲击高分',
     icon: 'sword',
     badge: 'ARCADE',
