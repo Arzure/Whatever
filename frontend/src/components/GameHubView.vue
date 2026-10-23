@@ -74,6 +74,25 @@
             <span class="gp-uenemy gp-ue1"></span>
             <span class="gp-uenemy gp-ue2"></span>
           </template>
+          <template v-else-if="g.id === 'g2048'">
+            <span class="gp-gbg"></span>
+            <span class="gp-gtile gp-gt2">2</span>
+            <span class="gp-gtile gp-gt4">4</span>
+            <span class="gp-gtile gp-gt8">8</span>
+            <span class="gp-gtile gp-gt16">16</span>
+          </template>
+          <template v-else-if="g.id === 'mine'">
+            <span class="gp-mbg"></span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">😀</span>
+            <span class="gp-mcell">🚩</span>
+            <span class="gp-mcell">💣</span>
+            <span class="gp-mcell">😀</span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -170,6 +189,20 @@ const games = [
     desc: '复古像素 · 俯视角射击 · 弹幕生存',
     icon: 'sword',
     badge: 'RETRO',
+  },
+  {
+    id: 'g2048',
+    name: '数字合并',
+    desc: '经典 2048 · 滑动合并 · 冲击 2048',
+    icon: 'sword',
+    badge: 'PUZZLE',
+  },
+  {
+    id: 'mine',
+    name: '表情扫雷',
+    desc: '经典扫雷 · emoji 风格 · 逻辑推理',
+    icon: 'sword',
+    badge: 'LOGIC',
   },
 ];
 
@@ -661,6 +694,74 @@ function onCardLeave(e) {
 @keyframes gp-uenemy-drift {
   0%, 100% { transform: translate(0, 0); }
   50% { transform: translate(14px, 10px); }
+}
+/* —— 数字合并预览：米色底 + 滑动合并的数字方块 —— */
+.gp-gbg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0b1122, #141d3d);
+}
+.gp-gbg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 45% at 50% 50%, rgba(250, 248, 239, 0.1), transparent 70%);
+}
+.gp-gtile {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  font-weight: 800;
+  font-size: 15px;
+  color: #776e65;
+  background: #eee4da;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: gp-gtile-slide 3.2s ease-in-out infinite;
+}
+.gp-gt2 { left: 30%; top: 40%; animation-delay: 0s; }
+.gp-gt4 { left: 44%; top: 40%; animation-delay: 0.4s; background: #ede0c8; }
+.gp-gt8 { left: 58%; top: 40%; animation-delay: 0.8s; background: #f2b179; color: #fff; }
+.gp-gt16 { left: 44%; top: 40%; animation-delay: 1.2s; background: #f59563; color: #fff; font-size: 13px; }
+@keyframes gp-gtile-slide {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  35% { transform: translate(26px, 0) scale(1.05); }
+  55% { transform: translate(26px, 0) scale(1.18); }
+  75% { transform: translate(0, 0) scale(1); }
+}
+/* —— 表情扫雷预览：emoji 格阵 + 逐格翻开 —— */
+.gp-mbg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0b1122, #141d3d);
+}
+.gp-mcell {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  animation: gp-mcell-flip 2.8s ease-in-out infinite;
+}
+.gp-mcell:nth-child(2) { left: 32%; top: 30%; }
+.gp-mcell:nth-child(3) { left: 44%; top: 30%; animation-delay: 0.3s; }
+.gp-mcell:nth-child(4) { left: 56%; top: 30%; animation-delay: 0.6s; }
+.gp-mcell:nth-child(5) { left: 32%; top: 52%; animation-delay: 0.9s; }
+.gp-mcell:nth-child(6) { left: 44%; top: 52%; animation-delay: 1.2s; }
+.gp-mcell:nth-child(7) { left: 56%; top: 52%; animation-delay: 1.5s; }
+.gp-mcell:nth-child(8) { left: 32%; top: 74%; animation-delay: 1.8s; }
+.gp-mcell:nth-child(9) { left: 44%; top: 74%; animation-delay: 2.1s; }
+.gp-mcell:nth-child(10) { left: 56%; top: 74%; animation-delay: 2.4s; }
+@keyframes gp-mcell-flip {
+  0%, 100% { transform: rotateY(0deg) scale(1); opacity: 0.85; }
+  50% { transform: rotateY(180deg) scale(1.12); opacity: 1; }
 }
 .hub-info {
   display: flex;
