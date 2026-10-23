@@ -31,6 +31,11 @@ function enterChat() {
   }
 }
 
+// —— 3D 世界入口：进入挥剑挑战 ——
+function openGame() {
+  state.view = 'game';
+}
+
 const playerName = ref('');
 const modeId = ref('deduction');
 const themeId = ref('');
@@ -208,6 +213,26 @@ const canStart = computed(() => {
         </div>
       </div>
 
+      <!-- 3D 世界入口：宽卡片带实时画面预览（纯 CSS 动效，与首页动效同语言） -->
+      <div class="game-entry" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openGame()" role="button" tabindex="0" @keydown.enter="openGame()">
+        <div class="game-preview" aria-hidden="true">
+          <span class="gp-grid"></span>
+          <span class="gp-cube gp-c1"></span>
+          <span class="gp-cube gp-c2"></span>
+          <span class="gp-cube gp-c3"></span>
+          <span class="gp-slash"></span>
+          <span class="gp-badge">LIVE 3D</span>
+        </div>
+        <div class="game-info">
+          <span class="play-icon"><Icon name="sword" :size="22" /></span>
+          <span class="play-text">
+            <b>3D 世界 · 挥剑挑战</b>
+            <em>Three.js 实时 3D · 挥剑切割 · 方向判定 · 计分挑战</em>
+          </span>
+          <span class="play-arrow">›</span>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -303,8 +328,126 @@ const canStart = computed(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 22px;
+  margin-bottom: 10px;
 }
+/* 3D 世界入口：宽卡片（上画面预览 + 下信息行），复用入口卡片视觉语言 */
+.game-entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(212, 161, 44, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(212, 161, 44, 0.08), rgba(60, 90, 160, 0.08)), var(--panel-2);
+  cursor: pointer;
+  overflow: hidden;
+  animation: entry-in 0.55s ease both;
+  box-shadow: 0 0 18px rgba(212, 161, 44, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.game-entry::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 11px;
+  padding: 1.5px;
+  background: conic-gradient(from var(--ang, 0deg), transparent 0%, var(--accent-2) 12%, transparent 28%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.55;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  animation: border-spin 2.8s linear infinite;
+  z-index: 2;
+}
+.game-entry:hover::before { opacity: 1; }
+.game-entry:hover {
+  border-color: var(--accent);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 34px color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+.game-entry:hover .play-icon { transform: scale(1.12); }
+/* 预览画面：深空底 + 透视地面网格 + 飞来方块 + 挥剑光痕（纯 CSS 动效） */
+.game-preview {
+  position: relative;
+  height: 118px;
+  background: radial-gradient(ellipse at 50% 130%, rgba(109, 90, 224, 0.28), transparent 62%), linear-gradient(180deg, #0b1122, #141d3d);
+  overflow: hidden;
+}
+.gp-grid {
+  position: absolute;
+  left: -40%;
+  right: -40%;
+  bottom: -34px;
+  height: 92px;
+  background:
+    repeating-linear-gradient(90deg, rgba(212, 161, 44, 0.28) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(0deg, rgba(212, 161, 44, 0.22) 0 1px, transparent 1px 22px);
+  transform: perspective(210px) rotateX(56deg);
+  transform-origin: top center;
+  opacity: 0.55;
+  animation: gp-scroll 1.5s linear infinite;
+}
+@keyframes gp-scroll {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 0, 0 22px; }
+}
+.gp-cube {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid rgba(212, 161, 44, 0.95);
+  background: rgba(212, 161, 44, 0.16);
+  border-radius: 2px;
+  animation: gp-fly 2.7s linear infinite;
+}
+.gp-c1 { left: 32%; top: 34%; }
+.gp-c2 { left: 54%; top: 46%; animation-delay: 0.9s; }
+.gp-c3 { left: 68%; top: 24%; animation-delay: 1.8s; border-color: rgba(109, 90, 224, 0.95); background: rgba(109, 90, 224, 0.16); }
+@keyframes gp-fly {
+  0% { transform: scale(0.15); opacity: 0; }
+  16% { opacity: 0.95; }
+  78% { opacity: 0.95; }
+  100% { transform: scale(3.4) translateY(16px); opacity: 0; }
+}
+.gp-slash {
+  position: absolute;
+  top: -12%;
+  bottom: -12%;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, #d4a12c 22%, #fff 50%, #d4a12c 78%, transparent);
+  box-shadow: 0 0 14px 3px rgba(212, 161, 44, 0.5);
+  transform: rotate(22deg);
+  opacity: 0;
+  animation: gp-slash 2.7s ease-in-out infinite;
+}
+@keyframes gp-slash {
+  0%, 52% { left: -8%; opacity: 0; }
+  57% { opacity: 1; }
+  82% { left: 104%; opacity: 0.85; }
+  87%, 100% { left: 104%; opacity: 0; }
+}
+.gp-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #d4a12c;
+  border: 1px solid rgba(212, 161, 44, 0.4);
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: rgba(11, 17, 34, 0.55);
+  backdrop-filter: blur(3px);
+}
+.game-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+}
+.game-info .play-text { align-items: flex-start; }
 /* 玩法入口卡片：竖版布局（图标居顶、标题居中），三卡等宽对称 */
 .play-entry {
   position: relative;

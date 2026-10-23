@@ -146,7 +146,6 @@ async function deleteSave(s) {
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> <span class="bar-label">{{ theme === 'light' ? '深色' : '浅色' }}</span></button>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" title="管理" @click="game.state.view = 'admin'"><Icon name="admin" /> <span class="bar-label">管理</span></button>
-          <button class="app-bar-logout" title="挥剑挑战" @click="game.state.view = 'game'"><Icon name="sword" /> <span class="bar-label">游戏</span></button>
           <button class="app-bar-logout" title="存档" @click="showSaves = true"><Icon name="save" /> <span class="bar-label">存档</span></button>
           <button class="app-bar-logout" @click="showSettings = true"><Icon name="settings" /> <span class="label-full">账号设置</span><span class="label-short">设置</span></button>
         </header>
