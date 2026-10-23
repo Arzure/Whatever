@@ -133,13 +133,20 @@ async function submit() {
   padding: 10px 0;
   border: none;
   border-radius: 8px;
-  background: #238636;
-  color: #fff;
+  /* 与口令输入页按钮同款：主题强调色渐变（深色金色/浅色紫色），深色主题下深字 */
+  background: linear-gradient(135deg, var(--accent, #d4a12c), var(--accent-2, #ffd76a));
+  color: #1a1303;
   font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
 }
-.login-btn:hover { background: #2ea043; }
+.login-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* 浅色主题：紫色渐变底配白字（与口令页按钮一致） */
+html.light .login-btn {
+  color: #ffffff;
+}
 .login-switch {
   margin-top: 16px;
   font-size: 13px;
