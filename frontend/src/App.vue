@@ -268,18 +268,17 @@ async function deleteSave(s) {
 /* 游戏内返回游戏中心：仅『<』字样，紧贴首页按钮右侧，接管右侧弹性间距 */
 .app-bar-back {
   margin-right: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 30px;
-  height: 30px;
+  padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
   background: #1f2b52;
   color: #e6edf3;
-  font-size: 16px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   transition: border-color 0.2s, color 0.2s;
 }
 .app-bar-back:hover {
