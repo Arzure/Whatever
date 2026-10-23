@@ -15,7 +15,7 @@
       <div class="panel">
         <h2>{{ over ? '游戏结束' : '挥剑挑战' }}</h2>
         <p v-if="over" class="final-score">本局得分 <b>{{ score }}</b> · 最高 {{ best }}</p>
-        <p class="tip" v-if="!over">快速滑动鼠标挥剑，斩断飞来的竹子<br />漏 3 根竹子即结束</p>
+        <p class="tip" v-if="!over">快速滑动鼠标挥剑，砍碎飞来的方块<br />漏 3 个方块即结束</p>
         <button class="play-btn" @click="start">{{ over ? '再来一局' : '开始游戏' }}</button>
         <p class="credit">3D 素材来自开源项目 SlashSaber（CC BY 4.0）</p>
       </div>
@@ -41,13 +41,8 @@ let sword, swordTipWorld = new THREE.Vector3();
 let swordBox = new THREE.Box3();
 let obBox = new THREE.Box3();
 let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
-let swingSoundArmed = true; // 挥动轻响防连发标记
-let audioCtx = null;
 let spawnTimer = 0;
 let flashDiv = null;
-// 模型模板：竹子障碍物（加载后 clone 生成实例）
-let bambooTemplates = [];
-let assetsReady = false;
 // 拖尾：记录刀尖最近 N 个世界坐标
 const TRAIL_LEN = 22;
 let trailPts = [];
@@ -58,21 +53,14 @@ const isLight = () => document.documentElement.classList.contains('light');
 function loadAssets(onDone) {
   const loader = new GLTFLoader();
   const swordParts = [];
-  let pending = 8; // 3 剑部件 + 4 竹子 + 收尾
-  const done = () => { if (--pending === 0) { assetsReady = true; onDone(); } };
+  let pending = 4; // 3 剑部件 + 收尾
+  const done = () => { if (--pending === 0) onDone(); };
   // 剑三段拼装（参考 SlashSaber：blade / guard / hilt）
   for (const part of ['blade_default', 'guard_default', 'hilt_default']) {
     loader.load(`/3d/sword/${part}.glb`, (gltf) => {
       swordParts.push(gltf.scene);
       done();
     }, undefined, () => done()); // 加载失败也放行，降级用几何剑
-  }
-  // 竹子障碍物模板
-  for (const name of ['bamboo_mid_1', 'bamboo_mid_3', 'bamboo_mid_5', 'bamboo_mid_7']) {
-    loader.load(`/3d/obstacles/${name}.glb`, (gltf) => {
-      bambooTemplates.push(gltf.scene);
-      done();
-    }, undefined, () => done());
   }
   done(); // 计数对齐
   return swordParts;
@@ -150,23 +138,15 @@ function buildScene(swordParts) {
 }
 
 function spawnObstacle() {
-  let mesh;
-  if (assetsReady && bambooTemplates.length) {
-    // 竹子模型：随机模板 clone
-    const tpl = bambooTemplates[Math.floor(Math.random() * bambooTemplates.length)];
-    mesh = tpl.clone(true);
-    mesh.scale.setScalar(1.6);
-  } else {
-    // 降级：几何方块
-    const hue = 0.08 + Math.random() * 0.12;
-    mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 1.1, 1.1),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color().setHSL(hue, 0.75, 0.55),
-        emissive: new THREE.Color().setHSL(hue, 0.9, 0.18),
-      })
-    );
-  }
+  // 障碍物：发光方块
+  const hue = 0.08 + Math.random() * 0.12;
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 1.1, 1.1),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(hue, 0.75, 0.55),
+      emissive: new THREE.Color().setHSL(hue, 0.9, 0.18),
+    })
+  );
   mesh.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3.4, -48);
   mesh.userData = {
     speed: 7.5 + Math.random() * 4 + Math.min(score.value * 0.1, 6),
@@ -177,15 +157,15 @@ function spawnObstacle() {
   obstacles.push(mesh);
 }
 
-function slashEffect(pos) {
-  // 竹屑：绿色小片 + 白色高光屑飞散
+function slashEffect(pos, color) {
+  // 碎屑：障碍物同色碎片 + 白色高光屑飞散
   for (let i = 0; i < 14; i++) {
     const isSpark = i < 4;
     const frag = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.06, 0.06),
       isSpark
         ? new THREE.MeshBasicMaterial({ color: 0xfff2c8 })
-        : new THREE.MeshStandardMaterial({ color: 0x7fae5a, emissive: 0x2c4419 })
+        : new THREE.MeshStandardMaterial({ color, emissive: color })
     );
     frag.position.copy(pos);
     frag.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
@@ -222,33 +202,7 @@ function popScore(worldPos) {
   canvasWrap.value.appendChild(el);
   setTimeout(() => el.remove(), 800);
 }
-// 合成挥砍声：带通白噪声快速衰减（Web Audio，零依赖）
-function playSlashSound(strength = 1) {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = audioCtx;
-    const dur = 0.14 + 0.08 * strength;
-    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2.2);
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 2400 + 1600 * strength;
-    filter.Q.value = 0.9;
-    const gain = ctx.createGain();
-    const t0 = ctx.currentTime;
-    gain.gain.setValueAtTime(0.3 * strength, t0);
-    gain.gain.exponentialRampToValueAtTime(0.01, t0 + dur);
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
-  } catch { /* 音频不可用时静默 */ }
-}
+
 
 // —— 砍击判定：碰撞盒相交 + 挥砍速度阈值（方向判定已按需求移除）——
 function trySlash() {
@@ -258,10 +212,9 @@ function trySlash() {
     obBox.setFromObject(ob);
     if (!swordBox.intersectsBox(obBox)) continue;
     ob.userData.cut = true;
-    slashEffect(ob.position.clone());
+    slashEffect(ob.position.clone(), ob.material.color.getHex());
     flashRing(ob.position.clone());
     popScore(ob.position.clone());
-    playSlashSound(1);
     scene.remove(ob);
     score.value++;
   }
@@ -290,12 +243,6 @@ function tick(dt) {
   mouse.speed *= decay;
   mouse.ax *= decay;
   mouse.ay *= decay;
-  // 挥动轻响：速度跨越阈值时播一次，回落后重新武装（防连发）
-  if (mouse.speed > 1.6 && swingSoundArmed) {
-    playSlashSound(0.4);
-    swingSoundArmed = false;
-  }
-  if (mouse.speed < 0.5) swingSoundArmed = true;
 
   if (playing.value) {
     spawnTimer -= dt;
@@ -325,7 +272,8 @@ function tick(dt) {
     ob.position.z += ob.userData.speed * dt;
     ob.rotation.x += ob.userData.spin.x * dt;
     ob.rotation.y += ob.userData.spin.y * dt;
-    if (ob.position.z > 6.5) {
+    if (ob.position.z > 1.5) {
+      // 漏接判定在玩家平面（剑所在 z≈0 略后）：方块冲到面前才扣血，视觉与判定一致
       scene.remove(ob);
       obstacles.splice(i, 1);
       if (playing.value) {
@@ -405,7 +353,7 @@ onMounted(() => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   canvasWrap.value.appendChild(renderer.domElement);
   flashDiv = canvasWrap.value.querySelector('.hit-flash');
-  const swordParts = loadAssets(() => {}); // 素材异步加载，竹子就绪后自动启用
+  const swordParts = loadAssets(() => {}); // 剑素材异步加载，失败自动降级几何剑
   buildScene(swordParts);
   onResize();
   window.addEventListener('resize', onResize);
