@@ -78,6 +78,13 @@ const games = [
     icon: 'sword',
     badge: 'LIVE 3D',
   },
+  {
+    id: 'voxel',
+    name: '方块世界',
+    desc: '像素沙盒 · 自由建造 · 探索世界',
+    icon: 'sword',
+    badge: 'NEW',
+  },
 ];
 
 function enterGame(id) {
