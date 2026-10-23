@@ -15,6 +15,7 @@ const AdminView = defineAsyncComponent(() => import('./components/AdminView.vue'
 const AdventureView = defineAsyncComponent(() => import('./components/AdventureView.vue'));
 const ChatView = defineAsyncComponent(() => import('./components/ChatView.vue'));
 const GameView = defineAsyncComponent(() => import('./components/GameView.vue'));
+const GameHubView = defineAsyncComponent(() => import('./components/GameHubView.vue'));
 import AccessGate from './components/AccessGate.vue';
 import LoginView from './components/LoginView.vue';
 import AccountSettings from './components/AccountSettings.vue';
@@ -158,6 +159,7 @@ async function deleteSave(s) {
           <AdventureView v-else-if="game.state.view === 'adventure'" @back="game.backToHome" />
           <ChatView v-else-if="game.state.view === 'chat'" @back="game.backToHome" />
           <GameView v-else-if="game.state.view === 'game'" />
+          <GameHubView v-else-if="game.state.view === 'hub'" />
           <DetectiveView v-else-if="game.state.mode === 'detective'" />
           <WolfView v-else-if="game.state.mode === 'wolf'" />
           <DeductionView v-else-if="game.state.mode === 'deduction'" />

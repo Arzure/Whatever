@@ -31,9 +31,9 @@ function enterChat() {
   }
 }
 
-// —— 3D 世界入口：进入挥剑挑战 ——
-function openGame() {
-  state.view = 'game';
+// —— 3D 世界入口：进入游戏中心 ——
+function openHub() {
+  state.view = 'hub';
 }
 
 const playerName = ref('');
@@ -214,7 +214,7 @@ const canStart = computed(() => {
       </div>
 
       <!-- 3D 世界入口：宽卡片带实时画面预览（纯 CSS 动效，与首页动效同语言） -->
-      <div class="game-entry" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openGame()" role="button" tabindex="0" @keydown.enter="openGame()">
+      <div class="game-entry" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openHub()" role="button" tabindex="0" @keydown.enter="openHub()">
         <div class="game-preview" aria-hidden="true">
           <span class="gp-grid"></span>
           <span class="gp-cube gp-c1"></span>
@@ -226,8 +226,8 @@ const canStart = computed(() => {
         <div class="game-info">
           <span class="play-icon"><Icon name="sword" :size="22" /></span>
           <span class="play-text">
-            <b>3D 世界 · 挥剑挑战</b>
-            <em>Three.js 实时 3D · 挥剑切割 · 方向判定 · 计分挑战</em>
+            <b>3D 世界</b>
+            <em>实时 3D 游戏中心 · 挥剑挑战已上线 · 更多游戏持续加入</em>
           </span>
           <span class="play-arrow">›</span>
         </div>
