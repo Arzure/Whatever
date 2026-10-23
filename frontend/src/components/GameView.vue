@@ -6,8 +6,23 @@
     <!-- HUD -->
     <div class="hud">
       <div class="hud-score">分数 <b>{{ score }}</b></div>
-      <div class="hud-lives">
-        <span v-for="i in 3" :key="i" class="life" :class="{ lost: i > lives }">◆</span>
+      <div class="hud-right">
+        <div class="hud-lives">
+          <span v-for="i in 3" :key="i" class="life" :class="{ lost: i > lives }">◆</span>
+        </div>
+        <button v-if="playing" class="hud-btn" title="暂停（Esc / P）" @click="pause">‖</button>
+      </div>
+    </div>
+    <!-- 暂停覆盖层 -->
+    <div v-if="paused" class="overlay">
+      <div class="panel">
+        <h2>已暂停</h2>
+        <p class="final-score">当前得分 <b>{{ score }}</b></p>
+        <div class="pause-actions">
+          <button class="play-btn" @click="resume">继续</button>
+          <button class="ghost-btn" @click="restart">重新开始</button>
+          <button class="ghost-btn" @click="quit">返回首页</button>
+        </div>
       </div>
     </div>
     <!-- 开始 / 结束覆盖层 -->
@@ -24,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, inject } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -34,6 +49,8 @@ const best = ref(Number(localStorage.getItem('slash-best') || 0));
 const lives = ref(3);
 const playing = ref(false);
 const over = ref(false);
+const paused = ref(false);
+const { state } = inject('game');
 
 let renderer, scene, camera, rafId;
 let obstacles = [];
@@ -248,7 +265,7 @@ function tick(dt) {
   mouse.ax *= decay;
   mouse.ay *= decay;
 
-  if (playing.value) {
+  if (playing.value && !paused.value) {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       spawnObstacle();
@@ -273,6 +290,7 @@ function tick(dt) {
       if (ob.userData.life <= 0) { scene.remove(ob); obstacles.splice(i, 1); }
       continue;
     }
+    if (paused.value) continue; // 暂停：障碍物冻结
     ob.position.z += ob.userData.speed * dt;
     ob.rotation.x += ob.userData.spin.x * dt;
     ob.rotation.y += ob.userData.spin.y * dt;
@@ -304,6 +322,29 @@ function start() {
   for (const ob of obstacles) scene.remove(ob);
   obstacles = [];
   spawnTimer = 0.6;
+}
+
+// —— 暂停 / 继续 / 重开 / 退出 ——
+function pause() {
+  if (playing.value && !over.value) paused.value = true;
+}
+function resume() {
+  paused.value = false;
+}
+function restart() {
+  paused.value = false;
+  start();
+}
+function quit() {
+  paused.value = false;
+  playing.value = false;
+  state.view = 'home';
+}
+function onKeydown(e) {
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    if (paused.value) resume();
+    else pause();
+  }
 }
 
 function endGame() {
@@ -368,6 +409,7 @@ onMounted(() => {
   onResize();
   window.addEventListener('resize', onResize);
   window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('keydown', onKeydown);
   rafId = requestAnimationFrame(loop);
 });
 
@@ -375,6 +417,7 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(rafId);
   window.removeEventListener('resize', onResize);
   window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('keydown', onKeydown);
   renderer?.dispose();
 });
 </script>
@@ -418,7 +461,42 @@ onBeforeUnmount(() => {
 }
 .hud-score { color: var(--text); font-size: 15px; }
 .hud-score b { color: var(--accent); font-size: 20px; margin-left: 4px; }
+.hud-right { display: flex; align-items: center; gap: 12px; }
 .hud-lives { display: flex; gap: 6px; }
+.hud-btn {
+  pointer-events: auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+.hud-btn:hover { border-color: var(--accent); }
+.pause-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+.ghost-btn {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 34px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  background: transparent;
+  transition: border-color 0.2s;
+}
+.ghost-btn:hover { border-color: var(--accent); }
 .life { color: #e05252; font-size: 18px; transition: opacity 0.3s; }
 .life.lost { opacity: 0.18; }
 .overlay {

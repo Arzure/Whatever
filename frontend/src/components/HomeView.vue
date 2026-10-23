@@ -342,7 +342,8 @@ const canStart = computed(() => {
   overflow: hidden;
   animation: entry-in 0.55s ease both;
   box-shadow: 0 0 18px rgba(212, 161, 44, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  /* transform 过渡与玩法卡片同款：鼠标从边缘滑入时倾斜平滑渐变，不突变 */
+  transition: border-color 0.2s, transform 0.18s ease-out, box-shadow 0.2s;
 }
 .game-entry::before {
   content: '';
