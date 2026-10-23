@@ -42,9 +42,6 @@
 import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 
 const canvasWrap = ref(null);
 const score = ref(0);
@@ -126,36 +123,47 @@ function buildSword(swordParts) {
 }
 
 function buildTrail() {
-  // 宽线拖尾（Line2）：普通 Line 线宽恒为 1 像素看不清，改用 5 像素发光带
-  const geo = new LineGeometry();
-  geo.setPositions(new Float32Array(TRAIL_LEN * 3));
-  const mat = new LineMaterial({
+  // 面状拖尾（三角带 ribbon）：与剑刃判定面同宽同位置，挥过的区域就是判定区域
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_LEN * 2 * 3), 3));
+  geo.setIndex([]);
+  const mat = new THREE.MeshBasicMaterial({
     color: 0xbfe8ff,
-    linewidth: 5,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0,
+    side: THREE.DoubleSide,
     depthWrite: false,
   });
-  mat.resolution.set(canvasWrap.value.clientWidth, canvasWrap.value.clientHeight);
-  trailLine = new Line2(geo, mat);
+  trailLine = new THREE.Mesh(geo, mat);
   trailLine.frustumCulled = false;
   scene.add(trailLine);
 }
 
 function updateTrail() {
-  trailPts.unshift(swordTipWorld.clone());
+  // 记录剑刃面板上下边缘（与判定面同宽 y±0.9，取刃中部深度）：挥过的光面就是判定区域
+  const midZ = sword.position.z - 2.0;
+  trailPts.unshift([
+    new THREE.Vector3(sword.position.x, sword.position.y + 0.9, midZ),
+    new THREE.Vector3(sword.position.x, sword.position.y - 0.9, midZ),
+  ]);
   if (trailPts.length > TRAIL_LEN) trailPts.pop();
-  const arr = new Float32Array(TRAIL_LEN * 3);
+  const pos = trailLine.geometry.getAttribute('position');
+  const n = trailPts.length;
   for (let i = 0; i < TRAIL_LEN; i++) {
-    const p = trailPts[Math.min(i, trailPts.length - 1)] || swordTipWorld;
-    arr[i * 3] = p.x;
-    arr[i * 3 + 1] = p.y;
-    arr[i * 3 + 2] = p.z;
+    const pair = trailPts[Math.min(i, n - 1)];
+    pos.setXYZ(i * 2, pair[0].x, pair[0].y, pair[0].z);
+    pos.setXYZ(i * 2 + 1, pair[1].x, pair[1].y, pair[1].z);
   }
-  trailLine.geometry.setPositions(arr);
-  const op = Math.min(0.95, mouse.speed / 3.5); // 挥得越快拖尾越亮
+  pos.needsUpdate = true;
+  // 三角带索引：相邻两帧的上下边缘拼成两个三角形
+  const idx = [];
+  for (let i = 0; i < TRAIL_LEN - 1; i++) {
+    const a = i * 2, b = i * 2 + 1, c = (i + 1) * 2, d = (i + 1) * 2 + 1;
+    idx.push(a, b, c, b, d, c);
+  }
+  trailLine.geometry.setIndex(idx);
+  const op = Math.min(0.55, mouse.speed / 6); // 挥得越快光面越亮
   trailLine.material.opacity = op;
-  trailLine.material.uniforms.opacity.value = op;
 }
 
 function buildScene(swordParts) {
@@ -415,7 +423,6 @@ function onResize() {
   // 视锥可见范围（z=0 平面）：随窗口尺寸/宽高比变化，剑的活动范围与之同步
   halfH = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
   halfW = halfH * camera.aspect;
-  if (trailLine) trailLine.material.resolution.set(w, h); // 宽线拖尾分辨率随窗口同步
 }
 
 let lastT = 0;
