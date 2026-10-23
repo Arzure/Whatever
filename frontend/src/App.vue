@@ -22,7 +22,7 @@ const game = useGame();
 provide('game', game);
 
 // —— 主题切换（深色定稿 / 浅色对比）：选择存 localStorage，刷新后保持 ——
-const theme = ref(localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
+const theme = ref(localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'); // 默认浅色，用户切换后按保存的偏好
 function applyTheme() {
   document.documentElement.classList.toggle('light', theme.value === 'light');
 }
