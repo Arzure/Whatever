@@ -540,11 +540,11 @@ function onCardLeave(e) {
 .gp-rf4 { transform: rotateY(90deg) translateZ(10px); }
 .gp-rf5 { transform: rotateX(90deg) translateZ(10px); }
 .gp-rf6 { transform: rotateX(-90deg) translateZ(10px); }
-/* —— 盖楼游戏预览：暖色天空 + 摇摆吊臂 + 逐层叠高的楼块 —— */
+/* —— 盖楼游戏预览：深色夜空 + 摇摆吊臂 + 逐层叠高的楼块 —— */
 .gp-tsky {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #ffb199 0%, #f95240 70%);
+  background: radial-gradient(ellipse 70% 55% at 50% 30%, rgba(249, 82, 64, 0.22), transparent 70%), linear-gradient(180deg, #0b1122, #141d3d);
 }
 .gp-ttower {
   position: absolute;
@@ -559,7 +559,8 @@ function onCardLeave(e) {
 .gp-tfloor {
   height: 14px;
   border-radius: 3px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 12px rgba(212, 161, 44, 0.25);
   animation: gp-tfloor-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 .gp-tf1 { background: #7ec8e3; width: 84px; }
@@ -576,7 +577,7 @@ function onCardLeave(e) {
   width: 2px;
   height: 46px;
   margin-left: -1px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(230, 237, 243, 0.6);
   transform-origin: top center;
   animation: gp-trope-swing 2.2s ease-in-out infinite;
 }
@@ -589,7 +590,8 @@ function onCardLeave(e) {
   margin-left: -13px;
   border-radius: 3px;
   background: #7ec8e3;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 12px rgba(126, 200, 227, 0.4);
   animation: gp-tblock-swing 2.2s ease-in-out infinite;
 }
 @keyframes gp-trope-swing {
