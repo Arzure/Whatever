@@ -85,6 +85,20 @@ function onImitateFile(e) {
 const options = ref({ enabled: false, models: [], sizes: [], outputFormats: [], defaultModel: '' });
 const generating = ref(false);
 const error = ref('');
+// 生成进度（不确定进度条）：缓动推进封顶 90%，完成跳满 100%——真实耗时未知，用减速逼近模拟『快好了』
+const progress = ref(0);
+let progressTimer = null;
+function startProgress() {
+  progress.value = 0;
+  if (progressTimer) clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    progress.value = Math.min(90, progress.value + Math.max(0.4, (90 - progress.value) * 0.035));
+  }, 200);
+}
+function finishProgress() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  progress.value = 100;
+}
 const history = ref([]); // 生成历史（服务端持久化，24 小时过期，跨设备可见）
 const promptHistory = ref([]); // 提示词历史（持续保留，点选填入）
 const expiredCount = ref(0); // 本次访问清理的过期图片数量（服务端返回）
@@ -134,7 +148,7 @@ let tickTimer = null;
 onMounted(() => {
   tickTimer = setInterval(() => { nowTick.value = Date.now(); }, 60 * 1000);
 });
-onUnmounted(() => { if (tickTimer) clearInterval(tickTimer); });
+onUnmounted(() => { if (tickTimer) clearInterval(tickTimer); if (progressTimer) clearInterval(progressTimer); });
 function formatExpiry(ts) {
   const remain = TTL_MS - (nowTick.value - ts);
   if (remain <= 0) return '已过期';
@@ -190,6 +204,7 @@ async function run() {
   if (mode.value === 'imitate' && !imitateImage.value) { error.value = '风格模仿需要上传一张风格参考图'; return; }
   error.value = '';
   generating.value = true;
+  startProgress();
   try {
     const params = {
       model: m,
@@ -237,6 +252,7 @@ async function run() {
   } catch (e) {
     error.value = e.message || '生成失败';
   }
+  finishProgress();
   generating.value = false;
 }
 
@@ -420,8 +436,15 @@ function useAsRef(item) {
             </div>
           </div>
           <button class="btn primary generate-btn" :disabled="generating || !options.enabled" @click="run">
-            {{ generating ? '生成中…（2K/4K 大图可能需要 1-3 分钟）' : (mode === 'generate' ? '✨ 开始生成' : '🖼️ 开始编辑') }}
+            {{ generating ? '生成中…' : (mode === 'generate' ? '✨ 开始生成' : '🖼️ 开始编辑') }}
           </button>
+          <!-- 不确定进度条：缓动推进封顶 90%，完成跳满；流光高光扫过 + 弹性入场 -->
+          <div v-if="generating" class="gen-progress">
+            <div class="gen-progress-track">
+              <div class="gen-progress-fill" :style="{ width: progress + '%' }"></div>
+            </div>
+            <p class="gen-progress-text">{{ Math.floor(progress) }}% · 正在绘制，2K/4K 大图可能需要 1-3 分钟</p>
+          </div>
           <p v-if="error" class="error">{{ error }}</p>
         </div>
 
@@ -975,5 +998,46 @@ function useAsRef(item) {
     width: 100%;
     position: static;
   }
+}
+/* —— 生成进度条（不确定进度）：金色渐变填充 + 流光高光扫过 + 弹性入场 —— */
+.gen-progress {
+  margin-top: 10px;
+  animation: gen-progress-in 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+@keyframes gen-progress-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.gen-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.gen-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  position: relative;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gen-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.35) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: gen-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes gen-shimmer {
+  to { transform: translateX(100%); }
+}
+.gen-progress-text {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
 }
 </style>
