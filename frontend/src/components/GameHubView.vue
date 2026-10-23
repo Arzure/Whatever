@@ -30,11 +30,13 @@
             <span class="gp-target gp-t1"></span>
             <span class="gp-target gp-t2"></span>
           </template>
-          <template v-else-if="g.id === 'jungle'">
-            <span class="gp-jcanopy"></span>
-            <span class="gp-leaf gp-l1"></span>
-            <span class="gp-leaf gp-l2"></span>
-            <span class="gp-leaf gp-l3"></span>
+          <template v-else-if="g.id === 'cube'">
+            <span class="gp-cshine"></span>
+            <span class="gp-cubie">
+              <span class="gp-face gp-f1"></span>
+              <span class="gp-face gp-f2"></span>
+              <span class="gp-face gp-f3"></span>
+            </span>
           </template>
           <template v-else>
             <span class="gp-grid"></span>
@@ -92,11 +94,11 @@ onMounted(() => {
 // 游戏清单：数据驱动，以后加游戏只需注册一条数据
 const games = [
   {
-    id: 'slash',
-    name: '挥剑挑战',
-    desc: '挥剑切割 · 面状拖尾 · 计分挑战',
+    id: 'ironhold',
+    name: '铁壁行动',
+    desc: '第一人称射击 · 守住防线 · 火力全开',
     icon: 'sword',
-    badge: 'LIVE 3D',
+    badge: 'FPS 3D',
   },
   {
     id: 'voxel',
@@ -106,18 +108,18 @@ const games = [
     badge: 'VOXEL 3D',
   },
   {
-    id: 'ironhold',
-    name: '铁壁行动',
-    desc: '第一人称射击 · 守住防线 · 火力全开',
+    id: 'cube',
+    name: '魔方',
+    desc: '经典魔方 · 打乱还原 · 多阶挑战',
     icon: 'sword',
-    badge: 'FPS 3D',
+    badge: 'CUBE 3D',
   },
   {
-    id: 'jungle',
-    name: '丛林小径',
-    desc: '程序化丛林 · 第一人称 · 自由探索',
+    id: 'slash',
+    name: '挥剑挑战',
+    desc: '挥剑切割 · 面状拖尾 · 计分挑战',
     icon: 'sword',
-    badge: 'JUNGLE 3D',
+    badge: 'LIVE 3D',
   },
 ];
 
@@ -377,32 +379,44 @@ function onCardLeave(e) {
   90% { opacity: 1; }
   100% { left: 96%; opacity: 0; }
 }
-/* —— 丛林小径预览：层叠树冠 + 飘落叶片 —— */
-.gp-jcanopy {
+/* —— 魔方预览：光晕背景 + 三面旋转魔方块 —— */
+.gp-cshine {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(94, 168, 82, 0.5), transparent 70%),
-    radial-gradient(ellipse 50% 36% at 55% 0%, rgba(74, 138, 66, 0.55), transparent 70%),
-    radial-gradient(ellipse 64% 42% at 85% 0%, rgba(94, 168, 82, 0.45), transparent 70%),
-    linear-gradient(180deg, #0f2415, #0b1122);
+  background: radial-gradient(ellipse 70% 55% at 50% 45%, rgba(109, 90, 224, 0.3), transparent 70%), linear-gradient(180deg, #0b1122, #141d3d);
 }
-.gp-leaf {
+.gp-cubie {
   position: absolute;
-  width: 12px;
-  height: 8px;
-  background: rgba(120, 190, 100, 0.9);
-  border-radius: 0 100% 0 100%;
-  animation: gp-leaf-fall 3.2s linear infinite;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  transform-style: preserve-3d;
+  animation: gp-cubie-spin 5.5s linear infinite;
 }
-.gp-l1 { left: 24%; }
-.gp-l2 { left: 52%; animation-delay: 1.1s; background: rgba(94, 168, 82, 0.9); }
-.gp-l3 { left: 74%; animation-delay: 2.2s; background: rgba(150, 200, 120, 0.9); }
-@keyframes gp-leaf-fall {
-  0% { top: -12%; transform: rotate(0deg); opacity: 0; }
-  12% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { top: 108%; transform: rotate(220deg); opacity: 0; }
+.gp-face {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.25);
+}
+.gp-f1 {
+  background: linear-gradient(135deg, #d4a12c, #b8860b);
+  transform: translateZ(28px);
+}
+.gp-f2 {
+  background: linear-gradient(135deg, #6d5ae0, #4b3bc0);
+  transform: rotateY(90deg) translateZ(28px);
+}
+.gp-f3 {
+  background: linear-gradient(135deg, #4a9e5c, #2e7d43);
+  transform: rotateX(90deg) translateZ(28px);
+}
+@keyframes gp-cubie-spin {
+  from { transform: rotateX(-24deg) rotateY(0deg); }
+  to { transform: rotateX(-24deg) rotateY(360deg); }
 }
 .hub-info {
   display: flex;
