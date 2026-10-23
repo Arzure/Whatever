@@ -41,6 +41,8 @@ let sword, swordTipWorld = new THREE.Vector3();
 let swordBox = new THREE.Box3();
 let obBox = new THREE.Box3();
 let mouse = { x: 0, y: 0, ax: 0, ay: 0, speed: 0, lastT: 0 };
+let swingSoundArmed = true; // 挥动轻响防连发标记
+let audioCtx = null;
 let spawnTimer = 0;
 let flashDiv = null;
 // 模型模板：竹子障碍物（加载后 clone 生成实例）
@@ -122,7 +124,7 @@ function updateTrail() {
     attr.setXYZ(i, p.x, p.y, p.z);
   }
   attr.needsUpdate = true;
-  trailLine.material.opacity = Math.min(0.75, mouse.speed / 8);
+  trailLine.material.opacity = Math.min(0.85, mouse.speed / 5);
 }
 
 function buildScene(swordParts) {
@@ -167,7 +169,7 @@ function spawnObstacle() {
   }
   mesh.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3.4, -48);
   mesh.userData = {
-    speed: 9 + Math.random() * 5 + Math.min(score.value * 0.12, 8),
+    speed: 7.5 + Math.random() * 4 + Math.min(score.value * 0.1, 6),
     spin: new THREE.Vector3((Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2),
     cut: false,
   };
@@ -176,32 +178,90 @@ function spawnObstacle() {
 }
 
 function slashEffect(pos) {
-  // 竹屑：绿色小片飞散
-  for (let i = 0; i < 10; i++) {
+  // 竹屑：绿色小片 + 白色高光屑飞散
+  for (let i = 0; i < 14; i++) {
+    const isSpark = i < 4;
     const frag = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.06, 0.06),
-      new THREE.MeshStandardMaterial({ color: 0x7fae5a, emissive: 0x2c4419 })
+      isSpark
+        ? new THREE.MeshBasicMaterial({ color: 0xfff2c8 })
+        : new THREE.MeshStandardMaterial({ color: 0x7fae5a, emissive: 0x2c4419 })
     );
     frag.position.copy(pos);
     frag.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
     frag.userData = {
-      vel: new THREE.Vector3((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, Math.random() * 7),
+      vel: new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, Math.random() * 8),
       life: 0.7,
     };
     scene.add(frag);
     obstacles.push(frag);
   }
 }
+// 命中闪光圈：白色圆环快速扩散淡出
+function flashRing(pos) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.22, 0.36, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+  );
+  ring.position.copy(pos);
+  ring.position.z += 0.6;
+  ring.userData = { life: 0.35, ring: true };
+  scene.add(ring);
+  obstacles.push(ring);
+}
+// 命中飘字：+1 从命中点上浮淡出
+function popScore(worldPos) {
+  if (!canvasWrap.value) return;
+  const v = worldPos.clone().project(camera);
+  const el = document.createElement('span');
+  el.className = 'score-pop';
+  el.textContent = '+1';
+  const r = canvasWrap.value.getBoundingClientRect();
+  el.style.left = `${(v.x * 0.5 + 0.5) * r.width}px`;
+  el.style.top = `${(-v.y * 0.5 + 0.5) * r.height}px`;
+  canvasWrap.value.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+// 合成挥砍声：带通白噪声快速衰减（Web Audio，零依赖）
+function playSlashSound(strength = 1) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = audioCtx;
+    const dur = 0.14 + 0.08 * strength;
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2.2);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2400 + 1600 * strength;
+    filter.Q.value = 0.9;
+    const gain = ctx.createGain();
+    const t0 = ctx.currentTime;
+    gain.gain.setValueAtTime(0.3 * strength, t0);
+    gain.gain.exponentialRampToValueAtTime(0.01, t0 + dur);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+  } catch { /* 音频不可用时静默 */ }
+}
 
 // —— 砍击判定：碰撞盒相交 + 挥砍速度阈值（方向判定已按需求移除）——
 function trySlash() {
-  if (mouse.speed < 2.2) return;
+  if (mouse.speed < 1.0) return; // 阈值大幅降低：正常速度挥动即可砍中
   for (const ob of obstacles) {
     if (!ob.userData || ob.userData.cut || ob.userData.life !== undefined) continue;
     obBox.setFromObject(ob);
     if (!swordBox.intersectsBox(obBox)) continue;
     ob.userData.cut = true;
     slashEffect(ob.position.clone());
+    flashRing(ob.position.clone());
+    popScore(ob.position.clone());
+    playSlashSound(1);
     scene.remove(ob);
     score.value++;
   }
@@ -212,11 +272,17 @@ function tick(dt) {
   const ty = mouse.y * 3.2;
   sword.position.x += (tx - sword.position.x) * 0.4;
   sword.position.y += (ty - sword.position.y) * 0.4;
-  const targetTilt = Math.max(-0.9, Math.min(0.9, mouse.ax * 1.5));
-  sword.rotation.z += (targetTilt - sword.rotation.z) * 0.25;
+  // —— 挥舞动画：三轴联动——横向甩动倾斜 z、纵向挥动俯仰 x、挥动越快剑身前刺 ——
+  const tiltZ = Math.max(-1.15, Math.min(1.15, mouse.ax * 2.4));
+  const tiltX = Math.max(-0.55, Math.min(0.55, mouse.ay * 1.4));
+  sword.rotation.z += (tiltZ - sword.rotation.z) * 0.32;
+  sword.rotation.x += (tiltX - sword.rotation.x) * 0.32;
+  const lunge = Math.min(0.7, mouse.speed * 0.07);
+  sword.position.z += (-lunge - sword.position.z) * 0.22;
   swordTipWorld.set(sword.position.x, sword.position.y, -1.2);
-  swordBox.min.set(sword.position.x - 0.35, sword.position.y - 0.35, -2.7);
-  swordBox.max.set(sword.position.x + 0.35, sword.position.y + 0.35, 0.1);
+  // 碰撞盒扩大：扫过范围更宽容，更容易砍中
+  swordBox.min.set(sword.position.x - 0.55, sword.position.y - 0.55, -2.9);
+  swordBox.max.set(sword.position.x + 0.55, sword.position.y + 0.55, 0.3);
   updateTrail();
 
   // 挥砍速度与方向累计量随时间衰减
@@ -224,6 +290,12 @@ function tick(dt) {
   mouse.speed *= decay;
   mouse.ax *= decay;
   mouse.ay *= decay;
+  // 挥动轻响：速度跨越阈值时播一次，回落后重新武装（防连发）
+  if (mouse.speed > 1.6 && swingSoundArmed) {
+    playSlashSound(0.4);
+    swingSoundArmed = false;
+  }
+  if (mouse.speed < 0.5) swingSoundArmed = true;
 
   if (playing.value) {
     spawnTimer -= dt;
@@ -238,8 +310,15 @@ function tick(dt) {
     const ob = obstacles[i];
     if (ob.userData.life !== undefined) {
       ob.userData.life -= dt;
-      ob.userData.vel.y -= 12 * dt;
-      ob.position.addScaledVector(ob.userData.vel, dt);
+      if (ob.userData.ring) {
+        // 命中闪光圈：扩散 + 淡出
+        const p = Math.max(0, ob.userData.life / 0.35);
+        ob.scale.setScalar(1 + (1 - p) * 8);
+        ob.material.opacity = p * 0.9;
+      } else {
+        ob.userData.vel.y -= 12 * dt;
+        ob.position.addScaledVector(ob.userData.vel, dt);
+      }
       if (ob.userData.life <= 0) { scene.remove(ob); obstacles.splice(i, 1); }
       continue;
     }
@@ -419,4 +498,20 @@ onBeforeUnmount(() => {
 html.light .play-btn { color: #fff; }
 .play-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .credit { margin: 16px 0 0; font-size: 11px; color: var(--muted, #8a94b8); opacity: 0.7; }
+.score-pop {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(212, 161, 44, 0.6);
+  pointer-events: none;
+  z-index: 3;
+  animation: score-pop 0.8s ease-out forwards;
+}
+@keyframes score-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  25% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
 </style>
