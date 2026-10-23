@@ -204,15 +204,13 @@ function onDeleted() {
 /* 游戏内返回游戏中心：仅『<』字样，紧贴首页按钮右侧，接管右侧弹性间距 */
 .app-bar-back {
   margin-right: auto;
-  min-width: 58px; /* 与首页按钮（图标+文字）视觉等宽，避免『‹』单字符过窄 */
-  justify-content: center;
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
   background: #1f2b52;
   color: #e6edf3;
   font-size: 13px;
-  line-height: 1;
+  line-height: 16px; /* 行高对齐首页按钮的图标高度（16px），按钮上下方向等高 */
   cursor: pointer;
   display: inline-flex;
   align-items: center;
