@@ -133,7 +133,6 @@ function buildScene(swordParts) {
   grid.position.y = -2.2;
   scene.add(grid);
 
-  sword = buildSword(swordParts);
   buildTrail();
 }
 
@@ -207,7 +206,8 @@ function popScore(worldPos) {
 // —— 砍击判定：碰撞盒相交 + 挥砍速度阈值（方向判定已按需求移除）——
 function trySlash() {
   if (mouse.speed < 1.0) return; // 阈值大幅降低：正常速度挥动即可砍中
-  for (const ob of obstacles) {
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const ob = obstacles[i];
     if (!ob.userData || ob.userData.cut || ob.userData.life !== undefined) continue;
     obBox.setFromObject(ob);
     if (!swordBox.intersectsBox(obBox)) continue;
@@ -216,11 +216,13 @@ function trySlash() {
     flashRing(ob.position.clone());
     popScore(ob.position.clone());
     scene.remove(ob);
+    obstacles.splice(i, 1); // 关键：同步从数组移除，否则已砍掉的方块仍会飞过判定线误扣血
     score.value++;
   }
 }
 
 function tick(dt) {
+  if (!sword) return; // 剑未就绪（GLB 加载中）：跳过本帧，障碍物仅在开始后才生成
   const tx = mouse.x * 5.5;
   const ty = mouse.y * 3.2;
   sword.position.x += (tx - sword.position.x) * 0.4;
@@ -353,14 +355,10 @@ onMounted(() => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   canvasWrap.value.appendChild(renderer.domElement);
   flashDiv = canvasWrap.value.querySelector('.hit-flash');
-  buildScene([]); // 先用几何剑立即可玩
-  // GLB 剑素材异步加载，就绪后替换几何剑
-  // （修复 bug：此前同步取用空素材数组，GLB 剑从未显示过，一直降级为几何剑）
+  buildScene(); // 不预建几何剑：避免先抽象剑后突变真剑的闪变
+  // GLB 剑素材加载完成才创建剑（开始面板正好遮住加载期）；加载失败降级几何剑
   loadAssets((parts) => {
-    if (parts && parts.length === 3 && scene && sword) {
-      scene.remove(sword);
-      sword = buildSword(parts);
-    }
+    if (scene) sword = buildSword(parts && parts.length === 3 ? parts : []);
   });
   onResize();
   window.addEventListener('resize', onResize);
