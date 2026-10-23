@@ -34,10 +34,14 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 容器不带 filter/transform：保证顶栏与 iframe 层级稳定 */
+/* 容器不带 filter/transform：保证顶栏与 iframe 层级稳定；
+   top: 48px 从顶栏下沿开始，游戏画面完整不被顶栏遮挡 */
 .ironhold {
   position: fixed;
-  inset: 0;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1;
   background: #000;
 }
