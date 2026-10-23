@@ -1,7 +1,7 @@
 <template>
   <div class="hub">
-    <div class="hub-head">
       <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /> <span>首页</span></button>
+    <div class="hub-head">
       <h1 class="hub-title">3D 世界</h1>
     </div>
     <div class="hub-grid">
