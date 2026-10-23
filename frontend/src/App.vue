@@ -215,7 +215,6 @@ function backUp() {
 }
 /* 游戏内返回游戏中心：仅『<』字样，紧贴首页按钮右侧，接管右侧弹性间距 */
 .app-bar-back {
-  margin-right: auto;
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
