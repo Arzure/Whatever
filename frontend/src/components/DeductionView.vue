@@ -2061,7 +2061,7 @@ watch(() => state.history.length, scrollToBottom);
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  color: #131c3a;
+  color: #0e1428;
   font-size: 13px;
   font-weight: 700;
   margin-right: 6px;

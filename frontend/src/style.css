@@ -5,18 +5,18 @@
 }
 
 :root {
-  /* 深色加强版色板（第三档）：背景明显深蓝非黑，面板层次分明 */
-  --bg: #131c3a;
-  --panel: #1e2a52;
-  --panel-2: #263566;
-  --border: #4a5c96;
+  /* 深色加强版色板（第四档）：整体再暗一档，背景更深邃，面板层次分明 */
+  --bg: #0e1428;
+  --panel: #182242;
+  --panel-2: #1f2b52;
+  --border: #3d4d80;
   --text: #e8ecf5;
   --text-dim: #9aa6c8;
   --accent: #d4a12c;
   --accent-2: #e8c15a;
   --danger: #e05252;
   --hp: #43c25c;
-  --hp-bg: #2a3a66;
+  --hp-bg: #1e2a4d;
 }
 /* —— 浅色主题（对比用）：白底 + slate 中性色 + 紫色强调，参考 SenseNova 官网 —— */
 html.light {

@@ -167,6 +167,10 @@ onMounted(probe);
   opacity: 0.6;
   cursor: not-allowed;
 }
+/* 浅色主题：按钮为紫色渐变底，文字改白色（深色字在紫底上不协调） */
+html.light .gate-btn {
+  color: #ffffff;
+}
 /* 手机端口令门禁：输入框 16px 防 iOS 聚焦缩放，键盘弹出时顶部对齐不被裁切 */
 @media (max-width: 768px) {
   .access-gate {
