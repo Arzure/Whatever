@@ -144,7 +144,9 @@ async function deleteSave(s) {
              对话页下叠加模糊滤镜（类由全局样式接管），降低背景对阅读的干扰 -->
         <SilkBackground v-if="game.state.view === 'home' || game.state.view === 'hub' || game.state.view === 'chat'" :class="{ 'silk-dimmed': game.state.view === 'chat' }" />
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
-          <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
+          <button v-if="game.state.view !== 'home'" class="app-bar-home" :class="{ 'in-game': game.state.view === 'game' || game.state.view === 'voxel' }" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
+          <!-- 进入游戏后：返回游戏中心的轻量入口，紧贴首页按钮右侧 -->
+          <button v-if="game.state.view === 'game' || game.state.view === 'voxel'" class="app-bar-back" title="返回游戏中心" @click="game.state.view = 'hub'">‹</button>
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>
           <button class="app-bar-logout" :title="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'" @click="toggleTheme"><Icon :name="theme === 'light' ? 'moon' : 'sun'" /> <span class="bar-label">{{ theme === 'light' ? '深色' : '浅色' }}</span></button>
           <button v-if="authUser?.isAdmin" class="app-bar-logout" title="管理" @click="game.state.view = 'admin'"><Icon name="admin" /> <span class="bar-label">管理</span></button>
@@ -263,6 +265,27 @@ async function deleteSave(s) {
   align-items: center;
   gap: 5px;
 }
+/* 游戏内返回游戏中心：仅『<』字样，紧贴首页按钮右侧，接管右侧弹性间距 */
+.app-bar-back {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  border: 1px solid #3d4d80;
+  border-radius: 6px;
+  background: #1f2b52;
+  color: #e6edf3;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.app-bar-back:hover {
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
 .app-bar-home {
   margin-right: auto;
   padding: 4px 12px;
@@ -280,6 +303,8 @@ async function deleteSave(s) {
   border-color: #58a6ff;
   color: #58a6ff;
 }
+/* 游戏内：首页按钮不再占右侧弹性间距，由『<』按钮接管，两按钮紧邻 */
+.app-bar-home.in-game { margin-right: 0; }
 /* —— 存档选择浮层（顶栏入口，样式与原首页浮层一致） —— */
 .save-overlay {
   position: fixed;

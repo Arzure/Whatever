@@ -18,11 +18,20 @@
         @keydown.enter="enterGame(g.id)"
       >
         <div class="hub-preview" aria-hidden="true">
-          <span class="gp-grid"></span>
-          <span class="gp-cube gp-c1"></span>
-          <span class="gp-cube gp-c2"></span>
-          <span class="gp-cube gp-c3"></span>
-          <span class="gp-slash"></span>
+          <!-- 预览动效按游戏区分：方块世界为像素草地+悬浮方块，其余为砍击动效 -->
+          <template v-if="g.id === 'voxel'">
+            <span class="gp-vground"></span>
+            <span class="gp-vblock gp-vb1"></span>
+            <span class="gp-vblock gp-vb2"></span>
+            <span class="gp-vblock gp-vb3"></span>
+          </template>
+          <template v-else>
+            <span class="gp-grid"></span>
+            <span class="gp-cube gp-c1"></span>
+            <span class="gp-cube gp-c2"></span>
+            <span class="gp-cube gp-c3"></span>
+            <span class="gp-slash"></span>
+          </template>
           <span class="gp-badge">{{ g.badge }}</span>
         </div>
         <div class="hub-info">
@@ -83,7 +92,7 @@ const games = [
     name: '方块世界',
     desc: '像素沙盒 · 自由建造 · 探索世界',
     icon: 'sword',
-    badge: 'NEW',
+    badge: 'VOXEL 3D',
   },
 ];
 
@@ -280,6 +289,33 @@ function onCardLeave(e) {
   padding: 2px 7px;
   background: rgba(11, 17, 34, 0.55);
   backdrop-filter: blur(3px);
+}
+/* —— 方块世界预览：像素草地 + 悬浮像素方块（与游戏内像素风一致） —— */
+.gp-vground {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: 0;
+  height: 44px;
+  background: repeating-linear-gradient(90deg, rgba(94, 168, 82, 0.9) 0 16px, rgba(74, 138, 66, 0.9) 16px 32px);
+  border-top: 3px solid rgba(140, 200, 120, 0.9);
+  box-shadow: 0 -6px 18px rgba(94, 168, 82, 0.25);
+}
+.gp-vblock {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  animation: gp-vfloat 2.6s ease-in-out infinite;
+}
+.gp-vb1 { left: 30%; bottom: 62px; background: rgba(94, 168, 82, 0.95); }
+.gp-vb2 { left: 52%; bottom: 84px; background: rgba(160, 116, 68, 0.95); animation-delay: 0.7s; }
+.gp-vb3 { left: 68%; bottom: 68px; background: rgba(150, 150, 150, 0.95); animation-delay: 1.4s; }
+@keyframes gp-vfloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(6deg); }
 }
 .hub-info {
   display: flex;
