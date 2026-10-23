@@ -540,29 +540,56 @@ app.post('/api/office/report-write', async (req, res) => {
   const requirements = String(p.requirements || '').trim().slice(0, 1000);
   const docContent = String(p.docContent || '').trim().slice(0, docparse.MAX_CHARS); // 可选文档素材
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
-  try {
-    const prompt = office.buildReportWritePrompt(topic, structureId, requirements, docContent);
-    const text0 = await llmChat([{ role: 'user', content: prompt }], {
-      responseFormat: null, // 自由文本输出（Markdown 报告）
-      reasoningEffort: 'none',
-      temperature: 0.5,
-      maxTokens: 8192, // 长文写作 4096 偏低会截断，放宽到 8192
-      timeoutMs: 180000, // 长文写作较慢，放宽超时
-    });
-    const text = String(text0 || '').trim();
-    saveOfficeResult(req, 'write', topic.slice(0, 100), text, 'md'); // 24 小时暂存
-    res.json({ text });
-  } catch (e) {
-    res.status(500).json({ error: `报告写作失败：${e.message}` });
-  }
+  // 异步任务：单次 LLM 长调用（实测 13-90 秒）同步长挂体验差，改 taskId + 进度轮询
+  cleanupReportTasks();
+  const user = userFromRequest(req);
+  const taskId = `wrt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const task = { userId: user?.id || null, status: 'running', progress: 5, stage: '正在组装写作提示词…', result: null, error: '', createdAt: Date.now() };
+  officeTasks.set(taskId, task);
+  res.json({ taskId });
+  // 进度模拟：无法取真实进度，按实测耗时缓动推进封顶 95%，完成跳满 100
+  const progressTimer = setInterval(() => {
+    if (task.status !== 'running') return;
+    task.progress = Math.min(95, task.progress + 5);
+  }, 4000);
+  (async () => {
+    try {
+      const prompt = office.buildReportWritePrompt(topic, structureId, requirements, docContent);
+      task.stage = 'AI 正在撰写报告（约 30-90 秒）…';
+      task.progress = 15;
+      const text0 = await llmChat([{ role: 'user', content: prompt }], {
+        responseFormat: null, // 自由文本输出（Markdown 报告）
+        reasoningEffort: 'none',
+        temperature: 0.5,
+        maxTokens: 8192, // 长文写作 4096 偏低会截断，放宽到 8192
+        timeoutMs: 180000, // 长文写作较慢，放宽超时
+      });
+      const text = String(text0 || '').trim();
+      saveOfficeResult(req, 'write', topic.slice(0, 100), text, 'md'); // 24 小时暂存
+      task.result = { text };
+      task.progress = 100;
+      task.stage = '撰写完成';
+      task.status = 'done';
+    } catch (e) {
+      task.status = 'error';
+      task.error = `报告写作失败：${e.message}`;
+    } finally {
+      clearInterval(progressTimer);
+    }
+  })();
 });
 // —— 报告网页化异步任务：生成耗时 3-8 分钟，同步等待期间 HTTP 连接长挂易超时，改为任务提交 + 进度轮询 ——
 const reportTasks = new Map(); // taskId → { userId, status, progress, stage, html, error, createdAt }
 const REPORT_TASK_TTL = 30 * 60 * 1000; // 任务记录保留 30 分钟，过期自动清理
+// 报告写作 / PPT 异步任务（复用报告网页化的任务模式；PPT 为真进度：大纲→逐页配图→组装）
+const officeTasks = new Map(); // taskId → { userId, status, progress, stage, result, error, createdAt }
 function cleanupReportTasks() {
   const now = Date.now();
   for (const [id, t] of reportTasks) {
     if (now - t.createdAt > REPORT_TASK_TTL) reportTasks.delete(id);
+  }
+  for (const [id, t] of officeTasks) {
+    if (now - t.createdAt > REPORT_TASK_TTL) officeTasks.delete(id);
   }
 }
 // 报告网页化：Markdown 报告 → 对话模型创作 → 自包含单文件 HTML 专题页（不入绘图历史）
@@ -650,6 +677,20 @@ app.get('/api/office/report-status/:taskId', (req, res) => {
     error: task.error || undefined,
   });
 });
+// 办公任务（报告写作/PPT）状态查询：前端轮询获取进度与结果（完成时才返回完整结果）
+app.get('/api/office/task-status/:taskId', (req, res) => {
+  const task = officeTasks.get(String(req.params.taskId || ''));
+  if (!task) return res.status(404).json({ error: '任务不存在或已过期' });
+  const user = userFromRequest(req);
+  if (task.userId && user && user.id !== task.userId) return res.status(403).json({ error: '无权访问该任务' });
+  res.json({
+    status: task.status,
+    progress: task.progress,
+    stage: task.stage,
+    result: task.status === 'done' ? task.result : undefined,
+    error: task.error || undefined,
+  });
+});
 // —— PPT 简化版（移植 sn-ppt-story 大纲方法论 + sn-ppt-standard 渲染思路）：主题 → 大纲 → 逐页配图 → 自包含 HTML 幻灯片 ——
 app.post('/api/office/ppt', async (req, res) => {
   const p = req.body || {};
@@ -661,7 +702,15 @@ app.post('/api/office/ppt', async (req, res) => {
   const withImages = p.withImages !== false; // 默认配图，可关闭（纯文字更快）
   const docContent = String(p.docContent || '').trim().slice(0, docparse.MAX_CHARS); // 可选文档素材（前端先解析预览确认）
   if (!isConfigured()) return res.status(503).json({ error: '未配置对话模型 API Key' });
-  try {
+  // 异步任务 + 真进度：大纲（0-30%）→ 逐页配图（30-90%，每页真实推进）→ 组装（92%）→ 完成（100%）
+  cleanupReportTasks();
+  const user = userFromRequest(req);
+  const taskId = `ppt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const task = { userId: user?.id || null, status: 'running', progress: 3, stage: '正在生成大纲…', result: null, error: '', createdAt: Date.now() };
+  officeTasks.set(taskId, task);
+  res.json({ taskId });
+  (async () => {
+    try {
     // 第一步：LLM 生成大纲（带思考兜底与重试，复用乱码检测的稳定性防护）
     let slides = [];
     // 页数明显不足（少于要求页数-2，如 12 页只解析出 3 页）视为返回被截断，同样触发重试；跨尝试保留页数最多的结果
@@ -683,11 +732,15 @@ app.post('/api/office/ppt', async (req, res) => {
         console.log(`[PPT] 大纲第${attempt + 1}次失败: ${e.message}`);
       }
     }
-    if (!slides.length) return res.status(502).json({ error: '大纲生成失败，请重试' });
-    // 第二步：逐页配图（复用绘图管线；失败不阻断，该页无图继续）
+    if (!slides.length) { task.status = 'error'; task.error = '大纲生成失败，请重试'; return; }
+    task.progress = 30;
+    task.stage = `大纲完成（共 ${slides.length} 页），开始逐页配图…`;
+    // 第二步：逐页配图（复用绘图管线；失败不阻断，该页无图继续）——真进度：每页完成按比例推进
     const images = [];
     if (withImages && draw.isImageEnabled()) {
       for (let i = 0; i < slides.length; i++) {
+        task.progress = 30 + Math.round(60 * i / slides.length);
+        task.stage = `正在为第 ${i + 1}/${slides.length} 页配图…`;
         const desc = slides[i].image || slides[i].title;
         try {
           const r = await draw.generate({
@@ -707,13 +760,20 @@ app.post('/api/office/ppt', async (req, res) => {
       }
     }
     // 第三步：组装自包含 HTML 幻灯片（dazzle 风格使用动态模板：入场动画+渐变装饰+进度条）
+    task.progress = 92;
+    task.stage = '正在组装幻灯片…';
     const html = pptStyle === 'dazzle' ? office.buildPptDazzleHtml(slides, images, topic) : office.buildPptHtml(slides, images, topic);
     saveOfficeResult(req, 'ppt', topic.slice(0, 100), html, 'html'); // 24 小时暂存
-    res.json({ html, pageCount: slides.length, imageCount: images.filter(Boolean).length });
-  } catch (e) {
-    console.log('[PPT] 异常:', e.message);
-    res.status(500).json({ error: `PPT 生成失败：${e.message}` });
-  }
+    task.result = { html, pageCount: slides.length, imageCount: images.filter(Boolean).length };
+    task.progress = 100;
+    task.stage = '生成完成';
+    task.status = 'done';
+    } catch (e) {
+      console.log('[PPT] 异常:', e.message);
+      task.status = 'error';
+      task.error = `PPT 生成失败：${e.message}`;
+    }
+  })();
 });
 // —— 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存，机制仿绘图历史）：文件存 data/office/，元数据入库 ——
 const OFFICE_DIR = path.join(__dirname, '..', 'data', 'office');

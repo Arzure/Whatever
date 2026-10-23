@@ -61,6 +61,40 @@ const pptWithImages = ref(true);
 const pptHtml = ref('');
 const pptBusy = ref(false);
 const pptMeta = ref(null); // { pageCount, imageCount }
+// 报告写作 / PPT 异步任务进度（轮询获取，PPT 为真进度：大纲→逐页配图→组装）
+const writeProgress = ref(0);
+const writeStage = ref('');
+const pptProgress = ref(0);
+const pptStage = ref('');
+// 信息图 / 简历图不确定进度（前端缓动推进封顶 90%，完成跳满）
+const genProgress = ref(0);
+let genProgressTimer = null;
+function startGenProgress() {
+  genProgress.value = 0;
+  if (genProgressTimer) clearInterval(genProgressTimer);
+  genProgressTimer = setInterval(() => {
+    genProgress.value = Math.min(90, genProgress.value + Math.max(0.4, (90 - genProgress.value) * 0.035));
+  }, 200);
+}
+function finishGenProgress() {
+  if (genProgressTimer) { clearInterval(genProgressTimer); genProgressTimer = null; }
+  genProgress.value = 100;
+}
+// 通用任务轮询：taskId → 进度/阶段实时反馈，完成返回结果
+function pollTask(taskId, onProgress, interval = 2000) {
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        const s = await api.officeTaskStatus(taskId);
+        onProgress(s.progress || 0, s.stage || '');
+        if (s.status === 'done') { resolve(s.result); return; }
+        if (s.status === 'error') { reject(new Error(s.error || '生成失败')); return; }
+        setTimeout(poll, interval);
+      } catch (e) { reject(e); }
+    };
+    setTimeout(poll, 1000);
+  });
+}
 // 办公历史（报告网页化/演示文稿/报告写作，24 小时暂存）：点选恢复内容到预览区
 const officeHistory = ref([]);
 const officeRestoring = ref(''); // 正在恢复的条目 id（防重复点击）
@@ -128,8 +162,12 @@ async function runPpt() {
   pptBusy.value = true;
   pptHtml.value = '';
   pptMeta.value = null;
+  pptProgress.value = 0;
+  pptStage.value = '任务提交中…';
   try {
-    const r = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value, style: pptStyle.value, docContent: pptDoc.value ? pptDoc.value.text : '' });
+    // 异步任务 + 真进度：大纲→逐页配图→组装，阶段与配图页数真实推进
+    const { taskId } = await api.officePpt({ topic: t, pageCount: pptPages.value, withImages: pptWithImages.value, style: pptStyle.value, docContent: pptDoc.value ? pptDoc.value.text : '' });
+    const r = await pollTask(taskId, (p, st) => { pptProgress.value = p; pptStage.value = st; });
     if (r && r.html) {
       pptHtml.value = r.html;
       pptMeta.value = { pageCount: r.pageCount, imageCount: r.imageCount };
@@ -141,6 +179,8 @@ async function runPpt() {
     error.value = '生成失败：' + (e.message || '请重试');
   } finally {
     pptBusy.value = false;
+    pptProgress.value = 0;
+    pptStage.value = '';
   }
 }
 function downloadPpt() {
@@ -179,14 +219,20 @@ async function generateWrite() {
   writeBusy.value = true;
   error.value = '';
   writeResult.value = '';
+  writeProgress.value = 0;
+  writeStage.value = '任务提交中…';
   try {
-    const r = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim(), docContent: writeDoc.value ? writeDoc.value.text : '' });
-    writeResult.value = r.text || '';
+    // 异步任务：提交即返回 taskId，轮询获取进度与结果
+    const { taskId } = await api.officeReportWrite({ topic: writeTopic.value.trim(), structure: writeStructure.value, requirements: writeRequirements.value.trim(), docContent: writeDoc.value ? writeDoc.value.text : '' });
+    const r = await pollTask(taskId, (p, st) => { writeProgress.value = p; writeStage.value = st; });
+    writeResult.value = (r && r.text) || '';
     loadOfficeHistory(); // 生成成功后刷新办公历史
   } catch (e) {
     error.value = e.message;
   } finally {
     writeBusy.value = false;
+    writeProgress.value = 0;
+    writeStage.value = '';
   }
 }
 
@@ -662,6 +708,7 @@ async function generate() {
   result.value = null;
   garbleNote.value = ''; // 清空上次的修正提示
   if (tab.value === 'infographic') startGenStages(); // 信息图：阶段化进度提示
+  startGenProgress(); // 不确定进度条：缓动推进封顶 90%，完成跳满
   try {
     const params = tab.value === 'infographic'
       ? { content: content.value.trim(), layout: layoutId.value, style: styleId.value, size: size.value, model: model.value }
@@ -679,6 +726,7 @@ async function generate() {
   } catch (e) {
     error.value = e.message;
   } finally {
+    finishGenProgress();
     busy.value = false;
     stopGenStages();
   }
@@ -714,7 +762,8 @@ async function generate() {
           <label class="field-label">想重点了解什么（可选）</label>
           <input v-model="chartQuestion" class="style-input" placeholder="示例：第三季度的下滑是什么原因？" maxlength="500" />
           <button class="generate" :disabled="chartBusy" @click="interpretChart">
-            {{ chartBusy ? '解读中…（约需 10-30 秒）' : '开始解读' }}
+            <template v-if="chartBusy">解读中<span class="busy-dots"><span>.</span><span>.</span><span>.</span></span>（约需 10-30 秒）</template>
+            <template v-else>开始解读</template>
           </button>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="chartResult" class="chart-result">
@@ -731,7 +780,8 @@ async function generate() {
           <label class="field-label">想重点分析什么（可选）</label>
           <input v-model="excelQuestion" class="style-input" placeholder="示例：哪个季度销售额最高？有什么异常？" maxlength="500" />
           <button class="generate" :disabled="excelBusy" @click="analyzeExcel">
-            {{ excelBusy ? '分析中…（约需 20-60 秒）' : '开始分析' }}
+            <template v-if="excelBusy">分析中<span class="busy-dots"><span>.</span><span>.</span><span>.</span></span>（约需 20-60 秒）</template>
+            <template v-else>开始分析</template>
           </button>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="excelMeta" class="chart-result">
@@ -769,8 +819,14 @@ async function generate() {
           </div>
           <input v-else type="file" accept=".docx,.pdf" @change="handleWriteDoc" />
           <button class="generate" :disabled="writeBusy" @click="generateWrite">
-            {{ writeBusy ? '撰写中…（约需 30-90 秒）' : '生成报告' }}
+            {{ writeBusy ? '撰写中…' : '生成报告' }}
           </button>
+          <div v-if="writeBusy" class="gen-progress">
+            <div class="gen-progress-track">
+              <div class="gen-progress-fill" :style="{ width: writeProgress + '%' }"></div>
+            </div>
+            <p class="gen-progress-text">{{ writeProgress }}% · {{ writeStage }}</p>
+          </div>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="writeResult" class="chart-result">
             <label class="field-label">报告内容</label>
@@ -848,8 +904,14 @@ async function generate() {
           </div>
           <input v-else type="file" accept=".docx,.pdf" @change="handlePptDoc" />
           <button class="generate" :disabled="pptBusy" @click="runPpt">
-            {{ pptBusy ? '生成中…（大纲约 10-30 秒，配图每页约 10 秒）' : '生成演示文稿' }}
+            {{ pptBusy ? '生成中…' : '生成演示文稿' }}
           </button>
+          <div v-if="pptBusy" class="gen-progress">
+            <div class="gen-progress-track">
+              <div class="gen-progress-fill" :style="{ width: pptProgress + '%' }"></div>
+            </div>
+            <p class="gen-progress-text">{{ pptProgress }}% · {{ pptStage }}</p>
+          </div>
           <p v-if="error" class="error">{{ error }}</p>
           <div v-if="pptHtml" class="chart-result">
             <label class="field-label">预览（方向键翻页，可交互）</label>
@@ -947,8 +1009,14 @@ async function generate() {
         <p v-if="config.models?.find((m) => m.id === model)" class="option-desc">{{ config.models.find((m) => m.id === model).desc }}</p>
 
         <button class="generate" :disabled="busy" @click="generate">
-          {{ busy ? (tab === 'infographic' ? GEN_STAGES[genStage - 1] : '生成中…（大图约需 10-60 秒）') : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
+          {{ busy ? (tab === 'infographic' ? GEN_STAGES[genStage - 1] : '生成中…') : (tab === 'infographic' ? '生成信息图' : '生成简历图') }}
         </button>
+        <div v-if="busy" class="gen-progress">
+          <div class="gen-progress-track">
+            <div class="gen-progress-fill" :style="{ width: genProgress + '%' }"></div>
+          </div>
+          <p class="gen-progress-text">{{ Math.floor(genProgress) }}% · {{ tab === 'infographic' ? '大图约需 10-60 秒' : '简历图约需 10-60 秒' }}</p>
+        </div>
         <p class="model-line">当前模型：{{ model }}</p>
         <p v-if="garbleNote" class="garble-note">✔ {{ garbleNote }}</p>
         <p v-if="error" class="error">{{ error }}</p>
@@ -1516,5 +1584,57 @@ async function generate() {
   margin: 6px 0 0;
   font-size: 12px;
   color: var(--text-dim);
+}
+/* —— 通用生成进度条（报告写作/PPT/信息图/简历）：金色渐变填充 + 流光高光扫过 + 弹性入场 —— */
+.gen-progress {
+  margin-top: 10px;
+  animation: gen-progress-in 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+@keyframes gen-progress-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.gen-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.gen-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  position: relative;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gen-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.35) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: gen-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes gen-shimmer {
+  to { transform: translateX(100%); }
+}
+.gen-progress-text {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+/* —— 短任务按钮文字动效：省略号逐点跳动（图表解读/Excel 分析） —— */
+.busy-dots span {
+  display: inline-block;
+  animation: busy-dot 1.2s ease-in-out infinite;
+}
+.busy-dots span:nth-child(2) { animation-delay: 0.2s; }
+.busy-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes busy-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
 }
 </style>

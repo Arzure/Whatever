@@ -125,6 +125,7 @@ export const api = {
   officeReport: (params) => request('/office/report', { method: 'POST', body: JSON.stringify(params) }),
   // 报告任务状态查询（异步生成，前端轮询获取进度与结果）
   officeReportStatus: (taskId) => request(`/office/report-status/${encodeURIComponent(taskId)}`),
+  officeTaskStatus: (taskId) => request(`/office/task-status/${encodeURIComponent(taskId)}`),
   officeImitate: (params) => request('/office/imitate', { method: 'POST', body: JSON.stringify(params) }),
   drawExtractPrompt: (params) => request('/draw/extract-prompt', { method: 'POST', body: JSON.stringify(params) }),
   // —— AI 对话（会话与消息持久化）——
