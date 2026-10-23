@@ -5,7 +5,7 @@
     </div>
     <!-- HUD -->
     <div class="hud">
-      <div class="hud-score">分数 <b>{{ score }}</b></div>
+      <div class="hud-score">分数 <b :class="{ bump: scoreBump }">{{ score }}</b></div>
       <div class="hud-right">
         <div class="hud-lives">
           <span v-for="i in 3" :key="i" class="life" :class="{ lost: i > lives }">◆</span>
@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, inject } from 'vue';
+import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
@@ -54,6 +54,13 @@ const playing = ref(false);
 const over = ref(false);
 const paused = ref(false);
 const { state } = inject('game');
+// 分数实时跳动反馈：每次加分数字弹跳放大
+const scoreBump = ref(false);
+watch(score, () => {
+  scoreBump.value = false;
+  requestAnimationFrame(() => { scoreBump.value = true; });
+  setTimeout(() => { scoreBump.value = false; }, 320);
+});
 
 let renderer, scene, camera, rafId;
 let obstacles = [];
@@ -154,6 +161,11 @@ function updateTrail() {
 function buildScene(swordParts) {
   const light = isLight();
   scene = new THREE.Scene();
+  // 环境贴图（参考项目同款素材）：金属剑有反射不再发黑，全场材质受益
+  new THREE.TextureLoader().load('/3d/sword/blade_envmap.jpeg', (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    if (scene) scene.environment = tex;
+  });
   scene.background = new THREE.Color(light ? 0xdfe6f5 : 0x0b1122);
   scene.fog = new THREE.Fog(scene.background, 18, 55);
 
@@ -173,8 +185,8 @@ function buildScene(swordParts) {
 }
 
 function spawnObstacle() {
-  // 障碍物：发光方块
-  const hue = 0.08 + Math.random() * 0.12;
+  // 障碍物：发光方块（全色相随机，颜色丰富）
+  const hue = Math.random();
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1.1, 1.1, 1.1),
     new THREE.MeshStandardMaterial({
@@ -268,12 +280,13 @@ function tick(dt) {
   const tiltX = Math.max(-0.55, Math.min(0.55, mouse.ay * 1.4));
   sword.rotation.z += (tiltZ - sword.rotation.z) * 0.32;
   sword.rotation.x += (tiltX - sword.rotation.x) * 0.32;
+  // 剑组基准 z=-0.35：剑柄正好落在光标平面，光标十字吸附剑柄
   const lunge = Math.min(0.7, mouse.speed * 0.07);
-  sword.position.z += (-lunge - sword.position.z) * 0.22;
-  swordTipWorld.set(sword.position.x, sword.position.y, -2.2);
-  // 碰撞盒随剑放大同步扩展：扫过范围更宽容
-  swordBox.min.set(sword.position.x - 0.7, sword.position.y - 0.7, -3.6);
-  swordBox.max.set(sword.position.x + 0.7, sword.position.y + 0.7, 0.4);
+  sword.position.z += (-0.35 - lunge - sword.position.z) * 0.22;
+  swordTipWorld.set(sword.position.x, sword.position.y, sword.position.z - 2.2);
+  // 判定盒贴合剑刃形状：薄厚（x）× 高（y）× 长刃（z）的宽面板，观感与判定一致
+  swordBox.min.set(sword.position.x - 0.3, sword.position.y - 0.9, sword.position.z - 3.2);
+  swordBox.max.set(sword.position.x + 0.3, sword.position.y + 0.9, sword.position.z - 0.8);
   updateTrail();
 
   // 挥砍速度与方向累计量随时间衰减
@@ -478,7 +491,13 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 .hud-score { color: var(--text); font-size: 15px; }
-.hud-score b { color: var(--accent); font-size: 20px; margin-left: 4px; }
+.hud-score b { color: var(--accent); font-size: 20px; margin-left: 4px; display: inline-block; }
+.hud-score b.bump { animation: score-bump 0.32s ease-out; }
+@keyframes score-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
 .hud-right { display: flex; align-items: center; gap: 12px; }
 .hud-lives { display: flex; gap: 6px; }
 .hud-btn {
