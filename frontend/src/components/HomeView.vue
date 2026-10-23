@@ -332,7 +332,7 @@ const canStart = computed(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 22px;
 }
 /* 3D 世界入口：宽卡片（上画面预览 + 下信息行），复用入口卡片视觉语言 */
 .game-entry {
