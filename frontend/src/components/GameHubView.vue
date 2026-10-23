@@ -96,6 +96,10 @@ function onCardLeave(e) {
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 .hub-back {
+  position: fixed;
+  top: calc(var(--bar-h, 48px) + 14px);
+  left: 18px;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -106,7 +110,6 @@ function onCardLeave(e) {
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
-  margin-bottom: 14px;
   transition: border-color 0.2s;
 }
 .hub-back:hover { border-color: var(--accent); }

@@ -216,12 +216,16 @@ const canStart = computed(() => {
       <!-- 3D 世界入口：宽卡片带实时画面预览（纯 CSS 动效，与首页动效同语言） -->
       <div class="game-entry" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openHub()" role="button" tabindex="0" @keydown.enter="openHub()">
         <div class="game-preview" aria-hidden="true">
-          <span class="gp-grid"></span>
-          <span class="gp-cube gp-c1"></span>
-          <span class="gp-cube gp-c2"></span>
-          <span class="gp-cube gp-c3"></span>
-          <span class="gp-slash"></span>
-          <span class="gp-badge">LIVE 3D</span>
+          <span class="gp-stars"></span>
+          <span class="gp-cube3d">
+            <i class="gp-face gp-f1"></i>
+            <i class="gp-face gp-f2"></i>
+            <i class="gp-face gp-f3"></i>
+            <i class="gp-face gp-f4"></i>
+            <i class="gp-face gp-f5"></i>
+            <i class="gp-face gp-f6"></i>
+          </span>
+          <span class="gp-badge">3D WORLD</span>
         </div>
         <div class="game-info">
           <span class="play-icon"><Icon name="sword" :size="22" /></span>
@@ -368,66 +372,56 @@ const canStart = computed(() => {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 34px color-mix(in srgb, var(--accent-2) 22%, transparent);
 }
 .game-entry:hover .play-icon { transform: scale(1.12); }
-/* 预览画面：深空底 + 透视地面网格 + 飞来方块 + 挥剑光痕（纯 CSS 动效） */
+/* 预览画面：深空底 + 星点 + 悬浮旋转 3D 立方体（呼应 3D 世界主题，与游戏卡片预览区分） */
 .game-preview {
   position: relative;
   height: 118px;
   background: radial-gradient(ellipse at 50% 130%, rgba(109, 90, 224, 0.28), transparent 62%), linear-gradient(180deg, #0b1122, #141d3d);
   overflow: hidden;
 }
-.gp-grid {
+.gp-stars {
   position: absolute;
-  left: -40%;
-  right: -40%;
-  bottom: -34px;
-  height: 92px;
-  background:
-    repeating-linear-gradient(90deg, rgba(212, 161, 44, 0.28) 0 1px, transparent 1px 44px),
-    repeating-linear-gradient(0deg, rgba(212, 161, 44, 0.22) 0 1px, transparent 1px 22px);
-  transform: perspective(210px) rotateX(56deg);
-  transform-origin: top center;
-  opacity: 0.55;
-  animation: gp-scroll 1.5s linear infinite;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 20%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 45% 60%, rgba(212, 161, 44, 0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 85% 55%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 12% 70%, rgba(255, 255, 255, 0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 60% 80%, rgba(157, 208, 227, 0.7) 50%, transparent 51%);
+  animation: gp-twinkle 3s ease-in-out infinite alternate;
 }
-@keyframes gp-scroll {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 0 0, 0 22px; }
+@keyframes gp-twinkle {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
 }
-.gp-cube {
+.gp-cube3d {
   position: absolute;
-  width: 13px;
-  height: 13px;
-  border: 1.5px solid rgba(212, 161, 44, 0.95);
-  background: rgba(212, 161, 44, 0.16);
-  border-radius: 2px;
-  animation: gp-fly 2.7s linear infinite;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  transform-style: preserve-3d;
+  animation: gp-rotate 7s linear infinite;
 }
-.gp-c1 { left: 32%; top: 34%; }
-.gp-c2 { left: 54%; top: 46%; animation-delay: 0.9s; }
-.gp-c3 { left: 68%; top: 24%; animation-delay: 1.8s; border-color: rgba(109, 90, 224, 0.95); background: rgba(109, 90, 224, 0.16); }
-@keyframes gp-fly {
-  0% { transform: scale(0.15); opacity: 0; }
-  16% { opacity: 0.95; }
-  78% { opacity: 0.95; }
-  100% { transform: scale(3.4) translateY(16px); opacity: 0; }
+@keyframes gp-rotate {
+  from { transform: rotateX(-24deg) rotateY(0deg); }
+  to { transform: rotateX(-24deg) rotateY(360deg); }
 }
-.gp-slash {
+.gp-face {
   position: absolute;
-  top: -12%;
-  bottom: -12%;
-  width: 2px;
-  background: linear-gradient(180deg, transparent, #d4a12c 22%, #fff 50%, #d4a12c 78%, transparent);
-  box-shadow: 0 0 14px 3px rgba(212, 161, 44, 0.5);
-  transform: rotate(22deg);
-  opacity: 0;
-  animation: gp-slash 2.7s ease-in-out infinite;
+  inset: 0;
+  border: 1.5px solid rgba(212, 161, 44, 0.85);
+  background: rgba(212, 161, 44, 0.08);
+  box-shadow: 0 0 12px rgba(212, 161, 44, 0.25) inset;
 }
-@keyframes gp-slash {
-  0%, 52% { left: -8%; opacity: 0; }
-  57% { opacity: 1; }
-  82% { left: 104%; opacity: 0.85; }
-  87%, 100% { left: 104%; opacity: 0; }
-}
+.gp-f1 { transform: translateZ(17px); }
+.gp-f2 { transform: rotateY(180deg) translateZ(17px); }
+.gp-f3 { transform: rotateY(90deg) translateZ(17px); border-color: rgba(109, 90, 224, 0.85); background: rgba(109, 90, 224, 0.08); box-shadow: 0 0 12px rgba(109, 90, 224, 0.25) inset; }
+.gp-f4 { transform: rotateY(-90deg) translateZ(17px); border-color: rgba(109, 90, 224, 0.85); background: rgba(109, 90, 224, 0.08); box-shadow: 0 0 12px rgba(109, 90, 224, 0.25) inset; }
+.gp-f5 { transform: rotateX(90deg) translateZ(17px); border-color: rgba(157, 208, 227, 0.85); background: rgba(157, 208, 227, 0.08); box-shadow: 0 0 12px rgba(157, 208, 227, 0.25) inset; }
+.gp-f6 { transform: rotateX(-90deg) translateZ(17px); border-color: rgba(157, 208, 227, 0.85); background: rgba(157, 208, 227, 0.08); box-shadow: 0 0 12px rgba(157, 208, 227, 0.25) inset; }
 .gp-badge {
   position: absolute;
   top: 8px;
