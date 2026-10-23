@@ -215,6 +215,7 @@ function backUp() {
 }
 /* 游戏内返回游戏中心：仅『<』字样，紧贴首页按钮右侧，接管右侧弹性间距 */
 .app-bar-back {
+  margin-right: auto; /* 承担弹性间距：首页+返回两按钮紧邻左侧，用户名等推到右侧 */
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
@@ -233,7 +234,7 @@ function backUp() {
   color: #58a6ff;
 }
 .app-bar-home {
-  margin-right: auto;
+  /* 弹性间距移至『<』按钮：两按钮紧邻左侧，其余元素推到右侧 */
   padding: 4px 12px;
   border: 1px solid #3d4d80;
   border-radius: 6px;
