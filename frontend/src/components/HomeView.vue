@@ -32,8 +32,22 @@ function enterChat() {
 }
 
 // —— 3D 世界入口：进入游戏中心 ——
+// FLIP 共享元素过渡：记录 3D 卡片矩形供游戏中心做扩张动画，
+// 首页缩小后退模糊淡出（与对话框飞入过渡同款节奏）
+const gameEntryEl = ref(null);
 function openHub() {
-  state.view = 'hub';
+  const home = homeEl.value;
+  const entry = gameEntryEl.value;
+  if (entry) {
+    const r = entry.getBoundingClientRect();
+    state.hubRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+  }
+  if (home) {
+    home.classList.add('leaving'); // 首页被推远：缩小+模糊+淡出
+    setTimeout(() => { state.view = 'hub'; }, 300); // 离场播至七成再切视图，避免动画被腰斩
+  } else {
+    state.view = 'hub';
+  }
 }
 
 const playerName = ref('');
@@ -214,7 +228,7 @@ const canStart = computed(() => {
       </div>
 
       <!-- 3D 世界入口：宽卡片带实时画面预览（纯 CSS 动效，与首页动效同语言） -->
-      <div class="game-entry" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openHub()" role="button" tabindex="0" @keydown.enter="openHub()">
+      <div class="game-entry" ref="gameEntryEl" style="animation-delay: 0.91s" @mousemove="onEntryMove" @mouseleave="onEntryLeave" @click="openHub()" role="button" tabindex="0" @keydown.enter="openHub()">
         <div class="game-preview" aria-hidden="true">
           <span class="gp-stars"></span>
           <span class="gp-cube3d">

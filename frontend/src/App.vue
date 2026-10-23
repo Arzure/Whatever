@@ -141,7 +141,7 @@ async function deleteSave(s) {
       <div class="app-shell">
         <!-- 绸缎背景上移至外壳层：首页与对话页共享同一实例，飞入过渡时背景全程连续不闪断；
              对话页下叠加模糊滤镜（类由全局样式接管），降低背景对阅读的干扰 -->
-        <SilkBackground v-if="game.state.view === 'home' || game.state.view === 'chat'" :class="{ 'silk-dimmed': game.state.view === 'chat' }" />
+        <SilkBackground v-if="game.state.view === 'home' || game.state.view === 'hub' || game.state.view === 'chat'" :class="{ 'silk-dimmed': game.state.view === 'chat' }" />
         <header ref="barEl" class="app-bar" :class="{ scrolled: barScrolled }">
           <button v-if="game.state.view !== 'home'" class="app-bar-home" title="返回首页" @click="game.backToHome"><Icon name="home" /> <span class="bar-label">首页</span></button>
           <span class="app-bar-user" :title="authUser.username"><Icon name="user" /> {{ displayUsername }}</span>

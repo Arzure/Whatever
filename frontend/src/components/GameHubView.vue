@@ -1,5 +1,5 @@
 <template>
-  <div class="hub">
+  <div class="hub" ref="hubEl" :class="{ expanding: expanding }">
       <button class="hub-back" title="返回首页" @click="backHome"><Icon name="back" :size="16" /> <span>返回</span></button>
     <div class="hub-head">
       <h1 class="hub-title">3D 世界</h1>
@@ -40,9 +40,34 @@
 
 <script setup>
 import Icon from './Icon.vue';
-import { inject } from 'vue';
+import { ref, inject, onMounted } from 'vue';
 
 const { state } = inject('game');
+// —— FLIP 共享元素扩张：从首页 3D 卡片的矩形位置放大铺满全屏 ——
+// 首页点击时已把卡片矩形存入 state.hubRect；挂载后先摆到卡片位置，
+// 下一帧解除定位并过渡回全屏，视觉上就是卡片扩张成了游戏中心界面
+const hubEl = ref(null);
+const expanding = ref(false);
+onMounted(() => {
+  const el = hubEl.value;
+  const rect = state.hubRect;
+  if (!el || !rect) return;
+  const sx = rect.width / window.innerWidth;
+  const sy = rect.height / window.innerHeight;
+  el.style.transformOrigin = '0 0';
+  el.style.transform = `translate(${rect.left}px, ${rect.top}px) scale(${sx}, ${sy})`;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      expanding.value = true; // 触发过渡：回到全屏位置
+      el.style.transform = '';
+      setTimeout(() => {
+        expanding.value = false;
+        el.style.transformOrigin = '';
+        state.hubRect = null; // 用完即清，避免影响下次直接进入
+      }, 520);
+    });
+  });
+});
 
 // 游戏清单：数据驱动，以后加游戏只需注册一条数据
 const games = [
@@ -84,6 +109,8 @@ function onCardLeave(e) {
   flex-direction: column;
   align-items: center;
   background: transparent;
+  /* FLIP 扩张过渡：从首页卡片矩形位置放大铺满全屏（0.5s 与首页离场节奏衔接） */
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0.24, 1);
 }
 .hub-head {
   text-align: center;
