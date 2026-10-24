@@ -223,7 +223,7 @@ const games = [
     name: '血色回廊',
     desc: '复古FPS · 像素怪物 · 关卡探索',
     icon: 'sword',
-    badge: 'FPS',
+    badge: 'FPS 3D',
   },
 ];
 
@@ -784,9 +784,9 @@ function onCardLeave(e) {
   height: 56px;
   margin-left: -28px;
   border-radius: 50%;
+  overflow: hidden;
   background: linear-gradient(180deg, #ffeb3b 0%, #ff9800 40%, #ff006e 100%);
   filter: drop-shadow(0 0 16px rgba(255, 0, 110, 0.6));
-  clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%);
   animation: gp-sbsun-glow 3s ease-in-out infinite;
 }
 .gp-sbsun::after {
