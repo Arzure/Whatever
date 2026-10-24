@@ -83,16 +83,15 @@
             <span class="gp-hline gp-hl3"></span>
             <span class="gp-hship"></span>
           </template>
-          <!-- 合成风暴：复古线框坦克射击 + 霓虹弹道 -->
+          <!-- 合成风暴：synthwave 日落 + 霓虹网格 + 坦克剪影 -->
           <template v-else-if="g.id === 'synthblast'">
             <span class="gp-sbsky"></span>
+            <span class="gp-sbsun"></span>
             <span class="gp-sbgrid"></span>
             <span class="gp-sbtank"></span>
+            <span class="gp-sbmuzzle"></span>
             <span class="gp-sbbullet gp-sbb1"></span>
             <span class="gp-sbbullet gp-sbb2"></span>
-            <span class="gp-sbbullet gp-sbb3"></span>
-            <span class="gp-sbenemy gp-sbe1"></span>
-            <span class="gp-sbenemy gp-sbe2"></span>
           </template>
           <!-- 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 -->
           <template v-else-if="g.id === 'gorescript'">
@@ -199,21 +198,21 @@ const games = [
     name: '欠载危机',
     desc: '复古像素 · 俯视角射击 · 弹幕生存',
     icon: 'sword',
-    badge: 'RETRO',
+    badge: 'RETRO 3D',
   },
   {
     id: 'hexgl',
     name: '未来赛车',
     desc: 'HexGL · 反重力竞速 · WebGL',
     icon: 'sword',
-    badge: 'RACE',
+    badge: 'RACE 3D',
   },
   {
     id: 'synthblast',
     name: '合成风暴',
     desc: 'SYNTH*BLAST · 复古坦克射击 · Three.js',
     icon: 'sword',
-    badge: 'FPS',
+    badge: 'FPS 3D',
   },
   {
     id: 'gorescript',
@@ -767,87 +766,112 @@ function onCardLeave(e) {
   0%, 100% { transform: translate(-6px, 0); }
   50% { transform: translate(6px, 3px); }
 }
-/* —— 合成风暴：复古线框坦克射击 + 霓虹弹道 —— */
+/* —— 合成风暴：synthwave 日落 + 霓虹网格 + 坦克剪影 —— */
 .gp-sbsky {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #0a0118 0%, #1a0a2e 50%, #2d1b4e 100%);
+  background: linear-gradient(180deg, #1a0033 0%, #4a0066 25%, #ff006e 50%, #ff6b35 65%, #1a0033 66%, #0d0022 100%);
+}
+.gp-sbsun {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  width: 60px;
+  height: 60px;
+  margin-left: -30px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffeb3b 0%, #ff9800 40%, #ff006e 100%);
+  filter: drop-shadow(0 0 16px rgba(255, 0, 110, 0.6));
+  clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%);
+  animation: gp-sbsun-glow 3s ease-in-out infinite;
+}
+.gp-sbsun::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 50%;
+  background: repeating-linear-gradient(0deg, transparent 0, transparent 4px, #1a0033 4px, #1a0033 6px);
+}
+@keyframes gp-sbsun-glow {
+  0%, 100% { filter: drop-shadow(0 0 16px rgba(255, 0, 110, 0.6)); }
+  50% { filter: drop-shadow(0 0 24px rgba(255, 235, 59, 0.5)); }
 }
 .gp-sbgrid {
   position: absolute;
   left: -20%;
   right: -20%;
   bottom: 0;
-  height: 60%;
+  height: 50%;
   background:
-    repeating-linear-gradient(90deg, transparent 0, transparent 18px, rgba(255, 45, 149, 0.35) 18px, rgba(255, 45, 149, 0.35) 19px),
-    repeating-linear-gradient(0deg, transparent 0, transparent 14px, rgba(0, 255, 255, 0.25) 14px, rgba(0, 255, 255, 0.25) 15px);
-  transform: perspective(200px) rotateX(60deg);
+    repeating-linear-gradient(90deg, transparent 0, transparent 20px, rgba(255, 0, 110, 0.5) 20px, rgba(255, 0, 110, 0.5) 21px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 16px, rgba(0, 255, 255, 0.3) 16px, rgba(0, 255, 255, 0.3) 17px);
+  transform: perspective(180px) rotateX(65deg);
   transform-origin: bottom center;
-  animation: gp-sbgrid-scroll 1.5s linear infinite;
+  animation: gp-sbgrid-scroll 1.2s linear infinite;
 }
 @keyframes gp-sbgrid-scroll {
   0% { background-position: 0 0, 0 0; }
-  100% { background-position: 0 14px, 0 0; }
+  100% { background-position: 0 17px, 0 0; }
 }
 .gp-sbtank {
   position: absolute;
   left: 50%;
-  bottom: 18%;
-  width: 28px;
-  height: 18px;
-  margin-left: -14px;
-  background: linear-gradient(180deg, #ff2d95, #c01b6e);
-  clip-path: polygon(20% 100%, 0 60%, 15% 30%, 85% 30%, 100% 60%, 80% 100%);
-  filter: drop-shadow(0 0 6px rgba(255, 45, 149, 0.8));
-  animation: gp-sbtank-bob 1.8s ease-in-out infinite;
+  bottom: 12%;
+  width: 24px;
+  height: 16px;
+  margin-left: -12px;
+  background: #000;
+  clip-path: polygon(15% 100%, 0 50%, 20% 20%, 80% 20%, 100% 50%, 85% 100%);
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.7));
+  animation: gp-sbtank-bob 1.6s ease-in-out infinite;
 }
 .gp-sbtank::after {
   content: '';
   position: absolute;
   left: 50%;
-  top: -8px;
-  width: 4px;
-  height: 12px;
-  margin-left: -2px;
-  background: #ff2d95;
-  filter: drop-shadow(0 0 4px rgba(255, 45, 149, 0.9));
+  top: -6px;
+  width: 3px;
+  height: 10px;
+  margin-left: -1.5px;
+  background: #000;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 255, 0.6));
 }
 @keyframes gp-sbtank-bob {
-  0%, 100% { transform: translate(-4px, 0); }
-  50% { transform: translate(4px, -2px); }
+  0%, 100% { transform: translate(-3px, 0); }
+  50% { transform: translate(3px, -1px); }
+}
+.gp-sbmuzzle {
+  position: absolute;
+  left: 50%;
+  bottom: 24%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffeb3b 0%, #ff006e 50%, transparent 70%);
+  animation: gp-sbmuzzle-flash 0.8s ease-in-out infinite;
+}
+@keyframes gp-sbmuzzle-flash {
+  0%, 40%, 100% { opacity: 0; transform: scale(0.4); }
+  20% { opacity: 1; transform: scale(1.3); }
 }
 .gp-sbbullet {
   position: absolute;
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #00ffff;
-  box-shadow: 0 0 6px rgba(0, 255, 255, 0.9), 0 0 12px rgba(0, 255, 255, 0.5);
-  animation: gp-sbbullet-fire 1.2s linear infinite;
+  background: #ffeb3b;
+  box-shadow: 0 0 6px rgba(255, 235, 59, 0.9), 0 0 12px rgba(255, 0, 110, 0.5);
+  animation: gp-sbbullet-fire 1s linear infinite;
 }
-.gp-sbb1 { left: 46%; bottom: 30%; animation-delay: 0s; }
-.gp-sbb2 { left: 50%; bottom: 30%; animation-delay: 0.4s; }
-.gp-sbb3 { left: 54%; bottom: 30%; animation-delay: 0.8s; }
+.gp-sbb1 { left: 48%; bottom: 28%; animation-delay: 0s; }
+.gp-sbb2 { left: 52%; bottom: 28%; animation-delay: 0.5s; }
 @keyframes gp-sbbullet-fire {
   0% { transform: translateY(0) scale(1); opacity: 1; }
   80% { opacity: 1; }
-  100% { transform: translateY(-50px) scale(0.4); opacity: 0; }
-}
-.gp-sbenemy {
-  position: absolute;
-  width: 16px;
-  height: 10px;
-  background: rgba(0, 255, 255, 0.15);
-  border: 1px solid rgba(0, 255, 255, 0.6);
-  box-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
-  animation: gp-sbenemy-drift 2.5s ease-in-out infinite;
-}
-.gp-sbe1 { left: 18%; top: 28%; }
-.gp-sbe2 { right: 16%; top: 38%; animation-delay: 1.2s; }
-@keyframes gp-sbenemy-drift {
-  0%, 100% { transform: translate(0, 0); opacity: 0.7; }
-  50% { transform: translate(10px, 8px); opacity: 1; }
+  100% { transform: translateY(-45px) scale(0.3); opacity: 0; }
 }
 /* —— 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 —— */
 .gp-gssky {
