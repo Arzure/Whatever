@@ -5,10 +5,15 @@
     </div>
     <!-- HUD -->
     <div class="hud">
-      <div class="hud-score">分数 <b :class="{ bump: scoreBump }">{{ score }}</b></div>
+      <div class="hud-score-badge">
+        <span class="hud-label">SCORE</span>
+        <b :class="{ bump: scoreBump }">{{ score }}</b>
+        <span v-if="combo > 1" class="hud-combo">x{{ combo }}</span>
+      </div>
       <div class="hud-right">
-        <div class="hud-lives">
-          <span v-for="i in 3" :key="i" class="life" :class="{ lost: i > lives }">◆</span>
+        <div class="hud-hpbar">
+          <div class="hud-hp-fill" :class="{ low: lives <= 1, mid: lives === 2 }" :style="{ width: (lives / 3 * 100) + '%' }"></div>
+          <span class="hud-hp-text">{{ lives }}/3</span>
         </div>
         <button v-if="playing" class="hud-btn" title="暂停（Esc / P）" @click="pause">‖</button>
       </div>
@@ -52,6 +57,8 @@ const paused = ref(false);
 const { state } = inject('game');
 // 分数实时跳动反馈：每次加分数字弹跳放大
 const scoreBump = ref(false);
+const combo = ref(0);
+let comboTimer = null;
 watch(score, () => {
   scoreBump.value = false;
   requestAnimationFrame(() => { scoreBump.value = true; });
@@ -313,6 +320,9 @@ function trySlash() {
     scene.remove(ob);
     obstacles.splice(i, 1); // 关键：同步从数组移除，否则已砍掉的方块仍会飞过判定线误扣血
     score.value++;
+    combo.value++;
+    clearTimeout(comboTimer);
+    comboTimer = setTimeout(() => { combo.value = 0; }, 2000);
   }
 }
 
@@ -393,6 +403,8 @@ function flashHit() {
 
 function start() {
   score.value = 0;
+  combo.value = 0;
+  clearTimeout(comboTimer);
   lives.value = 3;
   over.value = false;
   playing.value = true;
@@ -535,16 +547,58 @@ onBeforeUnmount(() => {
   pointer-events: none;
   font-weight: 600;
 }
-.hud-score { color: var(--text); font-size: 15px; }
-.hud-score b { color: var(--accent); font-size: 20px; margin-left: 4px; display: inline-block; }
-.hud-score b.bump { animation: score-bump 0.32s ease-out; }
+.hud-score-badge {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.hud-label { color: var(--muted, #8a94b8); font-size: 11px; letter-spacing: 1px; }
+.hud-score-badge b { color: var(--accent); font-size: 22px; display: inline-block; }
+.hud-score-badge b.bump { animation: score-bump 0.32s ease-out; }
+.hud-combo {
+  color: #ff6b35; font-size: 14px; font-weight: 800;
+  text-shadow: 0 0 8px rgba(255,107,53,0.5);
+  animation: combo-pulse 0.4s ease-out;
+}
+@keyframes combo-pulse {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
 @keyframes score-bump {
   0% { transform: scale(1); }
   40% { transform: scale(1.45); }
   100% { transform: scale(1); }
 }
 .hud-right { display: flex; align-items: center; gap: 12px; }
-.hud-lives { display: flex; gap: 6px; }
+.hud-hpbar {
+  position: relative;
+  width: 90px; height: 22px;
+  border-radius: 6px;
+  background: rgba(40,8,8,0.6);
+  border: 1px solid rgba(120,30,30,0.4);
+  overflow: hidden;
+}
+.hud-hp-fill {
+  position: absolute; left: 0; top: 0; height: 100%;
+  background: linear-gradient(90deg, #27ae60, #2ecc71);
+  transition: width 0.4s ease;
+}
+.hud-hp-fill.mid { background: linear-gradient(90deg, #e67e22, #f39c12); }
+.hud-hp-fill.low { background: linear-gradient(90deg, #c0392b, #e74c3c); animation: hp-pulse 0.6s ease-in-out infinite; }
+@keyframes hp-pulse {
+  0%,100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+.hud-hp-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
 .hud-btn {
   pointer-events: auto;
   width: 30px;
@@ -579,8 +633,7 @@ onBeforeUnmount(() => {
   transition: border-color 0.2s;
 }
 .ghost-btn:hover { border-color: var(--accent); }
-.life { color: #e05252; font-size: 18px; transition: opacity 0.3s; }
-.life.lost { opacity: 0.18; }
+
 .overlay {
   position: absolute;
   inset: 0;
