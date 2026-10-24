@@ -512,9 +512,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .game-view {
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
   background: var(--bg);
 }

@@ -186,7 +186,7 @@ const games = [
   {
     id: 'slash',
     name: '挥剑挑战',
-    desc: '挥剑切割 · 面状拖尾 · 计分挑战',
+    desc: '挥剑切割 · 光剑拖尾 · 计分挑战',
     icon: 'sword',
     badge: 'LIVE 3D',
   },
@@ -200,21 +200,21 @@ const games = [
   {
     id: 'underrun',
     name: '欠载危机',
-    desc: '复古像素 · 俯视角射击 · 弹幕生存',
+    desc: '复古像素 · 第一人称射击 · 弹幕生存',
     icon: 'sword',
     badge: 'RETRO 3D',
   },
   {
     id: 'hexgl',
     name: '未来赛车',
-    desc: '反重力竞速 · 霓虹赛道 · 极速冲刺',
+    desc: '未来竞速 · 霓虹赛道 · 极速冲刺',
     icon: 'sword',
     badge: 'RACE 3D',
   },
   {
     id: 'synthblast',
     name: '合成风暴',
-    desc: '复古坦克 · 赛博朋克 · 俯视射击',
+    desc: '复古坦克 · 赛博朋克 · 第一人称射击',
     icon: 'sword',
     badge: 'FPS 3D',
   },
