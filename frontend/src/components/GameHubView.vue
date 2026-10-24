@@ -83,6 +83,17 @@
             <span class="gp-hline gp-hl3"></span>
             <span class="gp-hship"></span>
           </template>
+          <!-- 合成风暴：复古线框坦克射击 + 霓虹弹道 -->
+          <template v-else-if="g.id === 'synthblast'">
+            <span class="gp-sbsky"></span>
+            <span class="gp-sbgrid"></span>
+            <span class="gp-sbtank"></span>
+            <span class="gp-sbbullet gp-sbb1"></span>
+            <span class="gp-sbbullet gp-sbb2"></span>
+            <span class="gp-sbbullet gp-sbb3"></span>
+            <span class="gp-sbenemy gp-sbe1"></span>
+            <span class="gp-sbenemy gp-sbe2"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -738,6 +749,88 @@ function onCardLeave(e) {
 @keyframes gp-hship-hover {
   0%, 100% { transform: translate(-6px, 0); }
   50% { transform: translate(6px, 3px); }
+}
+/* —— 合成风暴：复古线框坦克射击 + 霓虹弹道 —— */
+.gp-sbsky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0a0118 0%, #1a0a2e 50%, #2d1b4e 100%);
+}
+.gp-sbgrid {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: 0;
+  height: 60%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0, transparent 18px, rgba(255, 45, 149, 0.35) 18px, rgba(255, 45, 149, 0.35) 19px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 14px, rgba(0, 255, 255, 0.25) 14px, rgba(0, 255, 255, 0.25) 15px);
+  transform: perspective(200px) rotateX(60deg);
+  transform-origin: bottom center;
+  animation: gp-sbgrid-scroll 1.5s linear infinite;
+}
+@keyframes gp-sbgrid-scroll {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 0 14px, 0 0; }
+}
+.gp-sbtank {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  width: 28px;
+  height: 18px;
+  margin-left: -14px;
+  background: linear-gradient(180deg, #ff2d95, #c01b6e);
+  clip-path: polygon(20% 100%, 0 60%, 15% 30%, 85% 30%, 100% 60%, 80% 100%);
+  filter: drop-shadow(0 0 6px rgba(255, 45, 149, 0.8));
+  animation: gp-sbtank-bob 1.8s ease-in-out infinite;
+}
+.gp-sbtank::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  width: 4px;
+  height: 12px;
+  margin-left: -2px;
+  background: #ff2d95;
+  filter: drop-shadow(0 0 4px rgba(255, 45, 149, 0.9));
+}
+@keyframes gp-sbtank-bob {
+  0%, 100% { transform: translate(-4px, 0); }
+  50% { transform: translate(4px, -2px); }
+}
+.gp-sbbullet {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #00ffff;
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.9), 0 0 12px rgba(0, 255, 255, 0.5);
+  animation: gp-sbbullet-fire 1.2s linear infinite;
+}
+.gp-sbb1 { left: 46%; bottom: 30%; animation-delay: 0s; }
+.gp-sbb2 { left: 50%; bottom: 30%; animation-delay: 0.4s; }
+.gp-sbb3 { left: 54%; bottom: 30%; animation-delay: 0.8s; }
+@keyframes gp-sbbullet-fire {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(-50px) scale(0.4); opacity: 0; }
+}
+.gp-sbenemy {
+  position: absolute;
+  width: 16px;
+  height: 10px;
+  background: rgba(0, 255, 255, 0.15);
+  border: 1px solid rgba(0, 255, 255, 0.6);
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+  animation: gp-sbenemy-drift 2.5s ease-in-out infinite;
+}
+.gp-sbe1 { left: 18%; top: 28%; }
+.gp-sbe2 { right: 16%; top: 38%; animation-delay: 1.2s; }
+@keyframes gp-sbenemy-drift {
+  0%, 100% { transform: translate(0, 0); opacity: 0.7; }
+  50% { transform: translate(10px, 8px); opacity: 1; }
 }
 .hub-info {
   display: flex;
