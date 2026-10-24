@@ -187,6 +187,13 @@ const games = [
     icon: 'sword',
     badge: 'RACE',
   },
+  {
+    id: 'synthblast',
+    name: '合成风暴',
+    desc: 'SYNTH*BLAST · 复古坦克射击 · Three.js',
+    icon: 'sword',
+    badge: 'FPS',
+  },
 ];
 
 // —— 魔方预览：3x3x3 立方体，三层各自独立旋转，周期性展开/收拢 ——
