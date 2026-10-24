@@ -245,6 +245,7 @@ async function doReset() {
   font-size: 12px;
   padding: 4px 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .op:hover {
   border-color: #7c6cf0;
