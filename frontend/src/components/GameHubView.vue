@@ -107,6 +107,32 @@
             <span class="gp-gscross"></span>
             <span class="gp-gshp"></span>
           </template>
+          <!-- 台球：绿色台面 + 母球 + 彩球 + 球杆 -->
+          <template v-else-if="g.id === 'billiards'">
+            <span class="gp-bitable"></span>
+            <span class="gp-bicue"></span>
+            <span class="gp-biball gp-bib1"></span>
+            <span class="gp-biball gp-bib2"></span>
+            <span class="gp-biball gp-bib3"></span>
+          </template>
+          <!-- 跳一跳：方块塔 + 蓄力角色 + 跳跃弧线 -->
+          <template v-else-if="g.id === 'jump'">
+            <span class="gp-jbg"></span>
+            <span class="gp-jbox gp-jb1"></span>
+            <span class="gp-jbox gp-jb2"></span>
+            <span class="gp-jchar"></span>
+            <span class="gp-jarc"></span>
+          </template>
+          <!-- 僵尸波次：暗夜场景 + 十字准星 + 僵尸逼近 + 弹药计数 -->
+          <template v-else-if="g.id === 'bloodwave'">
+            <span class="gp-bwsky"></span>
+            <span class="gp-bwmoon"></span>
+            <span class="gp-bwzombie gp-bwz1"></span>
+            <span class="gp-bwzombie gp-bwz2"></span>
+            <span class="gp-bwzombie gp-bwz3"></span>
+            <span class="gp-bwcross"></span>
+            <span class="gp-bwammo"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -222,6 +248,27 @@ const games = [
     id: 'gorescript',
     name: '血色回廊',
     desc: '复古FPS · 像素怪物 · 关卡探索',
+    icon: 'sword',
+    badge: 'FPS 3D',
+  },
+  {
+    id: 'billiards',
+    name: '台球大师',
+    desc: '3D 物理台球 · 九球/斯诺克/八球 · 精准击球',
+    icon: 'sword',
+    badge: 'SPORT 3D',
+  },
+  {
+    id: 'jump',
+    name: '跳一跳',
+    desc: '蓄力跳跃 · 精准落点 · 冲击高分',
+    icon: 'sword',
+    badge: 'CASUAL 3D',
+  },
+  {
+    id: 'bloodwave',
+    name: '僵尸波次',
+    desc: '第一人称生存 · 武器射击 · 尸潮来袭',
     icon: 'sword',
     badge: 'FPS 3D',
   },
@@ -1099,4 +1146,154 @@ function onCardLeave(e) {
 .hub-text em { font-style: normal; font-size: 12px; color: var(--muted, #8a94b8); white-space: nowrap; }
 .hub-arrow { font-size: 20px; color: var(--muted, #8a94b8); transition: transform 0.2s, color 0.2s; }
 .hub-card:hover .hub-arrow { transform: translateX(3px); color: var(--accent); }
+
+/* —— 台球：绿色台面 + 母球 + 彩球 + 球杆 —— */
+.gp-bitable {
+  position: absolute;
+  left: 8%; right: 8%; top: 25%; bottom: 15%;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1a6b3c 0%, #0d4a28 100%);
+  border: 3px solid #5a3a1a;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+}
+.gp-bicue {
+  position: absolute;
+  left: 20%; top: 40%;
+  width: 2px; height: 50px;
+  background: linear-gradient(180deg, #c8a060, #8b6914);
+  transform: rotate(25deg);
+  transform-origin: bottom center;
+  animation: gp-bicue-aim 2s ease-in-out infinite;
+}
+@keyframes gp-bicue-aim {
+  0%, 100% { transform: rotate(25deg); }
+  50% { transform: rotate(15deg); }
+}
+.gp-biball {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  box-shadow: inset -2px -2px 3px rgba(0,0,0,0.3);
+}
+.gp-bib1 { left: 55%; top: 50%; background: #fff; }
+.gp-bib2 { left: 68%; top: 45%; background: #f4d03f; animation: gp-biball-roll 3s ease-in-out infinite; }
+.gp-bib3 { left: 72%; top: 58%; background: #e74c3c; animation: gp-biball-roll2 3s ease-in-out infinite; }
+@keyframes gp-biball-roll {
+  0%, 100% { transform: translate(0,0); }
+  50% { transform: translate(-8px, 4px); }
+}
+@keyframes gp-biball-roll2 {
+  0%, 100% { transform: translate(0,0); }
+  50% { transform: translate(-6px, -3px); }
+}
+/* —— 跳一跳：方块塔 + 蓄力角色 + 跳跃弧线 —— */
+.gp-jbg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+.gp-jbox {
+  position: absolute;
+  width: 24px; height: 24px;
+  border-radius: 4px;
+}
+.gp-jb1 { left: 30%; bottom: 20%; background: #e94560; }
+.gp-jb2 { left: 55%; bottom: 25%; background: #53d769; }
+.gp-jchar {
+  position: absolute;
+  left: 30%; bottom: 44%;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #f4d03f;
+  box-shadow: 0 0 8px rgba(244,208,63,0.5);
+  animation: gp-jchar-jump 2s ease-in-out infinite;
+}
+@keyframes gp-jchar-jump {
+  0%, 100% { left: 30%; bottom: 44%; }
+  50% { left: 55%; bottom: 60%; }
+}
+.gp-jarc {
+  position: absolute;
+  left: 30%; bottom: 44%;
+  width: 25%; height: 20%;
+  border: 1px dashed rgba(244,208,63,0.3);
+  border-top: none;
+  border-radius: 0 0 50% 50%;
+  opacity: 0;
+  animation: gp-jarc-show 2s ease-in-out infinite;
+}
+@keyframes gp-jarc-show {
+  0%, 40%, 100% { opacity: 0; }
+  50%, 90% { opacity: 0.6; }
+}
+/* —— 僵尸波次：暗夜场景 + 十字准星 + 僵尸逼近 —— */
+.gp-bwsky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0a0a0a 0%, #1a0a1a 40%, #2a0a0a 100%);
+}
+.gp-bwmoon {
+  position: absolute;
+  right: 15%; top: 12%;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #d4d4d4;
+  box-shadow: 0 0 12px rgba(200,200,200,0.3);
+}
+.gp-bwzombie {
+  position: absolute;
+  width: 12px; height: 18px;
+  background: rgba(80,120,40,0.3);
+  border: 1px solid rgba(100,160,50,0.5);
+  box-shadow: 0 0 6px rgba(80,120,40,0.3);
+  animation: gp-bwz-approach 2.5s ease-in infinite;
+}
+.gp-bwz1 { left: 40%; top: 40%; animation-delay: 0s; }
+.gp-bwz2 { left: 56%; top: 42%; animation-delay: 0.8s; }
+.gp-bwz3 { left: 48%; top: 38%; animation-delay: 1.6s; }
+@keyframes gp-bwz-approach {
+  0% { transform: scale(0.3); opacity: 0.2; }
+  50% { opacity: 0.7; }
+  80% { transform: scale(1.8); opacity: 0.9; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.gp-bwcross {
+  position: absolute;
+  left: 50%; top: 45%;
+  width: 16px; height: 16px;
+  margin: -8px 0 0 -8px;
+  animation: gp-bwcross-recoil 0.5s ease-in-out infinite;
+}
+.gp-bwcross::before, .gp-bwcross::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,50,50,0.8);
+}
+.gp-bwcross::before { left: 7px; top: 0; width: 2px; height: 16px; }
+.gp-bwcross::after { left: 0; top: 7px; width: 16px; height: 2px; }
+@keyframes gp-bwcross-recoil {
+  0%, 80%, 100% { transform: scale(1); }
+  85% { transform: scale(1.3); }
+  90% { transform: scale(0.9); }
+}
+.gp-bwammo {
+  position: absolute;
+  right: 10%; bottom: 8%;
+  width: 40px; height: 5px;
+  border-radius: 2px;
+  background: rgba(40,8,8,0.8);
+  border: 1px solid rgba(120,30,30,0.5);
+  overflow: hidden;
+}
+.gp-bwammo::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; height: 100%; width: 60%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+  animation: gp-bwammo-pulse 1.5s ease-in-out infinite;
+}
+@keyframes gp-bwammo-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
 </style>
