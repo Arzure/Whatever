@@ -83,7 +83,7 @@
             <span class="gp-hline gp-hl3"></span>
             <span class="gp-hship"></span>
           </template>
-          <!-- 合成风暴：synthwave 日落 + 霓虹网格 + 坦克剪影 -->
+          <!-- 合成风暴：synthwave 日落 + 左下坦克斜射右上敌坦 -->
           <template v-else-if="g.id === 'synthblast'">
             <span class="gp-sbsky"></span>
             <span class="gp-sbsun"></span>
@@ -92,16 +92,20 @@
             <span class="gp-sbmuzzle"></span>
             <span class="gp-sbbullet gp-sbb1"></span>
             <span class="gp-sbbullet gp-sbb2"></span>
+            <span class="gp-sbenemy gp-sbe1"></span>
+            <span class="gp-sbenemy gp-sbe2"></span>
           </template>
-          <!-- 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 -->
+          <!-- 血色回廊：第一人称走廊透视 + 远处敌人 + 底部血条 -->
           <template v-else-if="g.id === 'gorescript'">
             <span class="gp-gssky"></span>
-            <span class="gp-gsscan"></span>
-            <span class="gp-gsgun"></span>
-            <span class="gp-gsmuzzle"></span>
-            <span class="gp-gshole gp-gsh1"></span>
-            <span class="gp-gshole gp-gsh2"></span>
-            <span class="gp-gshole gp-gsh3"></span>
+            <span class="gp-gswall gp-gswl"></span>
+            <span class="gp-gswall gp-gswr"></span>
+            <span class="gp-gsceil"></span>
+            <span class="gp-gsfloor"></span>
+            <span class="gp-gsenemy gp-gse1"></span>
+            <span class="gp-gsenemy gp-gse2"></span>
+            <span class="gp-gscross"></span>
+            <span class="gp-gshp"></span>
           </template>
           <template v-else>
             <span class="gp-grid"></span>
@@ -203,21 +207,21 @@ const games = [
   {
     id: 'hexgl',
     name: '未来赛车',
-    desc: 'HexGL · 反重力竞速 · WebGL',
+    desc: '反重力竞速 · 霓虹赛道 · 极速冲刺',
     icon: 'sword',
     badge: 'RACE 3D',
   },
   {
     id: 'synthblast',
     name: '合成风暴',
-    desc: 'SYNTH*BLAST · 复古坦克射击 · Three.js',
+    desc: '复古坦克 · 赛博朋克 · 俯视射击',
     icon: 'sword',
     badge: 'FPS 3D',
   },
   {
     id: 'gorescript',
     name: '血色回廊',
-    desc: 'gorescript · 90年代复古FPS · WebGL',
+    desc: '复古FPS · 像素怪物 · 关卡探索',
     icon: 'sword',
     badge: 'FPS',
   },
@@ -766,19 +770,19 @@ function onCardLeave(e) {
   0%, 100% { transform: translate(-6px, 0); }
   50% { transform: translate(6px, 3px); }
 }
-/* —— 合成风暴：synthwave 日落 + 霓虹网格 + 坦克剪影 —— */
+/* —— 合成风暴：synthwave 日落 + 左下坦克斜射右上敌坦 —— */
 .gp-sbsky {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #1a0033 0%, #4a0066 25%, #ff006e 50%, #ff6b35 65%, #1a0033 66%, #0d0022 100%);
+  background: linear-gradient(180deg, #0d0022 0%, #2a0044 20%, #6a0050 38%, #ff006e 50%, #ff6b35 58%, #2a0044 62%, #0d0022 100%);
 }
 .gp-sbsun {
   position: absolute;
   left: 50%;
-  top: 20%;
-  width: 60px;
-  height: 60px;
-  margin-left: -30px;
+  top: 18%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
   border-radius: 50%;
   background: linear-gradient(180deg, #ffeb3b 0%, #ff9800 40%, #ff006e 100%);
   filter: drop-shadow(0 0 16px rgba(255, 0, 110, 0.6));
@@ -792,7 +796,7 @@ function onCardLeave(e) {
   right: 0;
   top: 50%;
   height: 50%;
-  background: repeating-linear-gradient(0deg, transparent 0, transparent 4px, #1a0033 4px, #1a0033 6px);
+  background: repeating-linear-gradient(0deg, transparent 0, transparent 4px, #2a0044 4px, #2a0044 6px);
 }
 @keyframes gp-sbsun-glow {
   0%, 100% { filter: drop-shadow(0 0 16px rgba(255, 0, 110, 0.6)); }
@@ -803,7 +807,7 @@ function onCardLeave(e) {
   left: -20%;
   right: -20%;
   bottom: 0;
-  height: 50%;
+  height: 45%;
   background:
     repeating-linear-gradient(90deg, transparent 0, transparent 20px, rgba(255, 0, 110, 0.5) 20px, rgba(255, 0, 110, 0.5) 21px),
     repeating-linear-gradient(0deg, transparent 0, transparent 16px, rgba(0, 255, 255, 0.3) 16px, rgba(0, 255, 255, 0.3) 17px);
@@ -817,11 +821,10 @@ function onCardLeave(e) {
 }
 .gp-sbtank {
   position: absolute;
-  left: 50%;
-  bottom: 12%;
-  width: 24px;
-  height: 16px;
-  margin-left: -12px;
+  left: 12%;
+  bottom: 14%;
+  width: 22px;
+  height: 15px;
   background: #000;
   clip-path: polygon(15% 100%, 0 50%, 20% 20%, 80% 20%, 100% 50%, 85% 100%);
   filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.7));
@@ -831,24 +834,26 @@ function onCardLeave(e) {
   content: '';
   position: absolute;
   left: 50%;
-  top: -6px;
+  top: -7px;
   width: 3px;
-  height: 10px;
+  height: 11px;
   margin-left: -1.5px;
   background: #000;
+  transform: rotate(-30deg);
+  transform-origin: bottom center;
   filter: drop-shadow(0 0 3px rgba(0, 255, 255, 0.6));
 }
 @keyframes gp-sbtank-bob {
-  0%, 100% { transform: translate(-3px, 0); }
-  50% { transform: translate(3px, -1px); }
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(2px, -1px); }
 }
 .gp-sbmuzzle {
   position: absolute;
-  left: 50%;
-  bottom: 24%;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
+  left: 18%;
+  bottom: 26%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
   border-radius: 50%;
   background: radial-gradient(circle, #ffeb3b 0%, #ff006e 50%, transparent 70%);
   animation: gp-sbmuzzle-flash 0.8s ease-in-out infinite;
@@ -864,20 +869,147 @@ function onCardLeave(e) {
   border-radius: 50%;
   background: #ffeb3b;
   box-shadow: 0 0 6px rgba(255, 235, 59, 0.9), 0 0 12px rgba(255, 0, 110, 0.5);
-  animation: gp-sbbullet-fire 1s linear infinite;
+  animation: gp-sbbullet-fire 1.2s linear infinite;
 }
-.gp-sbb1 { left: 48%; bottom: 28%; animation-delay: 0s; }
-.gp-sbb2 { left: 52%; bottom: 28%; animation-delay: 0.5s; }
+.gp-sbb1 { left: 18%; bottom: 26%; animation-delay: 0s; }
+.gp-sbb2 { left: 18%; bottom: 26%; animation-delay: 0.6s; }
 @keyframes gp-sbbullet-fire {
-  0% { transform: translateY(0) scale(1); opacity: 1; }
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
   80% { opacity: 1; }
-  100% { transform: translateY(-45px) scale(0.3); opacity: 0; }
+  100% { transform: translate(50px, -40px) scale(0.3); opacity: 0; }
 }
-/* —— 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 —— */
+.gp-sbenemy {
+  position: absolute;
+  width: 18px;
+  height: 12px;
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+  animation: gp-sbenemy-drift 2.5s ease-in-out infinite;
+}
+.gp-sbe1 { right: 14%; top: 30%; }
+.gp-sbe2 { right: 22%; top: 42%; animation-delay: 1.2s; }
+@keyframes gp-sbenemy-drift {
+  0%, 100% { transform: translate(0, 0); opacity: 0.6; }
+  50% { transform: translate(-6px, 4px); opacity: 1; }
+}
+/* —— 血色回廊：第一人称走廊透视 + 远处敌人 + 底部血条 —— */
 .gp-gssky {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #1a0505 0%, #2d0a0a 40%, #1a0a0a 100%);
+  background: #0a0a0a;
+}
+.gp-gswall {
+  position: absolute;
+  bottom: 15%;
+  height: 55%;
+  width: 0;
+  border-bottom: 2px solid rgba(180, 40, 40, 0.5);
+  animation: gp-gswall-move 2.5s linear infinite;
+}
+.gp-gswl {
+  left: 50%;
+  border-top: 55px solid transparent;
+  border-right: 80px solid rgba(60, 15, 15, 0.85);
+}
+.gp-gswr {
+  left: 50%;
+  border-top: 55px solid transparent;
+  border-left: 80px solid rgba(60, 15, 15, 0.85);
+}
+@keyframes gp-gswall-move {
+  0% { transform: scaleX(0.3); opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { transform: scaleX(1.5); opacity: 0; }
+}
+.gp-gsceil {
+  position: absolute;
+  left: 50%;
+  top: 15%;
+  width: 0;
+  height: 0;
+  border-bottom: 30px solid transparent;
+  border-left: 80px solid rgba(40, 10, 10, 0.7);
+  border-right: 80px solid rgba(40, 0, 10, 0.7);
+  animation: gp-gsceil-move 2.5s linear infinite;
+}
+@keyframes gp-gsceil-move {
+  0% { transform: scaleX(0.3); opacity: 0.3; }
+  50% { opacity: 0.8; }
+  100% { transform: scaleX(0); opacity: 0; }
+}
+.gp-gsfloor {
+  position: absolute;
+  left: 50%;
+  bottom: 15%;
+  width: 0;
+  height: 0;
+  border-top: 30px solid transparent;
+  border-left: 80px solid rgba(50, 12, 12, 0.8);
+  border-right: 80px solid rgba(50, 12, 12, 0.8);
+  animation: gp-gsfloor-move 2.5s linear infinite;
+}
+@keyframes gp-gsfloor-move {
+  0% { transform: scaleX(0.3); opacity: 0.3; }
+  50% { opacity: 0.8; }
+  100% { transform: scaleX(1.5); opacity: 0; }
+}
+.gp-gsenemy {
+  position: absolute;
+  width: 10px;
+  height: 14px;
+  background: rgba(255, 60, 60, 0.2);
+  border: 1px solid rgba(255, 80, 80, 0.6);
+  box-shadow: 0 0 6px rgba(255, 40, 40, 0.4);
+  animation: gp-gsenemy-approach 2.5s ease-in infinite;
+}
+.gp-gse1 { left: 44%; top: 42%; animation-delay: 0s; }
+.gp-gse2 { left: 54%; top: 44%; animation-delay: 1.2s; }
+@keyframes gp-gsenemy-approach {
+  0% { transform: scale(0.3); opacity: 0.3; }
+  50% { opacity: 0.8; }
+  80% { transform: scale(1.5); opacity: 0.9; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.gp-gscross {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+}
+.gp-gscross::before, .gp-gscross::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.7);
+}
+.gp-gscross::before { left: 6px; top: 0; width: 2px; height: 14px; }
+.gp-gscross::after { left: 0; top: 6px; width: 14px; height: 2px; }
+.gp-gshp {
+  position: absolute;
+  left: 8%;
+  bottom: 6%;
+  width: 30%;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(40, 8, 8, 0.8);
+  border: 1px solid rgba(120, 30, 30, 0.5);
+  overflow: hidden;
+}
+.gp-gshp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 70%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+  animation: gp-gshp-pulse 1.5s ease-in-out infinite;
+}
+@keyframes gp-gshp-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 .gp-gsscan {
   position: absolute;
