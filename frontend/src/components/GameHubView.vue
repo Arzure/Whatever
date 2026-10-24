@@ -94,6 +94,16 @@
             <span class="gp-sbenemy gp-sbe1"></span>
             <span class="gp-sbenemy gp-sbe2"></span>
           </template>
+          <!-- 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 -->
+          <template v-else-if="g.id === 'gorescript'">
+            <span class="gp-gssky"></span>
+            <span class="gp-gsscan"></span>
+            <span class="gp-gsgun"></span>
+            <span class="gp-gsmuzzle"></span>
+            <span class="gp-gshole gp-gsh1"></span>
+            <span class="gp-gshole gp-gsh2"></span>
+            <span class="gp-gshole gp-gsh3"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -202,6 +212,13 @@ const games = [
     id: 'synthblast',
     name: '合成风暴',
     desc: 'SYNTH*BLAST · 复古坦克射击 · Three.js',
+    icon: 'sword',
+    badge: 'FPS',
+  },
+  {
+    id: 'gorescript',
+    name: '血色回廊',
+    desc: 'gorescript · 90年代复古FPS · WebGL',
     icon: 'sword',
     badge: 'FPS',
   },
@@ -831,6 +848,72 @@ function onCardLeave(e) {
 @keyframes gp-sbenemy-drift {
   0%, 100% { transform: translate(0, 0); opacity: 0.7; }
   50% { transform: translate(10px, 8px); opacity: 1; }
+}
+/* —— 血色回廊：复古FPS像素枪管 + 扫描线 + 弹孔 —— */
+.gp-gssky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #1a0505 0%, #2d0a0a 40%, #1a0a0a 100%);
+}
+.gp-gsscan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(255, 50, 50, 0.06) 3px, rgba(255, 50, 50, 0.06) 4px);
+  animation: gp-gsscan-move 3s linear infinite;
+}
+@keyframes gp-gsscan-move {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+.gp-gsgun {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 18px;
+  height: 40px;
+  margin-left: -9px;
+  background: linear-gradient(180deg, #666 0%, #333 60%, #222 100%);
+  clip-path: polygon(30% 0, 70% 0, 80% 30%, 80% 100%, 20% 100%, 20% 30%);
+  filter: drop-shadow(0 0 4px rgba(255, 80, 80, 0.3));
+  animation: gp-gsgun-recoil 0.6s ease-in-out infinite;
+}
+@keyframes gp-gsgun-recoil {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(4px); }
+  40% { transform: translateY(0); }
+}
+.gp-gsmuzzle {
+  position: absolute;
+  left: 50%;
+  bottom: 46%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffaa00 0%, #ff4400 40%, transparent 70%);
+  animation: gp-gsmuzzle-flash 0.6s ease-in-out infinite;
+}
+@keyframes gp-gsmuzzle-flash {
+  0%, 30%, 100% { opacity: 0; transform: scale(0.5); }
+  15% { opacity: 1; transform: scale(1.4); }
+}
+.gp-gshole {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 0 2px rgba(80, 20, 20, 0.5), inset 0 0 3px rgba(255, 60, 60, 0.3);
+  animation: gp-gshole-appear 2s ease-out infinite;
+}
+.gp-gsh1 { left: 20%; top: 25%; animation-delay: 0s; }
+.gp-gsh2 { right: 25%; top: 35%; animation-delay: 0.7s; }
+.gp-gsh3 { left: 35%; top: 50%; animation-delay: 1.4s; }
+@keyframes gp-gshole-appear {
+  0% { opacity: 0; transform: scale(2); }
+  15% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0.6; }
 }
 .hub-info {
   display: flex;
