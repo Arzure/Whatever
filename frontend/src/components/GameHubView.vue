@@ -978,14 +978,30 @@ function onCardLeave(e) {
   width: 14px;
   height: 14px;
   margin: -7px 0 0 -7px;
+  animation: gp-gscross-scan 3s ease-in-out infinite;
 }
 .gp-gscross::before, .gp-gscross::after {
   content: '';
   position: absolute;
   background: rgba(255, 255, 255, 0.7);
+  animation: gp-gscross-flash 3s ease-in-out infinite;
 }
 .gp-gscross::before { left: 6px; top: 0; width: 2px; height: 14px; }
 .gp-gscross::after { left: 0; top: 6px; width: 14px; height: 2px; }
+@keyframes gp-gscross-scan {
+  0%, 12% { transform: translateX(-14px) scale(1); }
+  16%, 20% { transform: translateX(-14px) scale(1.4); }
+  24%, 40% { transform: translateX(10px) scale(1); }
+  44%, 48% { transform: translateX(10px) scale(1.4); }
+  52%, 100% { transform: translateX(-14px) scale(1); }
+}
+@keyframes gp-gscross-flash {
+  0%, 12% { background: rgba(255, 255, 255, 0.7); }
+  16%, 20% { background: rgba(255, 60, 60, 0.95); }
+  24%, 40% { background: rgba(255, 255, 255, 0.7); }
+  44%, 48% { background: rgba(255, 60, 60, 0.95); }
+  52%, 100% { background: rgba(255, 255, 255, 0.7); }
+}
 .gp-gshp {
   position: absolute;
   left: 8%;
