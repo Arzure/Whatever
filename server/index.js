@@ -1041,6 +1041,19 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json(authenticate(username, password));
 });
 
+// 游客快速登录
+app.post('/api/auth/guest', (req, res) => {
+  let n = 1;
+  let name = `游客${n}`;
+  while (storage.findUserByName(name)) {
+    n++;
+    name = `游客${n}`;
+  }
+  const password = '123456';
+  storage.createUser(name, password);
+  res.status(201).json({ ...authenticate(name, password), guest: true });
+});
+
 // 登录
 app.post('/api/auth/login', (req, res) => {
   const username = String(req.body?.username || '').trim();

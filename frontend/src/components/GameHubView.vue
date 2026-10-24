@@ -1226,55 +1226,74 @@ function onCardLeave(e) {
   0%, 40%, 100% { opacity: 0; }
   50%, 90% { opacity: 0.6; }
 }
-/* —— 僵尸波次：暗夜场景 + 十字准星 + 僵尸逼近 —— */
+/* —— 僵尸波次：俯视墓地 + 墓碑 + 僵尸从地面爬出 —— */
 .gp-bwsky {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #0a0a0a 0%, #1a0a1a 40%, #2a0a0a 100%);
+  background: radial-gradient(ellipse at center, #2a1a2a 0%, #0a0a0a 70%);
 }
 .gp-bwmoon {
   position: absolute;
-  right: 15%; top: 12%;
-  width: 18px; height: 18px;
+  left: 50%; top: 15%;
+  width: 20px; height: 20px;
+  margin-left: -10px;
   border-radius: 50%;
-  background: #d4d4d4;
-  box-shadow: 0 0 12px rgba(200,200,200,0.3);
+  background: #e0e0e0;
+  box-shadow: 0 0 16px rgba(220,220,220,0.4);
 }
+.gp-bwgrave {
+  position: absolute;
+  width: 16px; height: 20px;
+  background: #3a3a3a;
+  border-radius: 50% 50% 0 0;
+  box-shadow: inset -2px -2px 4px rgba(0,0,0,0.5);
+}
+.gp-bwgrave::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 6px;
+  width: 2px; height: 8px;
+  margin-left: -1px;
+  background: #555;
+}
+.gp-bwg1 { left: 25%; top: 55%; }
+.gp-bwg2 { left: 60%; top: 50%; }
+.gp-bwg3 { left: 40%; top: 65%; }
 .gp-bwzombie {
   position: absolute;
-  width: 12px; height: 18px;
-  background: rgba(80,120,40,0.3);
-  border: 1px solid rgba(100,160,50,0.5);
-  box-shadow: 0 0 6px rgba(80,120,40,0.3);
-  animation: gp-bwz-approach 2.5s ease-in infinite;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(100,160,50,0.4);
+  border: 1px solid rgba(120,180,60,0.6);
+  box-shadow: 0 0 8px rgba(100,160,50,0.3);
+  animation: gp-bwz-crawl 3s ease-out infinite;
 }
-.gp-bwz1 { left: 40%; top: 40%; animation-delay: 0s; }
-.gp-bwz2 { left: 56%; top: 42%; animation-delay: 0.8s; }
-.gp-bwz3 { left: 48%; top: 38%; animation-delay: 1.6s; }
-@keyframes gp-bwz-approach {
-  0% { transform: scale(0.3); opacity: 0.2; }
-  50% { opacity: 0.7; }
-  80% { transform: scale(1.8); opacity: 0.9; }
-  100% { transform: scale(2.5); opacity: 0; }
+.gp-bwz1 { left: 25%; top: 55%; animation-delay: 0s; }
+.gp-bwz2 { left: 60%; top: 50%; animation-delay: 1s; }
+.gp-bwz3 { left: 40%; top: 65%; animation-delay: 2s; }
+@keyframes gp-bwz-crawl {
+  0% { transform: scale(0); opacity: 0; }
+  20% { transform: scale(0.5); opacity: 0.6; }
+  60% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.2) translateY(-15px); opacity: 0; }
 }
 .gp-bwcross {
   position: absolute;
-  left: 50%; top: 45%;
-  width: 16px; height: 16px;
-  margin: -8px 0 0 -8px;
-  animation: gp-bwcross-recoil 0.5s ease-in-out infinite;
+  left: 50%; top: 50%;
+  width: 14px; height: 14px;
+  margin: -7px 0 0 -7px;
+  animation: gp-bwcross-scan 3s ease-in-out infinite;
 }
 .gp-bwcross::before, .gp-bwcross::after {
   content: '';
   position: absolute;
-  background: rgba(255,50,50,0.8);
+  background: rgba(255,80,80,0.7);
 }
-.gp-bwcross::before { left: 7px; top: 0; width: 2px; height: 16px; }
-.gp-bwcross::after { left: 0; top: 7px; width: 16px; height: 2px; }
-@keyframes gp-bwcross-recoil {
-  0%, 80%, 100% { transform: scale(1); }
-  85% { transform: scale(1.3); }
-  90% { transform: scale(0.9); }
+.gp-bwcross::before { left: 6px; top: 0; width: 2px; height: 14px; }
+.gp-bwcross::after { left: 0; top: 6px; width: 14px; height: 2px; }
+@keyframes gp-bwcross-scan {
+  0%, 100% { transform: translate(-15px, -10px); }
+  50% { transform: translate(15px, 10px); }
 }
 .gp-bwammo {
   position: absolute;
@@ -1294,6 +1313,6 @@ function onCardLeave(e) {
 }
 @keyframes gp-bwammo-pulse {
   0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+  100% { opacity: 1; }
 }
 </style>

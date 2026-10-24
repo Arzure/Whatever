@@ -100,6 +100,8 @@ export const api = {
     request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
   login: (username, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  guest: () =>
+    request('/auth/guest', { method: 'POST' }),
   me: () => request('/auth/me'),
   // —— 账号管理 ——
   rename: (password, username) =>
