@@ -832,11 +832,9 @@ function fmtTime(ts) {
 }
 /* 移动端：侧栏默认收窄，避免挤占消息区 */
 @media (max-width: 640px) {
+  /* 移动端展开态给足宽度（200px），收起态仍由 .chat-sidebar.collapsed 全局规则控制为 44px */
   .chat-sidebar {
-    width: 44px;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-right-color: transparent;
+    width: 200px;
   }
   .chat-sidebar .sidebar-toggle {
     align-self: center;
