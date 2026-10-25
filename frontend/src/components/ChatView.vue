@@ -3,6 +3,10 @@ import { ref, nextTick, inject, onMounted } from 'vue';
 import Icon from './Icon.vue';
 import { api, getAuthToken, getAccessToken } from '../api';
 import { marked } from 'marked';
+import markedKatex from 'marked-katex-extension';
+import 'katex/dist/katex.min.css';
+// KaTeX 数学公式渲染：$...$ 行内与 $...$ 块级，\rightarrow 等 LaTeX 符号不再裸露
+marked.use(markedKatex({ throwOnError: false }));
 
 const { state } = inject('game');
 
