@@ -712,6 +712,10 @@ function fmtTime(ts) {
 }
 .chat-input::placeholder {
   color: var(--text-dim);
+  /* 单行显示 + 超出省略：侧栏展开挤压输入区时提示不再折行 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .chat-send {
   flex-shrink: 0;
@@ -832,6 +836,10 @@ function fmtTime(ts) {
 }
 /* 移动端：侧栏默认收窄，避免挤占消息区 */
 @media (max-width: 640px) {
+  /* 输入框字号 ≥16px：iOS Safari 对小于 16px 的输入框聚焦时会自动放大页面 */
+  .chat-input {
+    font-size: 16px;
+  }
   /* 移动端展开态给足宽度（200px），收起态仍由 .chat-sidebar.collapsed 全局规则控制为 44px */
   .chat-sidebar {
     width: 200px;
