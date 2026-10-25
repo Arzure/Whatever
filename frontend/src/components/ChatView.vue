@@ -207,8 +207,6 @@ async function send() {
           scrollToBottom();
         } else if (event === 'reasoning') {
           streamMsg.reasoning += j.content;
-          // 思考内容增长时自动滚动到底部：否则手机小屏上思考内容在视口外持续增长，完全看不到
-          scrollToBottom();
           // 思考开始默认进入限长视图（仅显示最新部分，避免长思考撑爆屏幕）
           if (reasoningState.value[streamIdx] === undefined) reasoningState.value[streamIdx] = 'tail';
         } else if (event === 'error') {
