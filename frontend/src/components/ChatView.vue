@@ -16,22 +16,23 @@ const loadingSession = ref(false);
 const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
 const reasoningState = ref({}); // 各消息思考区块状态：tail 限长视图（默认，仅显示最新部分）/ full 完全展开 / collapsed 彻底折叠
-const REASONING_TAIL = 500; // 限长视图最多显示的思考字符数，超出仅保留最新部分
+const REASONING_TAIL_LINES = 12; // 限长视图最多显示的思考行数，超出仅保留最新部分（按行刷新）
 function reasoningStateOf(i) {
   return reasoningState.value[i] || 'tail';
 }
-// 限长视图：截取最新部分并加省略前缀；完全展开：显示全部
+// 限长视图：按行截取最新部分并加省略前缀；完全展开：显示全部
 function reasoningText(m, i) {
   if (reasoningStateOf(i) === 'full' || !m.reasoning) return m.reasoning;
-  return m.reasoning.length > REASONING_TAIL ? '……' + m.reasoning.slice(-REASONING_TAIL) : m.reasoning;
+  const lines = m.reasoning.split('\n');
+  return lines.length > REASONING_TAIL_LINES ? '……\n' + lines.slice(-REASONING_TAIL_LINES).join('\n') : m.reasoning;
 }
-// 点击思考区块：完全展开 ↔ 回到限长视图（折叠态点击则直接完全展开）
-function toggleReasoning(i) {
-  reasoningState.value[i] = reasoningStateOf(i) === 'full' ? 'tail' : 'full';
-}
-// 小方向键：彻底折叠 ↔ 恢复限长视图
-function toggleReasoningCollapse(i) {
-  reasoningState.value[i] = reasoningStateOf(i) === 'collapsed' ? 'tail' : 'collapsed';
+// 点击思考区块：思考中 限长视图 ↔ 完全展开；回答开始后 完全展开 ↔ 彻底折叠
+function toggleReasoning(i, m) {
+  if (m.streaming && !m.reasoningDone) {
+    reasoningState.value[i] = reasoningStateOf(i) === 'full' ? 'tail' : 'full';
+  } else {
+    reasoningState.value[i] = reasoningStateOf(i) === 'full' ? 'collapsed' : 'full';
+  }
 }
 const copiedIdx = ref(-1); // 复制成功反馈：短暂显示对勾
 const abortCtrl = ref(null); // 流式中断控制器（停止生成按钮）
@@ -193,6 +194,11 @@ async function send() {
         let j;
         try { j = JSON.parse(data); } catch { continue; }
         if (event === 'delta') {
+          // 首个回答 delta 到达 = 思考结束：自动折叠思考过程，此后点击在 完全展开 ↔ 彻底折叠 间切换
+          if (!streamMsg.reasoningDone) {
+            streamMsg.reasoningDone = true;
+            reasoningState.value[streamIdx] = 'collapsed';
+          }
           streamMsg.content += j.content;
           scrollToBottom();
         } else if (event === 'reasoning') {
@@ -345,12 +351,11 @@ function fmtTime(ts) {
           <div
             v-if="m.reasoning"
             class="msg-reasoning"
-            :class="{ open: reasoningStateOf(i) !== 'collapsed', thinking: m.streaming && reasoningStateOf(i) === 'collapsed' }"
-            @click="toggleReasoning(i)"
+            :class="{ open: reasoningStateOf(i) !== 'collapsed', thinking: m.streaming && !m.reasoningDone }"
+            @click="toggleReasoning(i, m)"
           >
             <span class="reasoning-label"><Icon name="sparkle" :size="12" /> 思考过程</span>
-            <span v-if="m.streaming && reasoningStateOf(i) === 'collapsed'" class="reasoning-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
-            <button class="reasoning-arrow" :title="reasoningStateOf(i) === 'collapsed' ? '展开思考' : '折叠思考'" @click.stop="toggleReasoningCollapse(i)">{{ reasoningStateOf(i) === 'collapsed' ? '▸' : '▾' }}</button>
+            <span v-if="m.streaming && !m.reasoningDone" class="reasoning-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
             <div class="reasoning-body">{{ reasoningText(m, i) }}</div>
           </div>
           <div v-if="m.content || !m.streaming" class="msg-content" :class="{ md: m.role === 'assistant' && !m.failed }">
@@ -636,23 +641,7 @@ function fmtTime(ts) {
 .msg-reasoning.open .reasoning-body {
   display: block;
 }
-/* 小方向键：彻底折叠/展开思考的独立开关，不随区块点击触发 */
-.reasoning-arrow {
-  margin-left: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 4px;
-  cursor: pointer;
-  border-radius: 4px;
-  vertical-align: middle;
-}
-.reasoning-arrow:hover {
-  color: var(--accent);
-}
-/* 折叠态思考中动效：标签金色呼吸 + 三点依次跳动，提示思考仍在进行 */
+/* 思考中动效（任何状态）：标签金色呼吸 + 三点依次跳动，提示思考仍在进行 */
 .msg-reasoning.thinking .reasoning-label {
   color: var(--accent);
   animation: reasoning-breathe 1.3s ease-in-out infinite;
