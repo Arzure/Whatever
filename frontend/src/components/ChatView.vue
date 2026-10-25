@@ -15,7 +15,7 @@ const sending = ref(false);
 const loadingSession = ref(false);
 const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
-const reasoningOpen = ref({}); // 各消息思考区块的展开状态（流式时自动展开，完成后可点击切换）
+const reasoningOpen = ref({}); // 各消息思考区块的展开状态（思考开始默认展开，可点击折叠，思考中折叠态有动效，完成后自动折叠）
 const copiedIdx = ref(-1); // 复制成功反馈：短暂显示对勾
 const abortCtrl = ref(null); // 流式中断控制器（停止生成按钮）
 const nearBottom = ref(true); // 是否贴近消息底部：用户上滚时暂停自动跟随
@@ -138,6 +138,7 @@ async function send() {
   // 流式占位气泡（取代理对象，直接修改可触发更新）
   messages.value.push({ role: 'assistant', content: '', reasoning: '', streaming: true });
   const streamMsg = messages.value[messages.value.length - 1];
+  const streamIdx = messages.value.length - 1; // 思考区块展开状态按消息下标记录
   try {
     const headers = { 'Content-Type': 'application/json' };
     const at = getAccessToken();
@@ -179,6 +180,8 @@ async function send() {
           scrollToBottom();
         } else if (event === 'reasoning') {
           streamMsg.reasoning += j.content;
+          // 思考开始默认展开（用户手动折叠后不再强制展开，折叠态由 thinking 动效提示进行中）
+          if (reasoningOpen.value[streamIdx] === undefined) reasoningOpen.value[streamIdx] = true;
         } else if (event === 'error') {
           streamMsg.content = j.error;
           streamMsg.failed = true;
@@ -204,6 +207,8 @@ async function send() {
     }
   } finally {
     streamMsg.streaming = false;
+    // 思考完成后自动折叠思考过程（用户此前手动展开回看的，也统一收起，保持界面简洁）
+    reasoningOpen.value[streamIdx] = false;
     sending.value = false;
     abortCtrl.value = null;
     scrollToBottom();
@@ -323,10 +328,11 @@ function fmtTime(ts) {
           <div
             v-if="m.reasoning"
             class="msg-reasoning"
-            :class="{ open: m.streaming || reasoningOpen[i] }"
+            :class="{ open: reasoningOpen[i], thinking: m.streaming && !reasoningOpen[i] }"
             @click="reasoningOpen[i] = !reasoningOpen[i]"
           >
             <span class="reasoning-label"><Icon name="sparkle" :size="12" /> 思考过程</span>
+            <span v-if="m.streaming && !reasoningOpen[i]" class="reasoning-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
             <div class="reasoning-body">{{ m.reasoning }}</div>
           </div>
           <div v-if="m.content || !m.streaming" class="msg-content" :class="{ md: m.role === 'assistant' && !m.failed }">
@@ -612,6 +618,31 @@ function fmtTime(ts) {
 .msg-reasoning.open .reasoning-body {
   display: block;
 }
+/* 折叠态思考中动效：标签金色呼吸 + 三点依次跳动，提示思考仍在进行 */
+.msg-reasoning.thinking .reasoning-label {
+  color: var(--accent);
+  animation: reasoning-breathe 1.3s ease-in-out infinite;
+}
+@keyframes reasoning-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.reasoning-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.reasoning-dots .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dot-bounce 1.1s ease-in-out infinite;
+}
+.reasoning-dots .dot:nth-child(2) { animation-delay: 0.18s; }
+.reasoning-dots .dot:nth-child(3) { animation-delay: 0.36s; }
 /* 流式光标：金色竖线闪烁 */
 .stream-cursor {
   display: inline-block;
