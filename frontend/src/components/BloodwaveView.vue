@@ -36,6 +36,7 @@ onMounted(async () => {
 .bloodwave {
   position: fixed;
   top: 48px;
+  height: auto !important;
   left: 0;
   right: 0;
   bottom: 0;
