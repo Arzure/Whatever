@@ -15,7 +15,24 @@ const sending = ref(false);
 const loadingSession = ref(false);
 const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
-const reasoningOpen = ref({}); // 各消息思考区块的展开状态（思考开始默认展开，可点击折叠，思考中折叠态有动效，完成后自动折叠）
+const reasoningState = ref({}); // 各消息思考区块状态：tail 限长视图（默认，仅显示最新部分）/ full 完全展开 / collapsed 彻底折叠
+const REASONING_TAIL = 500; // 限长视图最多显示的思考字符数，超出仅保留最新部分
+function reasoningStateOf(i) {
+  return reasoningState.value[i] || 'tail';
+}
+// 限长视图：截取最新部分并加省略前缀；完全展开：显示全部
+function reasoningText(m, i) {
+  if (reasoningStateOf(i) === 'full' || !m.reasoning) return m.reasoning;
+  return m.reasoning.length > REASONING_TAIL ? '……' + m.reasoning.slice(-REASONING_TAIL) : m.reasoning;
+}
+// 点击思考区块：完全展开 ↔ 回到限长视图（折叠态点击则直接完全展开）
+function toggleReasoning(i) {
+  reasoningState.value[i] = reasoningStateOf(i) === 'full' ? 'tail' : 'full';
+}
+// 小方向键：彻底折叠 ↔ 恢复限长视图
+function toggleReasoningCollapse(i) {
+  reasoningState.value[i] = reasoningStateOf(i) === 'collapsed' ? 'tail' : 'collapsed';
+}
 const copiedIdx = ref(-1); // 复制成功反馈：短暂显示对勾
 const abortCtrl = ref(null); // 流式中断控制器（停止生成按钮）
 const nearBottom = ref(true); // 是否贴近消息底部：用户上滚时暂停自动跟随
@@ -180,8 +197,8 @@ async function send() {
           scrollToBottom();
         } else if (event === 'reasoning') {
           streamMsg.reasoning += j.content;
-          // 思考开始默认展开（用户手动折叠后不再强制展开，折叠态由 thinking 动效提示进行中）
-          if (reasoningOpen.value[streamIdx] === undefined) reasoningOpen.value[streamIdx] = true;
+          // 思考开始默认进入限长视图（仅显示最新部分，避免长思考撑爆屏幕）
+          if (reasoningState.value[streamIdx] === undefined) reasoningState.value[streamIdx] = 'tail';
         } else if (event === 'error') {
           streamMsg.content = j.error;
           streamMsg.failed = true;
@@ -207,8 +224,8 @@ async function send() {
     }
   } finally {
     streamMsg.streaming = false;
-    // 思考完成后自动折叠思考过程（用户此前手动展开回看的，也统一收起，保持界面简洁）
-    reasoningOpen.value[streamIdx] = false;
+    // 思考完成后自动折叠思考过程（点击可回看，方向键可再折叠）
+    reasoningState.value[streamIdx] = 'collapsed';
     sending.value = false;
     abortCtrl.value = null;
     scrollToBottom();
@@ -328,12 +345,13 @@ function fmtTime(ts) {
           <div
             v-if="m.reasoning"
             class="msg-reasoning"
-            :class="{ open: reasoningOpen[i], thinking: m.streaming && !reasoningOpen[i] }"
-            @click="reasoningOpen[i] = !reasoningOpen[i]"
+            :class="{ open: reasoningStateOf(i) !== 'collapsed', thinking: m.streaming && reasoningStateOf(i) === 'collapsed' }"
+            @click="toggleReasoning(i)"
           >
             <span class="reasoning-label"><Icon name="sparkle" :size="12" /> 思考过程</span>
-            <span v-if="m.streaming && !reasoningOpen[i]" class="reasoning-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
-            <div class="reasoning-body">{{ m.reasoning }}</div>
+            <span v-if="m.streaming && reasoningStateOf(i) === 'collapsed'" class="reasoning-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+            <button class="reasoning-arrow" :title="reasoningStateOf(i) === 'collapsed' ? '展开思考' : '折叠思考'" @click.stop="toggleReasoningCollapse(i)">{{ reasoningStateOf(i) === 'collapsed' ? '▸' : '▾' }}</button>
+            <div class="reasoning-body">{{ reasoningText(m, i) }}</div>
           </div>
           <div v-if="m.content || !m.streaming" class="msg-content" :class="{ md: m.role === 'assistant' && !m.failed }">
             <template v-if="m.role === 'assistant' && !m.failed"><span v-html="renderMd(m.content)"></span></template>
@@ -617,6 +635,22 @@ function fmtTime(ts) {
 }
 .msg-reasoning.open .reasoning-body {
   display: block;
+}
+/* 小方向键：彻底折叠/展开思考的独立开关，不随区块点击触发 */
+.reasoning-arrow {
+  margin-left: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.reasoning-arrow:hover {
+  color: var(--accent);
 }
 /* 折叠态思考中动效：标签金色呼吸 + 三点依次跳动，提示思考仍在进行 */
 .msg-reasoning.thinking .reasoning-label {
