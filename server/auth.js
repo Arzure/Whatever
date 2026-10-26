@@ -17,7 +17,7 @@ function loadSecret() {
   return secret;
 }
 const JWT_SECRET = loadSecret();
-const TOKEN_TTL_MS = 72 * 60 * 60 * 1000; // 72 小时
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
 
 // —— JWT（HMAC-SHA256，无第三方依赖） ——
 function b64url(buf) {

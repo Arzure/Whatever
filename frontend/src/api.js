@@ -3,12 +3,12 @@
 const TOKEN_KEY = 'rpg_access_token';
 const AUTH_KEY = 'rpg_auth_token';
 const AUTH_USER_KEY = 'rpg_auth_user';
-// 口令有效期：7 天（毫秒）。过期后自动清除，需重新输入
-const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// 口令有效期：30 天（毫秒）。过期后自动清除，需重新输入
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * 读取本地保存的访问口令（无则空串）。
- * 存储结构：{ token, savedAt }。超过 24 小时自动清除并返回空串。
+ * 存储结构：{ token, savedAt }。超过 30 天自动清除并返回空串。
  * 旧格式（纯字符串，无时间戳）视为已过期，同样清除，确保升级后重新验证。
  */
 export function getAccessToken() {
@@ -32,7 +32,7 @@ export function getAccessToken() {
   }
 }
 
-/** 保存访问口令到本地（带时间戳，24 小时内免输入） */
+/** 保存访问口令到本地（带时间戳，30 天内免输入） */
 export function setAccessToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, savedAt: Date.now() }));
