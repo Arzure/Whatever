@@ -15,7 +15,7 @@ import { HI_TRANSLATIONS } from "./locales/hi.js";
  */
 export class I18nManager {
     constructor() {
-        this.currentLocale = localStorage.getItem('game_locale') || 'en';
+        this.currentLocale = localStorage.getItem('game_locale') || 'zh';
         this.translations = {
             en: typeof EN_TRANSLATIONS !== 'undefined' ? EN_TRANSLATIONS : {},
             zh: typeof ZH_TRANSLATIONS !== 'undefined' ? ZH_TRANSLATIONS : {},
