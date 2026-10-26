@@ -116,6 +116,18 @@
             <span class="gp-ssenemy gp-sse2"></span>
             <span class="gp-sshp"></span>
           </template>
+          <!-- 过马路：马路车道 + 小鸡角色 + 车辆驶过 -->
+          <template v-else-if="g.id === 'crossyroad'">
+            <span class="gp-crsky"></span>
+            <span class="gp-crroad"></span>
+            <span class="gp-crlane gp-crl1"></span>
+            <span class="gp-crlane gp-crl2"></span>
+            <span class="gp-crgrass gp-crg1"></span>
+            <span class="gp-crgrass gp-crg2"></span>
+            <span class="gp-crchar"></span>
+            <span class="gp-crcar gp-crv1"></span>
+            <span class="gp-crcar gp-crv2"></span>
+          </template>
           <!-- 台球：绿色台面 + 母球 + 彩球 + 球杆 -->
           <template v-else-if="g.id === 'billiards'">
             <span class="gp-bitable"></span>
@@ -287,6 +299,13 @@ const games = [
     desc: '塔防策略 · 建设扩容 · 抵御流量洪峰',
     icon: 'sword',
     badge: 'TD 3D',
+  },
+  {
+    id: 'crossyroad',
+    name: '过马路',
+    desc: '复古像素 · 车流穿梭 · 步步惊心',
+    icon: 'sword',
+    badge: 'CASUAL 3D',
   },
 ];
 
@@ -1229,6 +1248,100 @@ function onCardLeave(e) {
 @keyframes gp-sshp-pulse {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
+}
+/* —— 过马路预览：马路车道 + 草地 + 小鸡 + 车辆 —— */
+.gp-crsky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #87C6FF 0%, #b3e0ff 100%);
+}
+.gp-crroad {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  bottom: 10%;
+  background: #4a4a52;
+}
+.gp-crlane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #f5f5f0 0, #f5f5f0 18px, transparent 18px, transparent 36px);
+}
+.gp-crl1 { top: 48%; }
+.gp-crl2 { top: 68%; }
+.gp-crgrass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20%;
+  background: repeating-linear-gradient(90deg, #5cb85c 0, #5cb85c 8px, #4cae4c 8px, #4cae4c 16px);
+}
+.gp-crg1 { top: 10%; }
+.gp-crg2 { bottom: -10%; }
+.gp-crchar {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #e8a33d, 0 2px 3px rgba(0,0,0,0.3);
+  animation: gp-crchar-hop 1.2s ease-in-out infinite;
+}
+.gp-crchar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 6px;
+  height: 5px;
+  margin-left: -3px;
+  border-radius: 2px;
+  background: #e8a33d;
+}
+@keyframes gp-crchar-hop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.gp-crcar {
+  position: absolute;
+  width: 26px;
+  height: 12px;
+  border-radius: 3px;
+  animation: gp-crcar-move 2.4s linear infinite;
+}
+.gp-crcar::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 5px;
+  right: 5px;
+  height: 6px;
+  border-radius: 3px 3px 0 0;
+  background: rgba(255, 255, 255, 0.35);
+}
+.gp-crv1 {
+  top: 52%;
+  background: #d9534f;
+  animation: gp-crcar-move 2.2s linear infinite;
+}
+.gp-crv2 {
+  top: 72%;
+  background: #428bca;
+  animation: gp-crcar-move-rev 2.8s linear infinite;
+}
+@keyframes gp-crcar-move {
+  0% { left: -15%; }
+  100% { left: 110%; }
+}
+@keyframes gp-crcar-move-rev {
+  0% { left: 110%; }
+  100% { left: -15%; }
 }
 .hub-info {
   display: flex;
