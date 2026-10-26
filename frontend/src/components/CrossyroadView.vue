@@ -7,7 +7,7 @@
     <iframe
       v-if="ready"
       class="crossyroad-frame"
-      src="/3d/crossyroad/index.html"
+      src="/3d/crossyroad/"
       title="crossyroad"
       allow="fullscreen"
     ></iframe>
