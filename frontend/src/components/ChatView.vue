@@ -92,6 +92,7 @@ async function loadSessions() {
 function newSession() {
   if (sending.value) return;
   sessionId.value = '';
+  reasoningState.value = {}; // 同步清空思考状态，避免跨会话泄漏
   messages.value = [];
 }
 
@@ -103,6 +104,7 @@ async function openSession(id) {
     const data = await api.chatSession(id);
     sessionId.value = data.session.id;
     messages.value = (data.messages || []).map((m) => ({ role: m.role, content: m.content }));
+    reasoningState.value = {}; // 清空思考状态：按消息下标记录，切换会话必须重置，否则旧会话状态泄漏到新会话同下标消息
     nearBottom.value = true;
     scrollToBottom(true); // 切换会话强制定位到底部
   } catch (e) {
