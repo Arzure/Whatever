@@ -42,8 +42,9 @@ watch(() => game.state.view, (v) => {
   if (valid && router.currentRoute.value.name !== valid) router.push({ name: valid });
 });
 // 地址栏 → 视图：直达链接/刷新/浏览器后退时，从路由恢复视图（story 仅在 mode 游戏进行中恢复，否则回首页）
+// login 路由仅作守卫状态标记，不进 game.state.view 体系（登录页由 LoginView 承载）
 watch(() => router.currentRoute.value.name, (name) => {
-  if (!name) return;
+  if (!name || name === 'login') return;
   if (name === 'story' && !game.state.mode) { router.replace({ name: 'home' }); return; }
   if (game.state.view !== name) game.state.view = name;
 });
@@ -101,11 +102,15 @@ watch(barEl, (el) => {
 function onLoggedIn(user) {
   authUser.value = user;
   game.refreshSaves();
+  // 登录成功：回跳守卫记录的原目标路由（无记录则回首页）
+  const redirect = router.currentRoute.value.query.redirect;
+  router.replace(typeof redirect === 'string' && redirect.startsWith('/#') === false && redirect.startsWith('/') ? redirect : { name: 'home' });
 }
 
 function logout() {
   setAuth('', null);
   authUser.value = null;
+  router.replace({ name: 'login' }); // 登出：路由同步到登录态
 }
 
 // 顶栏用户名：超长截断（最多 5 个字符，超出以省略号显示，完整名悬停可见）
