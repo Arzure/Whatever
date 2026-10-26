@@ -107,6 +107,15 @@
             <span class="gp-gscross"></span>
             <span class="gp-gshp"></span>
           </template>
+          <!-- 服务器保卫战：网格地图 + 炮塔 + 敌人波次 + 血条 -->
+          <template v-else-if="g.id === 'serversurvival'">
+            <span class="gp-ssgrid"></span>
+            <span class="gp-sstower gp-sst1"></span>
+            <span class="gp-sstower gp-sst2"></span>
+            <span class="gp-ssenemy gp-sse1"></span>
+            <span class="gp-ssenemy gp-sse2"></span>
+            <span class="gp-sshp"></span>
+          </template>
           <!-- 台球：绿色台面 + 母球 + 彩球 + 球杆 -->
           <template v-else-if="g.id === 'billiards'">
             <span class="gp-bitable"></span>
@@ -271,6 +280,13 @@ const games = [
     desc: '第一人称生存 · 武器射击 · 尸潮来袭',
     icon: 'sword',
     badge: 'FPS 3D',
+  },
+  {
+    id: 'serversurvival',
+    name: '服务器保卫战',
+    desc: '塔防策略 · 建设扩容 · 抵御流量洪峰',
+    icon: 'sword',
+    badge: 'TD 3D',
   },
 ];
 
@@ -1133,6 +1149,86 @@ function onCardLeave(e) {
   15% { opacity: 1; transform: scale(1); }
   85% { opacity: 1; }
   100% { opacity: 0.6; }
+}
+/* —— 服务器保卫战预览：网格地图 + 炮塔 + 敌人波次 + 血条 —— */
+.gp-ssgrid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-color: #07120d;
+}
+.gp-sstower {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #34d399, #059669);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+.gp-sstower::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 3px;
+  margin: -1.5px 0 0 -4px;
+  border-radius: 2px;
+  background: #a7f3d0;
+  transform-origin: 4px 50%;
+  animation: gp-sstower-aim 2.2s ease-in-out infinite;
+}
+.gp-sst1 { left: 22%; bottom: 30%; }
+.gp-sst2 { right: 20%; top: 28%; animation-delay: 1.1s; }
+.gp-sst2::after { animation-delay: 1.1s; }
+@keyframes gp-sstower-aim {
+  0%, 100% { transform: rotate(-30deg); }
+  50% { transform: rotate(30deg); }
+}
+.gp-ssenemy {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f87171, #b91c1c);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  animation: gp-ssenemy-move 3s linear infinite;
+}
+.gp-sse1 { left: -5%; top: 62%; }
+.gp-sse2 { left: -5%; top: 78%; animation-delay: 1.5s; }
+@keyframes gp-ssenemy-move {
+  0% { left: -5%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 105%; opacity: 0; }
+}
+.gp-sshp {
+  position: absolute;
+  left: 8%;
+  bottom: 6%;
+  width: 30%;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(6, 26, 18, 0.8);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  overflow: hidden;
+}
+.gp-sshp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(90deg, #059669, #34d399);
+  animation: gp-sshp-pulse 1.5s ease-in-out infinite;
+}
+@keyframes gp-sshp-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 .hub-info {
   display: flex;

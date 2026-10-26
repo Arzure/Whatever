@@ -19,6 +19,7 @@ const SlashView = defineAsyncComponent(() => import('./components/SlashView.vue'
 const HexglView = defineAsyncComponent(() => import('./components/HexglView.vue'));
 const SynthblastView = defineAsyncComponent(() => import('./components/SynthblastView.vue'));
 const GorescriptView = defineAsyncComponent(() => import('./components/GorescriptView.vue'));
+const ServersurvivalView = defineAsyncComponent(() => import('./components/ServersurvivalView.vue'));
 const BilliardsView = defineAsyncComponent(() => import('./components/BilliardsView.vue'));
 const JumpView = defineAsyncComponent(() => import('./components/JumpView.vue'));
 const BloodwaveView = defineAsyncComponent(() => import('./components/BloodwaveView.vue'));
@@ -131,7 +132,7 @@ function onDeleted() {
 // 游戏中心 → 首页；挥剑挑战/方块世界 → 游戏中心；文字冒险游戏进行中 → 文字冒险模式页；其余视图 → 首页
 function backUp() {
   const v = game.state.view;
-  if (v === 'slash' || v === 'voxel' || v === 'ironhold' || v === 'cube' || v === 'tower' || v === 'underrun' || v === 'hexgl' || v === 'synthblast' || v === 'gorescript' || v === 'billiards' || v === 'jump' || v === 'bloodwave') {
+  if (v === 'slash' || v === 'voxel' || v === 'ironhold' || v === 'cube' || v === 'tower' || v === 'underrun' || v === 'hexgl' || v === 'synthblast' || v === 'gorescript' || v === 'billiards' || v === 'jump' || v === 'bloodwave' || v === 'serversurvival') {
     game.state.view = 'hub';
   } else if (v === 'story') {
     game.state.view = 'adventure';
@@ -176,6 +177,7 @@ function backUp() {
           <HexglView v-else-if="game.state.view === 'hexgl'" />
           <SynthblastView v-else-if="game.state.view === 'synthblast'" />
           <GorescriptView v-else-if="game.state.view === 'gorescript'" />
+          <ServersurvivalView v-else-if="game.state.view === 'serversurvival'" />
           <BilliardsView v-else-if="game.state.view === 'billiards'" />
           <JumpView v-else-if="game.state.view === 'jump'" />
           <BloodwaveView v-else-if="game.state.view === 'bloodwave'" />

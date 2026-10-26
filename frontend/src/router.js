@@ -24,6 +24,7 @@ const routes = [
   { path: '/hexgl', name: 'hexgl' },
   { path: '/synthblast', name: 'synthblast' },
   { path: '/gorescript', name: 'gorescript' },
+  { path: '/serversurvival', name: 'serversurvival' },
   { path: '/billiards', name: 'billiards' },
   { path: '/jump', name: 'jump' },
   { path: '/bloodwave', name: 'bloodwave' },
