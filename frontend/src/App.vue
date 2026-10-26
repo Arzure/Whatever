@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, provide, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useGame } from './composables/useGame';
+import { router } from './router';
 import { getAuthToken, getAuthUser, setAuth, api } from './api';
 import SilkBackground from './components/SilkBackground.vue';
 // —— 视图懒加载：各页面拆成独立分包，进入时才下载，首屏不背全站代码 ——
@@ -34,6 +35,18 @@ import Icon from './components/Icon.vue';
 
 const game = useGame();
 provide('game', game);
+// —— 前端路由双向同步（hash 模式）——
+// 视图切换 → 地址栏：game.state.view 变化时同步路由（story 视图仅在 mode 游戏进行中有效）
+watch(() => game.state.view, (v) => {
+  const valid = router.hasRoute(v) && v !== 'story' ? v : (v === 'story' && game.state.mode ? 'story' : null);
+  if (valid && router.currentRoute.value.name !== valid) router.push({ name: valid });
+});
+// 地址栏 → 视图：直达链接/刷新/浏览器后退时，从路由恢复视图（story 仅在 mode 游戏进行中恢复，否则回首页）
+watch(() => router.currentRoute.value.name, (name) => {
+  if (!name) return;
+  if (name === 'story' && !game.state.mode) { router.replace({ name: 'home' }); return; }
+  if (game.state.view !== name) game.state.view = name;
+});
 
 // —— 主题切换（深色定稿 / 浅色对比）：选择存 localStorage，刷新后保持 ——
 const theme = ref(localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'); // 默认浅色，用户切换后按保存的偏好
