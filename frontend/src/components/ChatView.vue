@@ -21,8 +21,12 @@ const sidebarOpen = ref(true); // 侧栏默认展开，可折叠
 const messagesEl = ref(null);
 const reasoningState = ref({}); // 各消息思考区块状态：tail 限长视图（默认，仅显示最新部分）/ full 完全展开 / collapsed 彻底折叠
 const REASONING_TAIL_LINES = 12; // 限长视图最多显示的思考行数，超出仅保留最新部分（按行刷新）
+// 手机端（≤640px）检测：历史消息的思考过程默认彻底折叠，电脑端保持限长视图
+const isMobile = ref(window.matchMedia('(max-width: 640px)').matches);
+window.matchMedia('(max-width: 640px)').addEventListener('change', (e) => { isMobile.value = e.matches; });
 function reasoningStateOf(i) {
-  return reasoningState.value[i] || 'tail';
+  // 无显式状态（历史消息）：手机端默认折叠，电脑端默认限长视图；流式消息由 reasoning 事件显式置 tail
+  return reasoningState.value[i] || (isMobile.value ? 'collapsed' : 'tail');
 }
 // 限长视图：按行截取最新部分并加省略前缀；完全展开：显示全部
 function reasoningText(m, i) {
