@@ -29,6 +29,12 @@
     <!-- 暂停按钮 -->
     <button v-if="playing" class="pause-btn" title="暂停（Esc / P）" @click="pause">‖</button>
 
+    <!-- Music / SFX 开关 -->
+    <div class="audio-btns">
+      <button class="audio-btn" :class="{ off: !musicOn }" :title="musicOn ? '关闭音乐' : '开启音乐'" @click="toggleMusic">♪</button>
+      <button class="audio-btn" :class="{ off: !sfxOn }" :title="sfxOn ? '关闭音效' : '开启音效'" @click="toggleSfx">♫</button>
+    </div>
+
     <!-- 虚拟摇杆（触摸设备） -->
     <div v-if="playing && isTouch" ref="stickEl" class="vjoy" @touchstart.prevent="onStickStart" @touchmove.prevent="onStickMove" @touchend.prevent="onStickEnd">
       <div class="vjoy-base">
@@ -83,12 +89,15 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { SurvivorGame, WEAPONS, PASSIVES } from '../game/survivor.js';
+import { sound } from '../game/audio.js';
 
 const canvasEl = ref(null);
 const canvasWrap = ref(null);
 const stickEl = ref(null);
 
 const playing = ref(false);
+const musicOn = ref(true);
+const sfxOn = ref(true);
 const paused = ref(false);
 const levelup = ref(false);
 const over = ref(false);
@@ -139,6 +148,7 @@ function onEnd(r) {
   playing.value = false;
   over.value = !r.win;
   levelup.value = false;
+  sound.stopMusic();
 }
 
 function start() {
@@ -147,6 +157,19 @@ function start() {
   paused.value = false;
   playing.value = true;
   game.start();
+  if (musicOn.value) sound.startMusic();
+}
+
+function toggleMusic() {
+  musicOn.value = !musicOn.value;
+  sound.musicOn = musicOn.value;
+  if (musicOn.value && playing.value) sound.startMusic();
+  else sound.stopMusic();
+}
+
+function toggleSfx() {
+  sfxOn.value = !sfxOn.value;
+  sound.sfxOn = sfxOn.value;
 }
 
 function restart() {
@@ -159,12 +182,19 @@ function pause() {
   paused.value = true;
   playing.value = false;
   game.stop();
+  sound.stopMusic();
 }
 
 function resume() {
   paused.value = false;
   playing.value = true;
   game.start();
+  if (musicOn.value) sound.startMusic();
+}
+
+// 页面失焦自动暂停
+function onVis() {
+  if (document.hidden && playing.value) pause();
 }
 
 // ---------- 键盘输入 ----------
@@ -245,12 +275,15 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('resize', onResize);
+  document.addEventListener('visibilitychange', onVis);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
   window.removeEventListener('keyup', onKeyUp);
   window.removeEventListener('resize', onResize);
+  document.removeEventListener('visibilitychange', onVis);
+  sound.stopMusic();
   if (game) game.stop();
 });
 </script>
@@ -388,6 +421,33 @@ onBeforeUnmount(() => {
 }
 .pause-btn:hover {
   border-color: #22d3ee;
+}
+
+/* Music / SFX 开关 */
+.audio-btns {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
+}
+.audio-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: rgba(10, 14, 26, 0.7);
+  color: #22d3ee;
+  font-size: 16px;
+  cursor: pointer;
+}
+.audio-btn:hover {
+  border-color: #22d3ee;
+}
+.audio-btn.off {
+  color: #475569;
+  text-decoration: line-through;
 }
 
 /* 虚拟摇杆 */

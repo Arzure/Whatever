@@ -4,6 +4,8 @@
  * 20 分钟一局：15min 内核恐慌 Boss，20min 数据毁灭者终局
  * ============================================================ */
 
+import { sound } from './audio.js'
+
 // ---------- 数值表：武器 ----------
 
 export const WEAPONS = {
@@ -203,6 +205,9 @@ export class SurvivorGame {
     this.statT = 0
     this.raf = 0
     this.last = 0
+    this.shakeT = 0
+    this.flash = 0
+    this.slowmo = 0
     this.resize()
   }
 
@@ -286,6 +291,7 @@ export class SurvivorGame {
     this.last = ts
     if (dt > 0.05) dt = 0.05
     if (dt < 0) dt = 0
+    if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.3 }
     if (this.state === 'playing') this.update(dt)
     else this.updateFx(dt)
     this.render()
@@ -361,6 +367,7 @@ export class SurvivorGame {
         const a = base + (i - (n - 1) / 2) * 0.18
         this.addBullet(p.x, p.y, a, w.speed, w.dmg * mul, w.pierce + (lv >= 4 ? 1 : 0), 5, w.color, false)
       }
+      sound.play('shoot')
       return true
     }
     if (w.type === 'homing') {
@@ -369,6 +376,7 @@ export class SurvivorGame {
         const a = Math.random() * TAU
         this.addBullet(p.x, p.y, a, w.speed, w.dmg * mul, 1, 6, w.color, true)
       }
+      sound.play('shoot')
       return true
     }
     if (w.type === 'laser') {
@@ -460,6 +468,7 @@ export class SurvivorGame {
   spawnBoss(type) {
     this.spawnEnemy(type)
     const d = ENEMIES[type]
+    sound.play('boss')
     this.floats.push({ x: this.player.x, y: this.player.y - 60, txt: '⚠ ' + d.name + ' 出现', t: 2, color: d.color, big: true })
   }
 
@@ -544,12 +553,13 @@ export class SurvivorGame {
         g.x += (p.x - g.x) / d * 320 * dt
         g.y += (p.y - g.y) / d * 320 * dt
       }
-      if (d2 < 18 * 18) { g.got = true; this.addXp(g.v) }
+      if (d2 < 18 * 18) { g.got = true; sound.play('pickup'); this.addXp(g.v) }
     }
     this.gems = this.gems.filter(g => !g.got)
   }
 
   updateFx(dt) {
+    if (this.flash > 0) this.flash -= dt
     for (let i = 0; i < this.rains.length; i++) {
       const r = this.rains[i]
       r.t -= dt
@@ -591,6 +601,7 @@ export class SurvivorGame {
     const crit = Math.random() < p.crit
     if (crit) d *= 2
     e.hp -= d
+    sound.play('hit')
     this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(d | 0), t: 0.7, color: crit ? '#fde047' : '#e2e8f0' })
     if (e.hp <= 0) this.killEnemy(e)
   }
@@ -601,12 +612,15 @@ export class SurvivorGame {
     this.kills++
     this.burst(e.x, e.y, e.color, e.boss ? 24 : 6)
     if (e.boss) {
+      this.slowmo = 0.5
+      sound.play('bosskill')
       for (let i = 0; i < 12; i++) {
         const a = Math.random() * TAU, d = rand(10, 60)
         this.gems.push({ x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d, v: Math.ceil(e.xp / 12) })
       }
       if (e.type === 'data_destroyer') {
         this.state = 'win'
+        sound.play('win')
         this.cb.onEnd && this.cb.onEnd({ win: true, time: this.time, kills: this.kills, level: this.player.level })
         return
       }
@@ -636,10 +650,14 @@ export class SurvivorGame {
     const d = Math.max(1, dmg * (1 - p.armor))
     p.hp -= d
     p.invuln = 0.6
+    this.shakeT = this.time + 0.3
+    this.flash = 0.5
+    sound.play('hurt')
     this.floats.push({ x: p.x, y: p.y - 16, txt: '-' + String(d | 0), t: 0.7, color: '#f87171' })
     if (p.hp <= 0) {
       p.hp = 0
       this.state = 'over'
+      sound.play('over')
       this.cb.onEnd && this.cb.onEnd({ win: false, time: this.time, kills: this.kills, level: p.level })
     }
   }
@@ -652,6 +670,7 @@ export class SurvivorGame {
       p.level++
       p.xpNeed = XP_CURVE(p.level)
       this.state = 'levelup'
+      sound.play('levelup')
       this.cb.onLevelUp && this.cb.onLevelUp(this.rollChoices())
     }
   }
@@ -745,8 +764,13 @@ export class SurvivorGame {
     const ctx = this.ctx
     const p = this.player
     if (!p) return
-    const camX = p.x - this.W / 2
-    const camY = p.y - this.H / 2
+    let camX = p.x - this.W / 2
+    let camY = p.y - this.H / 2
+    if (this.time < this.shakeT) {
+      const s = 8 * (this.shakeT - this.time) / 0.3
+      camX += rand(-s, s)
+      camY += rand(-s, s)
+    }
     // 背景
     ctx.fillStyle = '#0d1526'
     ctx.fillRect(0, 0, this.W, this.H)
@@ -931,6 +955,11 @@ export class SurvivorGame {
       ctx.font = '12px monospace'
       ctx.textAlign = 'center'
       ctx.fillText(ENEMIES[boss.type].name, this.W / 2, 38)
+    }
+    // 受击红闪
+    if (this.flash > 0) {
+      ctx.fillStyle = 'rgba(239,68,68,' + (Math.min(0.5, this.flash) * 0.6).toFixed(3) + ')'
+      ctx.fillRect(0, 0, this.W, this.H)
     }
   }
 }
