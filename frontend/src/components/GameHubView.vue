@@ -154,6 +154,20 @@
             <span class="gp-bwcross"></span>
             <span class="gp-bwammo"></span>
           </template>
+          <!-- 割草幸存者：暗夜网格 + 玩家 + 环绕防火墙 + 逼近故障群 + 经验晶体 -->
+          <template v-else-if="g.id === 'survivor'">
+            <span class="gp-svsky"></span>
+            <span class="gp-svgrid"></span>
+            <span class="gp-svbug gp-svb1"></span>
+            <span class="gp-svbug gp-svb2"></span>
+            <span class="gp-svbug gp-svb3"></span>
+            <span class="gp-svgem gp-svg1"></span>
+            <span class="gp-svgem gp-svg2"></span>
+            <span class="gp-svorb gp-svo1"></span>
+            <span class="gp-svorb gp-svo2"></span>
+            <span class="gp-svorb gp-svo3"></span>
+            <span class="gp-svplayer"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -1530,5 +1544,92 @@ function onCardLeave(e) {
 @keyframes gp-bwammo-pulse {
   0%, 100% { opacity: 0.7; }
   100% { opacity: 1; }
+}
+
+/* —— 割草幸存者预览：暗夜网格 + 环绕防火墙 + 逼近故障 + 经验晶体 —— */
+.gp-svsky {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, #101a30 0%, #0a0e1a 70%);
+}
+.gp-svgrid {
+  position: absolute;
+  inset: -20%;
+  background-image:
+    linear-gradient(rgba(56, 80, 140, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 80, 140, 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  animation: gp-svgrid-move 2.4s linear infinite;
+}
+@keyframes gp-svgrid-move {
+  from { transform: translate(0, 0); }
+  to { transform: translate(22px, 22px); }
+}
+.gp-svplayer {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 14px; height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 12px #22d3ee, 0 0 26px rgba(34, 211, 238, 0.5);
+  z-index: 3;
+}
+.gp-svplayer::after {
+  content: '';
+  position: absolute;
+  right: -9px; top: 3px;
+  border-left: 7px solid #e0f2fe;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+.gp-svorb {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 9px; height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border: 1.5px solid #22d3ee;
+  background: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+  animation: gp-sv-orbit 3s linear infinite;
+  z-index: 2;
+}
+.gp-svo2 { animation-delay: -1s; }
+.gp-svo3 { animation-delay: -2s; }
+@keyframes gp-sv-orbit {
+  from { transform: rotate(0deg) translateX(36px); }
+  to { transform: rotate(360deg) translateX(36px); }
+}
+.gp-svbug {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid #ef4444;
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+  animation: gp-sv-converge 2.6s ease-in infinite;
+}
+.gp-svb1 { --sv-a: 205deg; --sv-d: 78px; animation-delay: 0s; }
+.gp-svb2 { --sv-a: 340deg; --sv-d: 92px; animation-delay: -0.9s; }
+.gp-svb3 { --sv-a: 100deg; --sv-d: 84px; animation-delay: -1.7s; }
+@keyframes gp-sv-converge {
+  0% { transform: rotate(var(--sv-a)) translateX(var(--sv-d)) rotate(180deg) scale(1); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: rotate(var(--sv-a)) translateX(14px) rotate(180deg) scale(0.7); opacity: 0; }
+}
+.gp-svgem {
+  position: absolute;
+  width: 6px; height: 6px;
+  background: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.8);
+  animation: gp-sv-gem 1.8s ease-in-out infinite;
+}
+.gp-svg1 { left: 26%; top: 64%; animation-delay: 0s; }
+.gp-svg2 { left: 70%; top: 30%; animation-delay: -0.9s; }
+@keyframes gp-sv-gem {
+  0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.9; }
+  50% { transform: rotate(180deg) scale(0.7); opacity: 0.5; }
 }
 </style>
