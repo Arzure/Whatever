@@ -81,6 +81,7 @@ export const ENEMIES = {
   ddos: { name: 'DDoS 洪流', color: '#f59e0b', hp: 14, dmg: 12, speed: 108, r: 8, xp: 3, shape: 'diamond' },
   worm: { name: '蠕虫', color: '#e879f9', hp: 40, dmg: 12, speed: 52, r: 13, xp: 4, shape: 'pent' },
   spam: { name: '垃圾流量', color: '#f472b6', hp: 60, dmg: 14, speed: 38, r: 15, xp: 5, shape: 'square' },
+  splitter: { name: '分裂进程', color: '#c084fc', hp: 36, dmg: 10, speed: 46, r: 14, xp: 3, shape: 'square' },
   kernel_panic: { name: '内核恐慌', color: '#dc2626', hp: 2600, dmg: 30, speed: 40, r: 34, xp: 120, shape: 'boss', boss: true },
   data_destroyer: { name: '数据毁灭者', color: '#7c3aed', hp: 5200, dmg: 40, speed: 46, r: 40, xp: 300, shape: 'boss', boss: true }
 }
@@ -97,13 +98,13 @@ export const WAVES = [
   { t: 350, interval: 0.75, types: { leak: 2, ddos: 1 } },
   { t: 430, interval: 0.7, types: { zombie: 2, ddos: 2 } },
   { t: 510, interval: 0.65, types: { ddos: 2, worm: 1 } },
-  { t: 600, interval: 0.6, types: { leak: 2, worm: 2 } },
+  { t: 600, interval: 0.6, types: { leak: 2, worm: 2, splitter: 1 } },
   { t: 680, interval: 0.55, types: { ddos: 3, worm: 1 } },
-  { t: 760, interval: 0.5, types: { worm: 2, spam: 1 } },
+  { t: 760, interval: 0.5, types: { worm: 2, spam: 1, splitter: 1 } },
   { t: 840, interval: 0.45, types: { ddos: 2, spam: 2 } },
   { t: 900, interval: 0.5, types: { spam: 2 }, boss: 'kernel_panic' },
   { t: 960, interval: 0.4, types: { worm: 2, spam: 2 } },
-  { t: 1040, interval: 0.35, types: { ddos: 3, spam: 2 } },
+  { t: 1040, interval: 0.35, types: { ddos: 3, spam: 2, splitter: 2 } },
   { t: 1120, interval: 0.3, types: { spam: 3, worm: 2 } },
   { t: 1200, interval: 0.4, types: { spam: 2 }, boss: 'data_destroyer' }
 ]
@@ -203,6 +204,8 @@ export class SurvivorGame {
     this.waveIdx = 0
     this.spawnTimer = 0
     this.eliteTimer = 60
+    this.combo = 0
+    this.comboT = 0
     this.statT = 0
     this.raf = 0
     this.last = 0
@@ -240,6 +243,9 @@ export class SurvivorGame {
     this.spawnTimer = 0
     this.eliteTimer = 60
     this.chests = []
+    this.pickups = []
+    this.combo = 0
+    this.comboT = 0
     this.player = {
       x: 0, y: 0, r: 12, hp: 100, maxHp: 100,
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
@@ -304,6 +310,11 @@ export class SurvivorGame {
   update(dt) {
     this.time += dt
     const p = this.player
+    // 连杀窗口
+    if (this.comboT > 0) {
+      this.comboT -= dt
+      if (this.comboT <= 0) this.combo = 0
+    }
     // 移动
     let ix = this.input.x, iy = this.input.y
     const m = Math.hypot(ix, iy)
@@ -462,6 +473,7 @@ export class SurvivorGame {
     const R = Math.hypot(this.W, this.H) / 2 + 60
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0
+    e.elite = false; e.child = false
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
     const mul = 1 + (this.time / 60) * 0.35
@@ -471,6 +483,48 @@ export class SurvivorGame {
     e.speed = d.speed; e.r = d.r; e.xp = d.xp
     e.shape = d.shape; e.color = d.color; e.boss = !!d.boss
     this.enemies.push(e)
+  }
+
+  spawnChild(type, x, y) {
+    if (this.enemies.length >= MAX_ENTITIES) return
+    const d = ENEMIES[type]
+    const e = this.pool.enemy.get()
+    e.type = type; e.dead = false; e.orbitCd = 0; e.elite = false; e.child = true
+    e.x = x; e.y = y
+    const mul = 1 + (this.time / 60) * 0.35
+    e.maxHp = d.hp * mul; e.hp = e.maxHp
+    e.dmg = d.dmg
+    e.speed = d.speed * 1.2; e.r = d.r * 0.8; e.xp = d.xp
+    e.shape = d.shape; e.color = d.color; e.boss = false
+    this.enemies.push(e)
+  }
+
+  dropPickup(x, y) {
+    const r = Math.random()
+    const type = r < 0.4 ? 'heal' : r < 0.7 ? 'magnet' : 'bomb'
+    this.pickups.push({ x, y, type })
+  }
+
+  applyPickup(type) {
+    const p = this.player
+    if (type === 'heal') {
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3)
+      this.floats.push({ x: p.x, y: p.y - 20, txt: '+HP', t: 1, color: '#4ade80', big: true })
+      sound.play('pickup')
+    } else if (type === 'magnet') {
+      for (let i = 0; i < this.gems.length; i++) this.gems[i].mag = true
+      this.floats.push({ x: p.x, y: p.y - 20, txt: '磁力全收！', t: 1, color: '#60a5fa', big: true })
+      sound.play('pickup')
+    } else if (type === 'bomb') {
+      const dmg = 150 * (1 + this.time / 60)
+      for (let i = 0; i < this.enemies.length; i++) {
+        const e = this.enemies[i]
+        if (!e.dead) this.dealDamage(e, dmg)
+      }
+      this.novas.push({ x: p.x, y: p.y, t: 0, dur: 0.6, radius: 420, color: '#fb7185' })
+      this.shakeT = this.time + 0.4
+      sound.play('bosskill')
+    }
   }
 
   spawnElite() {
@@ -577,10 +631,11 @@ export class SurvivorGame {
     for (let i = 0; i < this.gems.length; i++) {
       const g = this.gems[i]
       const d2 = dist2(g.x, g.y, p.x, p.y)
-      if (d2 < p.pickup * p.pickup) {
+      if (g.mag || d2 < p.pickup * p.pickup) {
         const d = Math.sqrt(d2) || 1
-        g.x += (p.x - g.x) / d * 320 * dt
-        g.y += (p.y - g.y) / d * 320 * dt
+        const sp = g.mag ? 640 : 320
+        g.x += (p.x - g.x) / d * sp * dt
+        g.y += (p.y - g.y) / d * sp * dt
       }
       if (d2 < 18 * 18) { g.got = true; sound.play('pickup'); this.addXp(g.v) }
     }
@@ -595,6 +650,14 @@ export class SurvivorGame {
       }
     }
     this.chests = this.chests.filter(c => !c.got)
+    for (let i = 0; i < this.pickups.length; i++) {
+      const u = this.pickups[i]
+      if (dist2(u.x, u.y, p.x, p.y) < 22 * 22) {
+        u.got = true
+        this.applyPickup(u.type)
+      }
+    }
+    this.pickups = this.pickups.filter(u => !u.got)
   }
 
   updateFx(dt) {
@@ -649,6 +712,8 @@ export class SurvivorGame {
     if (e.dead) return
     e.dead = true
     this.kills++
+    this.combo++
+    this.comboT = 3
     this.burst(e.x, e.y, e.color, e.boss ? 24 : 6)
     if (e.boss) {
       this.slowmo = 0.5
@@ -667,7 +732,12 @@ export class SurvivorGame {
       this.chests.push({ x: e.x, y: e.y })
       this.burst(e.x, e.y, '#fde047', 16)
     } else {
-      this.gems.push({ x: e.x, y: e.y, v: e.xp })
+      const bonus = 1 + Math.min(this.combo, 50) * 0.01
+      this.gems.push({ x: e.x, y: e.y, v: Math.ceil(e.xp * bonus) })
+      if (e.type === 'splitter' && !e.child) {
+        for (let i = 0; i < 2; i++) this.spawnChild('bug', e.x + rand(-14, 14), e.y + rand(-14, 14))
+      }
+      if (Math.random() < 0.012) this.dropPickup(e.x, e.y)
     }
     // 缓存冲击：击杀时概率触发
     const clv = this.player.weapons.cache
@@ -796,7 +866,7 @@ export class SurvivorGame {
     if (!p || !this.cb.onStats) return
     this.cb.onStats({
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
-      time: this.time, kills: this.kills, state: this.state,
+      time: this.time, kills: this.kills, state: this.state, combo: this.combo,
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives)
     })
   }
@@ -938,6 +1008,46 @@ export class SurvivorGame {
       ctx.arc(n.x, n.y, n.radius * k, 0, TAU)
       ctx.stroke()
       ctx.globalAlpha = 1
+    }
+
+    // 掉落物（治疗/磁铁/炸弹）
+    for (let i = 0; i < this.pickups.length; i++) {
+      const u = this.pickups[i]
+      const pulse = 1 + Math.sin(this.time * 6) * 0.15
+      ctx.save()
+      ctx.translate(u.x, u.y)
+      ctx.scale(pulse, pulse)
+      if (u.type === 'heal') {
+        ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 14
+        ctx.fillStyle = '#4ade80'
+        ctx.fillRect(-8, -8, 16, 16)
+        ctx.fillStyle = '#052e16'
+        ctx.fillRect(-2, -6, 4, 12)
+        ctx.fillRect(-6, -2, 12, 4)
+      } else if (u.type === 'magnet') {
+        ctx.shadowColor = '#60a5fa'; ctx.shadowBlur = 14
+        ctx.strokeStyle = '#60a5fa'
+        ctx.lineWidth = 4
+        ctx.beginPath()
+        ctx.arc(0, 0, 7, Math.PI, 0)
+        ctx.stroke()
+        ctx.fillStyle = '#60a5fa'
+        ctx.fillRect(-9, 0, 4, 6)
+        ctx.fillRect(5, 0, 4, 6)
+      } else {
+        ctx.shadowColor = '#fb7185'; ctx.shadowBlur = 14
+        ctx.fillStyle = '#fb7185'
+        ctx.beginPath()
+        ctx.arc(0, 2, 8, 0, TAU)
+        ctx.fill()
+        ctx.strokeStyle = '#fde047'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(0, -6)
+        ctx.lineTo(5, -11)
+        ctx.stroke()
+      }
+      ctx.restore()
     }
 
     // 宝箱
