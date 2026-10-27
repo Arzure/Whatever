@@ -208,6 +208,7 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.dashTrail = []
     this.attackCd = 0
     this.event = null
     this.eventT = 0
@@ -254,6 +255,7 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.dashTrail = []
     this.attackCd = 0
     this.event = null
     this.eventT = 0
@@ -347,7 +349,13 @@ export class SurvivorGame {
       p.x += Math.cos(a) * 620 * dt
       p.y += Math.sin(a) * 620 * dt
       p.invuln = Math.max(p.invuln, 0.1)
-      if (Math.random() < 0.6) this.particles.push({ x: p.x, y: p.y, vx: rand(-30, 30), vy: rand(-30, 30), t: 0.3, color: '#22d3ee', size: 3 })
+      // 残影拖尾
+      this.dashTrail.push({ x: p.x, y: p.y, t: 0.35 })
+      // 速度线粒子
+      if (Math.random() < 0.9) {
+        const back = a + Math.PI + rand(-0.5, 0.5)
+        this.particles.push({ x: p.x + Math.cos(a) * 10, y: p.y + Math.sin(a) * 10, vx: Math.cos(back) * rand(120, 260), vy: Math.sin(back) * rand(120, 260), t: rand(0.15, 0.3), color: '#67e8f9', size: rand(2, 3) })
+      }
     }
     // 移动
     let ix = this.input.x, iy = this.input.y
@@ -734,6 +742,8 @@ export class SurvivorGame {
 
   updateFx(dt) {
     if (this.flash > 0) this.flash -= dt
+    for (let i = 0; i < this.dashTrail.length; i++) this.dashTrail[i].t -= dt
+    this.dashTrail = this.dashTrail.filter(d => d.t > 0)
     for (let i = 0; i < this.rains.length; i++) {
       const r = this.rains[i]
       r.t -= dt
@@ -921,6 +931,9 @@ export class SurvivorGame {
     this.dashCd = 3
     this.dashT = 0.18
     this.player.invuln = Math.max(this.player.invuln, 0.3)
+    // 起冲脉冲环 + 爆发粒子
+    this.novas.push({ x: this.player.x, y: this.player.y, t: 0, dur: 0.3, radius: 60, color: '#22d3ee' })
+    this.burst(this.player.x, this.player.y, '#67e8f9', 10)
     sound.play('shoot')
   }
 
@@ -1183,6 +1196,18 @@ export class SurvivorGame {
       ctx.moveTo(-9, -1); ctx.lineTo(9, -1)
       ctx.stroke()
       ctx.restore()
+    }
+
+    // 冲刺残影
+    for (let i = 0; i < this.dashTrail.length; i++) {
+      const d = this.dashTrail[i]
+      const k = d.t / 0.35
+      ctx.globalAlpha = k * 0.45
+      ctx.fillStyle = '#22d3ee'
+      ctx.beginPath()
+      ctx.arc(d.x, d.y, p.r * (0.4 + k * 0.6), 0, TAU)
+      ctx.fill()
+      ctx.globalAlpha = 1
     }
 
     // 玩家
