@@ -307,6 +307,13 @@ const games = [
     icon: 'sword',
     badge: 'CASUAL 3D',
   },
+  {
+    id: 'survivor',
+    name: '割草幸存者',
+    desc: '割草生存 · 运维之夜 · 20 分钟极限',
+    icon: 'sword',
+    badge: 'ROGUELITE',
+  },
 ];
 
 // —— 魔方预览：3x3x3 立方体，三层各自独立旋转，周期性展开/收拢 ——

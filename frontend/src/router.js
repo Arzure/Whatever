@@ -26,6 +26,7 @@ const routes = [
   { path: '/gorescript', name: 'gorescript' },
   { path: '/serversurvival', name: 'serversurvival' },
   { path: '/crossyroad', name: 'crossyroad' },
+  { path: '/survivor', name: 'survivor' },
   { path: '/billiards', name: 'billiards' },
   { path: '/jump', name: 'jump' },
   { path: '/bloodwave', name: 'bloodwave' },
