@@ -48,7 +48,7 @@ export const WEAPONS = {
   cache: {
     name: '缓存冲击', color: '#fb7185', type: 'wave',
     desc: '击杀时概率释放冲击波',
-    dmg: 20, chance: 0.18, radius: 90,
+    dmg: 20, chance: 0.22, radius: 100,
     maxLv: 5, up: ['+触发概率', '+伤害', '+半径', '+概率与伤害']
   },
   backup: {
@@ -202,6 +202,7 @@ export class SurvivorGame {
     this.orbits = []
     this.waveIdx = 0
     this.spawnTimer = 0
+    this.eliteTimer = 60
     this.statT = 0
     this.raf = 0
     this.last = 0
@@ -237,6 +238,8 @@ export class SurvivorGame {
     this.orbits = []
     this.waveIdx = 0
     this.spawnTimer = 0
+    this.eliteTimer = 60
+    this.chests = []
     this.player = {
       x: 0, y: 0, r: 12, hp: 100, maxHp: 100,
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
@@ -437,6 +440,11 @@ export class SurvivorGame {
       const w = WAVES[this.waveIdx]
       if (w.boss) this.spawnBoss(w.boss)
     }
+    this.eliteTimer -= dt
+    if (this.eliteTimer <= 0) {
+      this.eliteTimer = 75
+      this.spawnElite()
+    }
     this.spawnTimer -= dt
     if (this.spawnTimer <= 0) {
       const w = WAVES[this.waveIdx]
@@ -463,6 +471,27 @@ export class SurvivorGame {
     e.speed = d.speed; e.r = d.r; e.xp = d.xp
     e.shape = d.shape; e.color = d.color; e.boss = !!d.boss
     this.enemies.push(e)
+  }
+
+  spawnElite() {
+    const w = WAVES[this.waveIdx]
+    const types = Object.keys(w.types)
+    const type = types[(Math.random() * types.length) | 0]
+    const d = ENEMIES[type]
+    const a = Math.random() * TAU
+    const R = Math.hypot(this.W, this.H) / 2 + 60
+    const e = this.pool.enemy.get()
+    e.type = type; e.dead = false; e.orbitCd = 0; e.elite = true
+    e.x = this.player.x + Math.cos(a) * R
+    e.y = this.player.y + Math.sin(a) * R
+    const mul = 1 + (this.time / 60) * 0.35
+    e.maxHp = d.hp * mul * 10
+    e.hp = e.maxHp
+    e.dmg = d.dmg * 1.5
+    e.speed = d.speed * 0.85; e.r = d.r * 1.5; e.xp = d.xp * 8
+    e.shape = d.shape; e.color = '#fde047'; e.boss = false
+    this.enemies.push(e)
+    this.floats.push({ x: this.player.x, y: this.player.y - 40, txt: '精英故障出现，击杀掉落宝箱', t: 1.6, color: '#fde047', big: true })
   }
 
   spawnBoss(type) {
@@ -556,6 +585,16 @@ export class SurvivorGame {
       if (d2 < 18 * 18) { g.got = true; sound.play('pickup'); this.addXp(g.v) }
     }
     this.gems = this.gems.filter(g => !g.got)
+    for (let i = 0; i < this.chests.length; i++) {
+      const c = this.chests[i]
+      if (dist2(c.x, c.y, p.x, p.y) < 26 * 26) {
+        c.got = true
+        sound.play('levelup')
+        this.state = 'chest'
+        this.cb.onChest && this.cb.onChest(this.rollChoices())
+      }
+    }
+    this.chests = this.chests.filter(c => !c.got)
   }
 
   updateFx(dt) {
@@ -624,6 +663,9 @@ export class SurvivorGame {
         this.cb.onEnd && this.cb.onEnd({ win: true, time: this.time, kills: this.kills, level: this.player.level })
         return
       }
+    } else if (e.elite) {
+      this.chests.push({ x: e.x, y: e.y })
+      this.burst(e.x, e.y, '#fde047', 16)
     } else {
       this.gems.push({ x: e.x, y: e.y, v: e.xp })
     }
@@ -738,6 +780,7 @@ export class SurvivorGame {
   }
 
   burst(x, y, color, n) {
+    if (this.enemies.length > 300) n = Math.ceil(n / 2)
     for (let i = 0; i < n; i++) {
       const a = Math.random() * TAU
       const s = rand(60, 200)
@@ -820,7 +863,7 @@ export class SurvivorGame {
       ctx.translate(e.x, e.y)
       ctx.rotate(this.time * (e.boss ? 0.5 : 1.5))
       ctx.shadowColor = e.color
-      ctx.shadowBlur = e.boss ? 24 : 8
+      ctx.shadowBlur = e.boss ? 24 : (e.elite ? 16 : 8)
       ctx.strokeStyle = e.color
       ctx.lineWidth = 2
       drawShape(ctx, e.shape, e.r)
@@ -895,6 +938,26 @@ export class SurvivorGame {
       ctx.arc(n.x, n.y, n.radius * k, 0, TAU)
       ctx.stroke()
       ctx.globalAlpha = 1
+    }
+
+    // 宝箱
+    for (let i = 0; i < this.chests.length; i++) {
+      const c = this.chests[i]
+      const pulse = 1 + Math.sin(this.time * 5) * 0.12
+      ctx.save()
+      ctx.translate(c.x, c.y)
+      ctx.scale(pulse, pulse)
+      ctx.shadowColor = '#fde047'
+      ctx.shadowBlur = 18
+      ctx.strokeStyle = '#fde047'
+      ctx.lineWidth = 2
+      ctx.strokeRect(-9, -7, 18, 14)
+      ctx.fillStyle = 'rgba(253,224,71,0.25)'
+      ctx.fillRect(-9, -7, 18, 14)
+      ctx.beginPath()
+      ctx.moveTo(-9, -1); ctx.lineTo(9, -1)
+      ctx.stroke()
+      ctx.restore()
     }
 
     // 玩家

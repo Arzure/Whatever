@@ -45,8 +45,8 @@
     <!-- 升级三选一 -->
     <div v-if="levelup" class="overlay">
       <div class="panel">
-        <h2>升级！Lv {{ stats.level }}</h2>
-        <p class="tip">选择一项强化</p>
+        <h2>{{ chestMode ? '宝箱开启！' : '升级！Lv ' + stats.level }}</h2>
+        <p class="tip">{{ chestMode ? '免费选择一项强化' : '选择一项强化' }}</p>
         <div class="choices">
           <button v-for="(c, i) in choices" :key="i" class="choice" :style="{ borderColor: c.color }" @click="pick(c)">
             <span class="choice-kind">{{ kindText(c.kind) }}</span>
@@ -79,6 +79,7 @@
         <p v-if="over || result.win" class="final-score">
           存活 {{ timeText }} · 击杀 {{ result.kills }} · Lv {{ result.level }}
         </p>
+        <p v-if="(over || result.win) && best" class="tip">最佳记录：存活 {{ fmtTime(best.time) }} · 击杀 {{ best.kills }}{{ best.win ? ' · 通关' : '' }}</p>
         <p class="tip" v-else>WASD / 方向键移动，手机端使用左下摇杆<br />击杀故障获取经验，升级选择强化<br />存活 20 分钟，击败数据毁灭者即胜利</p>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
@@ -98,6 +99,8 @@ const stickEl = ref(null);
 const playing = ref(false);
 const musicOn = ref(true);
 const sfxOn = ref(true);
+const chestMode = ref(false);
+const best = ref(null);
 const paused = ref(false);
 const levelup = ref(false);
 const over = ref(false);
@@ -117,6 +120,10 @@ const stickX = ref(0);
 const stickY = ref(0);
 const STICK_R = 44;
 
+const fmtTime = t => {
+  const m = Math.floor(t / 60), s = Math.floor(t) % 60;
+  return m + ':' + String(s).padStart(2, '0');
+};
 const timeText = computed(() => {
   const t = Math.floor(over.value || result.win ? result.time : stats.time);
   const m = Math.floor(t / 60), s = t % 60;
@@ -134,6 +141,13 @@ function onStats(s) {
 }
 
 function onLevelUp(cs) {
+  chestMode.value = false;
+  choices.value = cs;
+  levelup.value = true;
+}
+
+function onChest(cs) {
+  chestMode.value = true;
   choices.value = cs;
   levelup.value = true;
 }
@@ -149,6 +163,14 @@ function onEnd(r) {
   over.value = !r.win;
   levelup.value = false;
   sound.stopMusic();
+  // 最佳成绩：存活时间优先，其次击杀
+  try {
+    const prev = JSON.parse(localStorage.getItem('survivor_best') || 'null');
+    if (!prev || r.time > prev.time || (r.time === prev.time && r.kills > prev.kills)) {
+      localStorage.setItem('survivor_best', JSON.stringify({ time: r.time, kills: r.kills, level: r.level, win: r.win }));
+      best.value = { time: r.time, kills: r.kills, level: r.level, win: r.win };
+    }
+  } catch (e) { /* localStorage 不可用时忽略 */ }
 }
 
 function start() {
@@ -270,8 +292,10 @@ onMounted(() => {
   game = new SurvivorGame(canvasEl.value, {
     onStats,
     onLevelUp,
+    onChest,
     onEnd,
   });
+  try { best.value = JSON.parse(localStorage.getItem('survivor_best') || 'null'); } catch (e) { best.value = null; }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('resize', onResize);
