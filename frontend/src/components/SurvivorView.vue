@@ -18,6 +18,7 @@
         <div v-if="stats.combo >= 5" class="hud-combo" :key="stats.combo">{{ stats.combo }} 连杀</div>
         <div class="hud-dash" :class="{ ready: stats.dashCd <= 0 }" :title="stats.dashCd <= 0 ? '冲刺就绪（空格）' : '冲刺冷却 ' + stats.dashCd.toFixed(1) + 's'">»</div>
       </div>
+      <div v-if="stats.event" class="hud-event" :class="stats.event">{{ eventText }}</div>
       <div class="hud-xp">
         <div class="hud-xpbar"><div class="hud-xp-fill" :style="{ width: Math.min(100, stats.xp / stats.xpNeed * 100) + '%' }"></div></div>
         <span class="hud-lv">Lv {{ stats.level }}</span>
@@ -111,7 +112,7 @@ const choices = ref([]);
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
-  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0,
+  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0, event: null, eventT: 0,
 });
 
 let game = null;
@@ -137,6 +138,12 @@ const weaponColor = id => WEAPONS[id]?.color || '#22d3ee';
 const passiveName = id => PASSIVES[id]?.name || id;
 const passiveColor = id => PASSIVES[id]?.color || '#94a3b8';
 const kindText = k => (k === 'new' ? '新武器' : k === 'weapon' ? '武器强化' : '被动强化');
+const eventText = computed(() => {
+  if (stats.event === 'horde') return '⚠ 流量洪峰 ' + Math.ceil(stats.eventT) + 's';
+  if (stats.event === 'slow') return '🔧 系统维护 ' + Math.ceil(stats.eventT) + 's';
+  if (stats.event === 'doublexp') return '✦ 双倍经验 ' + Math.ceil(stats.eventT) + 's';
+  return '';
+});
 
 function onStats(s) {
   Object.assign(stats, s);
@@ -412,6 +419,23 @@ onBeforeUnmount(() => {
   color: #22d3ee;
   text-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
 }
+.hud-event {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border: 1px solid;
+  background: rgba(10, 14, 26, 0.8);
+  white-space: nowrap;
+}
+.hud-event.horde { color: #f87171; border-color: #f87171; }
+.hud-event.slow { color: #60a5fa; border-color: #60a5fa; }
+.hud-event.doublexp { color: #2dd4bf; border-color: #2dd4bf; }
 .hud-xp {
   position: absolute;
   top: 34px;

@@ -208,6 +208,9 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.event = null
+    this.eventT = 0
+    this.nextEvent = 75
     this.statT = 0
     this.raf = 0
     this.last = 0
@@ -250,6 +253,10 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.event = null
+    this.eventT = 0
+    this.nextEvent = 75
+    this.achv = {}
     this.player = {
       x: 0, y: 0, r: 12, hp: 100, maxHp: 100,
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
@@ -318,6 +325,16 @@ export class SurvivorGame {
     if (this.comboT > 0) {
       this.comboT -= dt
       if (this.comboT <= 0) this.combo = 0
+    }
+    // 随机事件
+    this.nextEvent -= dt
+    if (this.nextEvent <= 0 && !this.event) this.triggerEvent()
+    if (this.event) {
+      this.eventT -= dt
+      if (this.eventT <= 0) {
+        this.event = null
+        this.nextEvent = rand(70, 100)
+      }
     }
     // 冲刺
     if (this.dashCd > 0) this.dashCd -= dt
@@ -504,6 +521,31 @@ export class SurvivorGame {
     this.enemies.push(e)
   }
 
+  triggerEvent() {
+    const r = Math.random()
+    if (r < 0.4) {
+      this.event = 'horde'
+      this.eventT = 10
+      const w = WAVES[this.waveIdx]
+      const types = Object.keys(w.types)
+      for (let i = 0; i < 24; i++) {
+        this.spawnEnemy(types[(Math.random() * types.length) | 0])
+      }
+      this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '⚠ 流量洪峰来袭！', t: 2.5, color: '#f87171', big: true })
+      sound.play('boss')
+    } else if (r < 0.7) {
+      this.event = 'slow'
+      this.eventT = 10
+      this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '系统维护中：全场减速', t: 2.5, color: '#60a5fa', big: true })
+      sound.play('levelup')
+    } else {
+      this.event = 'doublexp'
+      this.eventT = 12
+      this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '双倍经验时段！', t: 2.5, color: '#2dd4bf', big: true })
+      sound.play('levelup')
+    }
+  }
+
   spawnChild(type, x, y) {
     if (this.enemies.length >= MAX_ENTITIES) return
     const d = ENEMIES[type]
@@ -585,8 +627,9 @@ export class SurvivorGame {
       if (e.dead) continue
       const dx = p.x - e.x, dy = p.y - e.y
       const d = Math.hypot(dx, dy) || 1
-      e.x += dx / d * e.speed * dt
-      e.y += dy / d * e.speed * dt
+      const spd = e.speed * (this.event === 'slow' ? 0.45 : 1)
+      e.x += dx / d * spd * dt
+      e.y += dy / d * spd * dt
       if (d < e.r + p.r) this.hurtPlayer(e.dmg)
       if (e.orbitCd > 0) {
         e.orbitCd -= dt
@@ -656,7 +699,7 @@ export class SurvivorGame {
         g.x += (p.x - g.x) / d * sp * dt
         g.y += (p.y - g.y) / d * sp * dt
       }
-      if (d2 < 18 * 18) { g.got = true; sound.play('pickup'); this.addXp(g.v) }
+      if (d2 < 18 * 18) { g.got = true; sound.play('pickup'); this.addXp(this.event === 'doublexp' ? g.v * 2 : g.v) }
     }
     this.gems = this.gems.filter(g => !g.got)
     for (let i = 0; i < this.chests.length; i++) {
@@ -743,6 +786,7 @@ export class SurvivorGame {
       }
       if (e.type === 'data_destroyer') {
         this.state = 'win'
+        this.achv.win = true
         sound.play('win')
         this.cb.onEnd && this.cb.onEnd({ win: true, time: this.time, kills: this.kills, level: this.player.level })
         return
@@ -896,9 +940,19 @@ export class SurvivorGame {
     this.statT = 0
     const p = this.player
     if (!p || !this.cb.onStats) return
+    // 成就检测
+    const newAchv = []
+    if (this.kills >= 100 && !this.achv.k100) { this.achv.k100 = true; newAchv.push('百人斩：累计击杀 100') }
+    if (this.kills >= 500 && !this.achv.k500) { this.achv.k500 = true; newAchv.push('五百人斩：累计击杀 500') }
+    if (this.time >= 600 && !this.achv.t10) { this.achv.t10 = true; newAchv.push('坚壁清野：存活 10 分钟') }
+    if (this.achv.win && !this.achv.winned) { this.achv.winned = true; newAchv.push('数据守护者：击败数据毁灭者') }
+    for (let i = 0; i < newAchv.length; i++) {
+      this.floats.push({ x: p.x, y: p.y - 70 - i * 22, txt: '🏆 ' + newAchv[i], t: 3, color: '#fde047', big: true })
+      sound.play('levelup')
+    }
     this.cb.onStats({
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
-      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd),
+      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), event: this.event, eventT: Math.max(0, this.eventT),
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives)
     })
   }
