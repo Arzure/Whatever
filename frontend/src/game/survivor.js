@@ -11,9 +11,9 @@ import { sound } from './audio.js'
 export const WEAPONS = {
   firewall: {
     name: '防火墙', color: '#22d3ee', type: 'orbit',
-    desc: '环绕机身的防护墙，撞击造成伤害',
-    dmg: 10, count: 2, radius: 78, size: 16, spin: 2.4,
-    maxLv: 5, up: ['+1 防护块', '+伤害', '+1 防护块', '+范围与伤害']
+    desc: '多层环绕防护墙，撞击伤害并击退故障',
+    dmg: 10, count: 2, radius: 95, size: 18, spin: 2.4,
+    maxLv: 5, up: ['+1 防护块与击退', '+外层防护环', '+伤害', '第三层防护环']
   },
   patch: {
     name: '热修复', color: '#a78bfa', type: 'shot',
@@ -89,24 +89,24 @@ export const ENEMIES = {
 // ---------- 数值表：波次（t 为秒） ----------
 
 export const WAVES = [
-  { t: 0, interval: 1.1, types: { bug: 1 } },
-  { t: 40, interval: 1.0, types: { bug: 2 } },
-  { t: 90, interval: 0.95, types: { bug: 2, zombie: 1 } },
-  { t: 150, interval: 0.9, types: { bug: 1, zombie: 2 } },
-  { t: 210, interval: 0.85, types: { zombie: 2, leak: 1 } },
-  { t: 280, interval: 0.8, types: { bug: 2, leak: 2 } },
-  { t: 350, interval: 0.75, types: { leak: 2, ddos: 1 } },
-  { t: 430, interval: 0.7, types: { zombie: 2, ddos: 2 } },
-  { t: 510, interval: 0.65, types: { ddos: 2, worm: 1 } },
-  { t: 600, interval: 0.6, types: { leak: 2, worm: 2, splitter: 1 } },
-  { t: 680, interval: 0.55, types: { ddos: 3, worm: 1 } },
-  { t: 760, interval: 0.5, types: { worm: 2, spam: 1, splitter: 1 } },
-  { t: 840, interval: 0.45, types: { ddos: 2, spam: 2 } },
-  { t: 900, interval: 0.5, types: { spam: 2 }, boss: 'kernel_panic' },
-  { t: 960, interval: 0.4, types: { worm: 2, spam: 2 } },
-  { t: 1040, interval: 0.35, types: { ddos: 3, spam: 2, splitter: 2 } },
-  { t: 1120, interval: 0.3, types: { spam: 3, worm: 2 } },
-  { t: 1200, interval: 0.4, types: { spam: 2 }, boss: 'data_destroyer' }
+  { t: 0, interval: 0.9, types: { bug: 2 } },
+  { t: 40, interval: 0.8, types: { bug: 3 } },
+  { t: 90, interval: 0.75, types: { bug: 3, zombie: 1 } },
+  { t: 150, interval: 0.7, types: { bug: 2, zombie: 3 } },
+  { t: 210, interval: 0.65, types: { zombie: 3, leak: 2 } },
+  { t: 280, interval: 0.6, types: { bug: 2, leak: 3 } },
+  { t: 350, interval: 0.55, types: { leak: 3, ddos: 2 } },
+  { t: 430, interval: 0.5, types: { zombie: 3, ddos: 3 } },
+  { t: 510, interval: 0.45, types: { ddos: 3, worm: 2 } },
+  { t: 600, interval: 0.42, types: { leak: 3, worm: 2, splitter: 1 } },
+  { t: 680, interval: 0.4, types: { ddos: 4, worm: 2 } },
+  { t: 760, interval: 0.38, types: { worm: 3, spam: 2, splitter: 1 } },
+  { t: 840, interval: 0.35, types: { ddos: 3, spam: 3 } },
+  { t: 900, interval: 0.4, types: { spam: 3 }, boss: 'kernel_panic' },
+  { t: 960, interval: 0.32, types: { worm: 3, spam: 3 } },
+  { t: 1040, interval: 0.28, types: { ddos: 4, spam: 3, splitter: 2 } },
+  { t: 1120, interval: 0.25, types: { spam: 4, worm: 3 } },
+  { t: 1200, interval: 0.35, types: { spam: 4 }, boss: 'data_destroyer' }
 ]
 
 export const GAME_TIME = 1200
@@ -208,6 +208,7 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.attackCd = 0
     this.event = null
     this.eventT = 0
     this.nextEvent = 75
@@ -253,6 +254,7 @@ export class SurvivorGame {
     this.comboT = 0
     this.dashCd = 0
     this.dashT = 0
+    this.attackCd = 0
     this.event = null
     this.eventT = 0
     this.nextEvent = 75
@@ -338,6 +340,7 @@ export class SurvivorGame {
     }
     // 冲刺
     if (this.dashCd > 0) this.dashCd -= dt
+    if (this.attackCd > 0) this.attackCd -= dt
     if (this.dashT > 0) {
       this.dashT -= dt
       const a = p.face
@@ -381,12 +384,15 @@ export class SurvivorGame {
       const w = WEAPONS[id]
       if (w.type === 'orbit') {
         p.orbitA += w.spin * dt
-        const n = w.count + (lv >= 3 ? 1 : 0) + (lv >= 5 ? 1 : 0)
-        const rad = w.radius + (lv >= 4 ? 24 : 0)
+        const rings = lv >= 5 ? 3 : (lv >= 3 ? 2 : 1)
         const dmg = w.dmg * (1 + (lv - 1) * 0.35)
-        for (let i = 0; i < n; i++) {
-          const a = p.orbitA + i * TAU / n
-          this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
+        for (let ring = 0; ring < rings; ring++) {
+          const rad = w.radius + ring * 48
+          const n = w.count + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + ring
+          for (let i = 0; i < n; i++) {
+            const a = p.orbitA * (ring % 2 ? -1 : 1) + i * TAU / n
+            this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
+          }
         }
       } else if (w.type === 'wave') {
         continue
@@ -511,7 +517,7 @@ export class SurvivorGame {
     e.maxHp = d.hp * mul
     e.hp = e.maxHp
     e.dmg = d.dmg * (1 + (this.time / 60) * 0.12)
-    e.speed = d.speed; e.r = d.r; e.xp = d.xp
+    e.speed = d.speed * (1 + (this.time / 60) * 0.06); e.r = d.r; e.xp = d.xp
     e.shape = d.shape; e.color = d.color; e.boss = !!d.boss
     if (e.gold) {
       e.maxHp *= 3; e.hp = e.maxHp
@@ -639,6 +645,10 @@ export class SurvivorGame {
           const rr = e.r + o.size * 0.6
           if (dist2(e.x, e.y, o.x, o.y) < rr * rr) {
             this.dealDamage(e, o.dmg)
+            // 击退：把故障推离玩家
+            const kx = e.x - p.x, ky = e.y - p.y
+            const kd = Math.hypot(kx, ky) || 1
+            if (!e.boss) { e.x += kx / kd * 24; e.y += ky / kd * 24 }
             e.orbitCd = 0.4
             break
           }
@@ -914,6 +924,25 @@ export class SurvivorGame {
     sound.play('shoot')
   }
 
+  // 主动攻击：朝目标点发射 5 连补丁弹
+  attack(tx, ty) {
+    if (this.state !== 'playing' || this.attackCd > 0) return
+    this.attackCd = 1.2
+    const p = this.player
+    const base = Math.atan2(ty - p.y, tx - p.x)
+    const dmg = 14 + p.level * 2
+    for (let i = -2; i <= 2; i++) {
+      this.addBullet(p.x, p.y, base + i * 0.14, 520, dmg, 2, 6, '#e0f2fe', false)
+    }
+    sound.play('shoot')
+  }
+
+  screenToWorld(x, y) {
+    const p = this.player
+    if (!p) return { x: 0, y: 0 }
+    return { x: p.x + (x - this.W / 2), y: p.y + (y - this.H / 2) }
+  }
+
   nearestEnemy(x, y) {
     let best = null, bd = Infinity
     for (let i = 0; i < this.enemies.length; i++) {
@@ -952,7 +981,7 @@ export class SurvivorGame {
     }
     this.cb.onStats({
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
-      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), event: this.event, eventT: Math.max(0, this.eventT),
+      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), attackCd: Math.max(0, this.attackCd), event: this.event, eventT: Math.max(0, this.eventT),
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives)
     })
   }
