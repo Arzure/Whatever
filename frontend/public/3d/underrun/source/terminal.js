@@ -1,71 +1,71 @@
 
 var terminal_text_ident = '&gt; ';
 var terminal_text_title = '' +
-	'UNDERRUN\n' +
+	'欠载危机 UNDERRUN\n' +
 	'__ \n' +
-	'CONCEPT, GRAPHICS &AMP; PROGRAMMING:\n' +
+	'创意、美术与程序设计:\n' +
 	'DOMINIC SZABLEWSKI // PHOBOSLAB.ORG\n' +
 	'__ \n' +
-	'MUSIC:\n' +
+	'音乐:\n' +
 	'ANDREAS LÖSCH // NO-FATE.NET\n' +
 	'___ \n' +
-	'SYSTEM VERSION: 13.20.18\n' +
+	'系统版本: 13.20.18\n' +
 	'CPU: PL(R) Q-COATL 7240 @ 12.6 THZ\n' +
-	'MEMORY: 108086391056891900 BYTES\n' +
+	'内存: 108086391056891900 字节\n' +
 	' \n' +
-	'CONNECTING...';
+	'连接中...';
 
 var terminal_text_garbage = 
 	'´A1e{∏éI9·NQ≥ÀΩ¸94CîyîR›kÈ¡˙ßT-;ûÅf^˛,¬›A∫Sã€«ÕÕ' +
 	'1f@çX8ÎRjßf•ò√ã0êÃcÄ]Î≤moDÇ’ñ‰\\ˇ≠n=(s7É;';
 
 var terminal_text_story = 
-	'DATE: SEP. 13, 2718 - 13:32\n' +
-	'CRITICAL SOFTWARE FAILURE DETECTED\n' +
-	'ANALYZING...\n' +
+	'日期: 2718 年 9 月 13 日 - 13:32\n' +
+	'检测到严重软件故障\n' +
+	'分析中...\n' +
 	'____\n \n' +
-	'ERROR CODE: JS13K2018\n' +
-	'STATUS: SYSTEMS OFFLINE\n' +
-	'DESCRIPTION: BUFFER UNDERRUN DUE TO SATCOM R.U.D.\n' +
-	'AFFECTED SYSTEM: FACILITY AUTOMATION\n' +
-	'AFFECTED SUBSYSTEMS: AI, RADIATION SHIELDS, POWER MANAGEMENT\n' +
+	'错误代码: JS13K2018\n' +
+	'状态: 系统离线\n' +
+	'描述: 卫星通信 R.U.D. 引发缓冲区欠载\n' +
+	'受影响系统: 设施自动化\n' +
+	'受影响子系统: 人工智能、辐射护盾、电源管理\n' +
 	' \n' +
-	'INITIATING RESCUE SYSTEM...\n' +
+	'启动救援系统...\n' +
 	'___' +
-	'FAILED\n \n' +
-	'ATTEMPTING AUTOMATED REBOOT...\n' +
+	'失败\n \n' +
+	'尝试自动重启...\n' +
 	'___' +
 	'FAILED\n' +
 	'_ \n \n' +
-	'MANUAL REBOOT OF ALL SYSTEMS REQUIRED\n' +
+	'需要手动重启所有系统\n' +
 	'_ \n' +
-	'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT\n' +
-	'CLICK TO INITIATE YOUR DEPLOYMENT\n ';
+	'使用 WASD 或方向键移动，鼠标射击\n' +
+	'点击开始你的部署任务\n ';
 
 var terminal_text_outro = 
-	'ALL SATELLITE LINKS ONLINE\n' +
-	'CONNECTING...___' +
-	'CONNECTION ESTABLISHED\n' +
-	'RECEIVING TRANSMISSION...___ \n' +
+	'所有卫星链路已上线\n' +
+	'连接中...___' +
+	'连接已建立\n' +
+	'接收传输中...___ \n' +
 	
-	'SENT: SEP. 13, 2018\n' +
-	'RCVD: SEP. 13, 2718\n \n' +
+	'发送: 2018 年 9 月 13 日\n' +
+	'接收: 2718 年 9 月 13 日\n \n' +
 	
-	'THANKS FOR PLAYING ❤_ \n' +
-	'I HAVE PREVIOUSLY BEEN A PROUD SPONSOR OF THE JS13K\n' +
-	'COMPETITION SINCE THE VERY FIRST ONE BACK IN 2012.\n' +
-	'HOWEVER, THIS YEAR\'S COMPETITION WAS MY FIRST ONE\n' +
-	'AS A PARTICIPANT AND IT HAS BEEN TREMENDOUS FUN!\n \n' +
+	'感谢游玩 ❤_ \n' +
+	'我自 2012 年首届比赛以来一直是 JS13K\n' +
+	'比赛的赞助者。而今年的比赛是我第一次\n' +
+	'以参赛者身份参加，乐趣无穷！\n' +
+	'这是一段非常棒的经历！\n \n' +
 	
-	'I WANT TO THANK MY DEAR FRIEND ANDREAS LÖSCH OF\n' +
-	'NO-FATE.NET FOR COMPOSING SOME AWESOME MUSIC ON\n' + 
-	'SUCH SHORT NOTICE.\n \n' +
+	'我要感谢我的好友 ANDREAS LÖSCH\n' +
+	'（NO-FATE.NET）在如此短的时间内\n' + 
+	'创作出如此出色的音乐。\n \n' +
 
-	'FURTHER THANKS GO OUT TO THE JS13K STAFF, THE\n' +
-	'SONANT-X DEVELOPERS AND ALL OTHER PARTICIPANTS\n' +
-	'IN THIS YEAR\'S JS13K. SEE YOU NEXT YEAR!\n \n' +
+	'同时感谢 JS13K 工作人员、\n' +
+	'SONANT-X 开发者以及今年 JS13K 的\n' +
+	'所有参与者。明年见！\n \n' +
 	'DOMINIC__' +
-	'END OF TRANSMISSION';
+	'传输结束';
 
 var terminal_text_buffer = [],
 	terminal_state = 0,
