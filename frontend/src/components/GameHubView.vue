@@ -158,15 +158,17 @@
           <template v-else-if="g.id === 'survivor'">
             <span class="gp-svsky"></span>
             <span class="gp-svgrid"></span>
-            <span class="gp-svbug gp-svb1"></span>
-            <span class="gp-svbug gp-svb2"></span>
-            <span class="gp-svbug gp-svb3"></span>
             <span class="gp-svgem gp-svg1"></span>
             <span class="gp-svgem gp-svg2"></span>
-            <span class="gp-svorb gp-svo1"></span>
-            <span class="gp-svorb gp-svo2"></span>
-            <span class="gp-svorb gp-svo3"></span>
-            <span class="gp-svplayer"></span>
+            <span class="gp-svhero">
+              <span class="gp-svbug gp-svb1"></span>
+              <span class="gp-svbug gp-svb2"></span>
+              <span class="gp-svbug gp-svb3"></span>
+              <span class="gp-svorb gp-svo1"></span>
+              <span class="gp-svorb gp-svo2"></span>
+              <span class="gp-svorb gp-svo3"></span>
+              <span class="gp-svplayer"></span>
+            </span>
           </template>
           <template v-else>
             <span class="gp-grid"></span>
@@ -1565,11 +1567,26 @@ function onCardLeave(e) {
   from { transform: translate(0, 0); }
   to { transform: translate(22px, 22px); }
 }
-.gp-svplayer {
+/* 移动容器：玩家携带防火墙与逼近故障整体游走 */
+.gp-svhero {
   position: absolute;
   left: 50%; top: 50%;
+  width: 0; height: 0;
+  z-index: 3;
+  animation: gp-sv-hero 7s ease-in-out infinite;
+}
+@keyframes gp-sv-hero {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(32px, -14px); }
+  40% { transform: translate(12px, -28px); }
+  60% { transform: translate(-28px, -8px); }
+  80% { transform: translate(-14px, 14px); }
+  100% { transform: translate(0, 0); }
+}
+.gp-svplayer {
+  position: absolute;
+  left: -7px; top: -7px;
   width: 14px; height: 14px;
-  margin: -7px 0 0 -7px;
   border-radius: 50%;
   background: #22d3ee;
   box-shadow: 0 0 12px #22d3ee, 0 0 26px rgba(34, 211, 238, 0.5);
@@ -1585,9 +1602,8 @@ function onCardLeave(e) {
 }
 .gp-svorb {
   position: absolute;
-  left: 50%; top: 50%;
+  left: -4.5px; top: -4.5px;
   width: 9px; height: 9px;
-  margin: -4.5px 0 0 -4.5px;
   border: 1.5px solid #22d3ee;
   background: rgba(34, 211, 238, 0.35);
   box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
@@ -1602,7 +1618,7 @@ function onCardLeave(e) {
 }
 .gp-svbug {
   position: absolute;
-  left: 50%; top: 50%;
+  left: 0; top: 0;
   width: 0; height: 0;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
