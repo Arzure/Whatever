@@ -206,6 +206,8 @@ export class SurvivorGame {
     this.eliteTimer = 60
     this.combo = 0
     this.comboT = 0
+    this.dashCd = 0
+    this.dashT = 0
     this.statT = 0
     this.raf = 0
     this.last = 0
@@ -246,6 +248,8 @@ export class SurvivorGame {
     this.pickups = []
     this.combo = 0
     this.comboT = 0
+    this.dashCd = 0
+    this.dashT = 0
     this.player = {
       x: 0, y: 0, r: 12, hp: 100, maxHp: 100,
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
@@ -314,6 +318,16 @@ export class SurvivorGame {
     if (this.comboT > 0) {
       this.comboT -= dt
       if (this.comboT <= 0) this.combo = 0
+    }
+    // 冲刺
+    if (this.dashCd > 0) this.dashCd -= dt
+    if (this.dashT > 0) {
+      this.dashT -= dt
+      const a = p.face
+      p.x += Math.cos(a) * 620 * dt
+      p.y += Math.sin(a) * 620 * dt
+      p.invuln = Math.max(p.invuln, 0.1)
+      if (Math.random() < 0.6) this.particles.push({ x: p.x, y: p.y, vx: rand(-30, 30), vy: rand(-30, 30), t: 0.3, color: '#22d3ee', size: 3 })
     }
     // 移动
     let ix = this.input.x, iy = this.input.y
@@ -473,7 +487,7 @@ export class SurvivorGame {
     const R = Math.hypot(this.W, this.H) / 2 + 60
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0
-    e.elite = false; e.child = false
+    e.elite = false; e.child = false; e.gold = Math.random() < 0.03
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
     const mul = 1 + (this.time / 60) * 0.35
@@ -482,6 +496,11 @@ export class SurvivorGame {
     e.dmg = d.dmg * (1 + (this.time / 60) * 0.12)
     e.speed = d.speed; e.r = d.r; e.xp = d.xp
     e.shape = d.shape; e.color = d.color; e.boss = !!d.boss
+    if (e.gold) {
+      e.maxHp *= 3; e.hp = e.maxHp
+      e.xp = d.xp * 5
+      e.color = '#fde047'
+    }
     this.enemies.push(e)
   }
 
@@ -734,6 +753,11 @@ export class SurvivorGame {
     } else {
       const bonus = 1 + Math.min(this.combo, 50) * 0.01
       this.gems.push({ x: e.x, y: e.y, v: Math.ceil(e.xp * bonus) })
+      if (e.gold) {
+        this.chests.push({ x: e.x, y: e.y })
+        this.burst(e.x, e.y, '#fde047', 12)
+        this.floats.push({ x: e.x, y: e.y - 20, txt: '稀有故障！', t: 1.2, color: '#fde047', big: true })
+      }
       if (e.type === 'splitter' && !e.child) {
         for (let i = 0; i < 2; i++) this.spawnChild('bug', e.x + rand(-14, 14), e.y + rand(-14, 14))
       }
@@ -838,6 +862,14 @@ export class SurvivorGame {
     this.state = 'playing'
   }
 
+  dash() {
+    if (this.state !== 'playing' || this.dashCd > 0) return
+    this.dashCd = 3
+    this.dashT = 0.18
+    this.player.invuln = Math.max(this.player.invuln, 0.3)
+    sound.play('shoot')
+  }
+
   nearestEnemy(x, y) {
     let best = null, bd = Infinity
     for (let i = 0; i < this.enemies.length; i++) {
@@ -866,7 +898,7 @@ export class SurvivorGame {
     if (!p || !this.cb.onStats) return
     this.cb.onStats({
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
-      time: this.time, kills: this.kills, state: this.state, combo: this.combo,
+      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd),
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives)
     })
   }

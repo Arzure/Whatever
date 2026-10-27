@@ -16,6 +16,7 @@
         <div class="hud-time">{{ timeText }}</div>
         <div class="hud-kills">击杀 {{ stats.kills }}</div>
         <div v-if="stats.combo >= 5" class="hud-combo" :key="stats.combo">{{ stats.combo }} 连杀</div>
+        <div class="hud-dash" :class="{ ready: stats.dashCd <= 0 }" :title="stats.dashCd <= 0 ? '冲刺就绪（空格）' : '冲刺冷却 ' + stats.dashCd.toFixed(1) + 's'">»</div>
       </div>
       <div class="hud-xp">
         <div class="hud-xpbar"><div class="hud-xp-fill" :style="{ width: Math.min(100, stats.xp / stats.xpNeed * 100) + '%' }"></div></div>
@@ -81,7 +82,7 @@
           存活 {{ timeText }} · 击杀 {{ result.kills }} · Lv {{ result.level }}
         </p>
         <p v-if="(over || result.win) && best" class="tip">最佳记录：存活 {{ fmtTime(best.time) }} · 击杀 {{ best.kills }}{{ best.win ? ' · 通关' : '' }}</p>
-        <p class="tip" v-else>WASD / 方向键移动，手机端使用左下摇杆<br />击杀故障获取经验，升级选择强化；连续击杀有经验加成<br />精英掉宝箱，怪物掉落治疗包/磁铁/炸弹<br />存活 20 分钟，击败数据毁灭者即胜利</p>
+        <p class="tip" v-else>WASD / 方向键移动，空格冲刺（3 秒冷却），手机端使用左下摇杆<br />击杀故障获取经验，升级选择强化；连续击杀有经验加成<br />精英与稀有故障掉宝箱，怪物掉落治疗包/磁铁/炸弹<br />存活 20 分钟，击败数据毁灭者即胜利</p>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
     </div>
@@ -110,7 +111,7 @@ const choices = ref([]);
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
-  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0,
+  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0,
 });
 
 let game = null;
@@ -227,6 +228,10 @@ function onKeyDown(e) {
   if (k === 'escape' || k === 'p') {
     if (playing.value) pause();
     else if (paused.value) resume();
+    return;
+  }
+  if (k === ' ') {
+    if (game && playing.value) game.dash();
     return;
   }
   keys[k] = true;
@@ -395,6 +400,17 @@ onBeforeUnmount(() => {
 @keyframes combo-pop {
   from { transform: scale(1.6); }
   to { transform: scale(1); }
+}
+.hud-dash {
+  color: #475569;
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px #000;
+  transition: color 0.2s;
+}
+.hud-dash.ready {
+  color: #22d3ee;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
 }
 .hud-xp {
   position: absolute;
