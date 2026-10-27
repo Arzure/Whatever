@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>OPERATION IRONHOLD — Warehouse District</title>
+<title>铁壁防线 — 仓库区</title>
 <meta name="description" content="Ten hostiles hold a container yard. You have three minutes. The entire game — world, weapons, AI and audio — is one 290 KB HTML file with no build step and no asset files.">
 <meta name="author" content="Prasenjit">
 <meta name="theme-color" content="#0a0c0e">
@@ -309,88 +309,88 @@
       <i class="ret thin vIn"></i><i class="ret thin vIn vInB"></i>
       <i class="center"></i>
     </div>
-    <div class="breath" id="breathTag">HOLD BREATH</div>
+    <div class="breath" id="breathTag">屏息</div>
   </div>
 
   <div id="mapWrap" class="panel">
-    <div class="lbl"><span>Tactical</span><span id="mapMode">SECTOR 7</span></div>
+    <div class="lbl"><span>战术地图</span><span id="mapMode">7 号区域</span></div>
     <canvas id="minimap" width="172" height="172"></canvas>
   </div>
 
   <div id="top">
     <div id="timer" class="mono">3:00</div>
-    <div id="objective"><b id="killCount">0</b> / 10 ELIMINATED</div>
+    <div id="objective"><b id="killCount">0</b> / 10 已消灭</div>
   </div>
 
   <div id="feed"></div>
   <div id="comms"></div>
 
   <div id="vitals">
-    <div class="row"><span class="lbl">Vitals</span><span id="hpNum" class="mono">100</span></div>
+    <div class="row"><span class="lbl">生命</span><span id="hpNum" class="mono">100</span></div>
     <div class="bar"><span id="hpFill"></span></div>
-    <div class="sub row"><span class="lbl">Armor</span><span id="apNum" class="mono">50</span></div>
+    <div class="sub row"><span class="lbl">护甲</span><span id="apNum" class="mono">50</span></div>
     <div class="bar" style="height:8px"><span id="apFill"></span></div>
   </div>
 
   <div id="slots">
-    <div class="slot act" data-slot="0"><b>1</b><span>M4 CARBINE</span></div>
-    <div class="slot" data-slot="1"><b>2</b><span>KS-12 PUMP</span></div>
-    <div class="slot" data-slot="2"><b>3</b><span>P-9 SIDEARM</span></div>
-    <div class="slot" data-slot="3"><b>4</b><span>SR-7 LONGBOW</span></div>
+    <div class="slot act" data-slot="0"><b>1</b><span>M4 卡宾枪</span></div>
+    <div class="slot" data-slot="1"><b>2</b><span>KS-12 泵动霰弹枪</span></div>
+    <div class="slot" data-slot="2"><b>3</b><span>P-9 手枪</span></div>
+    <div class="slot" data-slot="3"><b>4</b><span>SR-7 狙击枪</span></div>
   </div>
 
   <div id="ammo">
-    <div id="wname">M4 CARBINE</div>
-    <div id="wmode">FULL AUTO</div>
+    <div id="wname">M4 卡宾枪</div>
+    <div id="wmode">全自动</div>
     <div id="ammoRow"><span id="magNum" class="mono">30</span><span id="resNum" class="mono">/ 210</span></div>
     <div id="wicon"></div>
     <div id="reloadHint"></div>
   </div>
 </div>
 
-<div id="pause"><div class="t">PAUSED</div><div class="s">CLICK TO RESUME</div></div>
+<div id="pause"><div class="t">已暂停</div><div class="s">点击继续</div></div>
 
 <div class="screen" id="startScreen">
-  <div class="slug tl">IRONHOLD // SECTOR 7</div>
-  <div class="slug tr">CONTAINER YARD 04<br>GRID 118-042</div>
-  <div class="slug br">10 HOSTILES · 03:00 ON THE CLOCK</div>
+  <div class="slug tl">铁壁行动 // 7 号区域</div>
+  <div class="slug tr">集装箱堆场 04<br>网格 118-042</div>
+  <div class="slug br">10 名敌人 · 限时 03:00</div>
   <div class="col">
-    <div class="eyebrow">CLASSIFIED // TASK FORCE IRONHOLD</div>
-    <div class="title">WAREHOUSE<br>DISTRICT<small>SECTOR 7 — HOSTILE</small></div>
+    <div class="eyebrow">机密 // 铁壁特遣队</div>
+    <div class="title">仓库<br>区<small>7 号区域 — 敌占</small></div>
     <div class="rule"></div>
     <div class="keys">
-      <div class="key"><kbd>W A S D</kbd> <span>MOVE</span></div>
-      <div class="key"><kbd>MOUSE</kbd> <span>LOOK</span></div>
-      <div class="key"><kbd>LMB</kbd> <span>FIRE</span></div>
-      <div class="key"><kbd>RMB</kbd> <span>AIM DOWN SIGHTS</span></div>
-      <div class="key"><kbd>SHIFT</kbd> <span>SPRINT · HOLD BREATH</span></div>
-      <div class="key"><kbd>SPACE</kbd> <span>JUMP · DOUBLE · MANTLE</span></div>
-      <div class="key"><kbd>CTRL</kbd> <span>CROUCH</span></div>
-      <div class="key"><kbd>R</kbd> <span>RELOAD</span></div>
-      <div class="key"><kbd>1–4 / WHEEL</kbd> <span>WEAPONS</span></div>
-      <div class="key"><kbd>V</kbd> <span>FIRE MODE</span></div>
-      <div class="key"><kbd>ESC</kbd> <span>PAUSE</span></div>
+      <div class="key"><kbd>W A S D</kbd> <span>移动</span></div>
+      <div class="key"><kbd>鼠标</kbd> <span>视角</span></div>
+      <div class="key"><kbd>左键</kbd> <span>射击</span></div>
+      <div class="key"><kbd>右键</kbd> <span>瞄准</span></div>
+      <div class="key"><kbd>SHIFT</kbd> <span>疾跑 · 屏息</span></div>
+      <div class="key"><kbd>空格</kbd> <span>跳跃 · 二段跳 · 攀爬</span></div>
+      <div class="key"><kbd>CTRL</kbd> <span>蹲下</span></div>
+      <div class="key"><kbd>R</kbd> <span>换弹</span></div>
+      <div class="key"><kbd>1–4 / 滚轮</kbd> <span>切换武器</span></div>
+      <div class="key"><kbd>V</kbd> <span>射击模式</span></div>
+      <div class="key"><kbd>ESC</kbd> <span>暂停</span></div>
     </div>
-    <div class="cta">PRESS TO START</div>
-    <div class="hint">ELIMINATE ALL 10 HOSTILES BEFORE THE CLOCK RUNS OUT</div>
+    <div class="cta">点击开始</div>
+    <div class="hint">在时间耗尽前消灭全部 10 名敌人</div>
   </div>
 </div>
 
 <div class="screen hide" id="endScreen">
-  <div class="eyebrow" id="endTag">MISSION REPORT</div>
-  <div class="title" id="endTitle">MISSION FAILED</div>
-  <div id="endSub">SECTOR 7 — WAREHOUSE DISTRICT</div>
+  <div class="eyebrow" id="endTag">任务报告</div>
+  <div class="title" id="endTitle">任务失败</div>
+  <div id="endSub">7 号区域 — 仓库区</div>
   <div class="rule"></div>
   <div id="stats">
-    <div class="stat"><div class="v" id="sKills">0<span>/10</span></div><div class="k">ELIMINATIONS</div></div>
-    <div class="stat"><div class="v" id="sHeads">0</div><div class="k">HEADSHOTS</div></div>
-    <div class="stat"><div class="v" id="sAcc">0<span>%</span></div><div class="k">ACCURACY</div></div>
-    <div class="stat"><div class="v" id="sTime">0:00</div><div class="k">TIME SURVIVED</div></div>
+    <div class="stat"><div class="v" id="sKills">0<span>/10</span></div><div class="k">消灭数</div></div>
+    <div class="stat"><div class="v" id="sHeads">0</div><div class="k">爆头数</div></div>
+    <div class="stat"><div class="v" id="sAcc">0<span>%</span></div><div class="k">命中率</div></div>
+    <div class="stat"><div class="v" id="sTime">0:00</div><div class="k">生存时间</div></div>
   </div>
-  <button class="btn" id="restartBtn">REDEPLOY</button>
+  <button class="btn" id="restartBtn">再次出击</button>
 </div>
 
-<div id="boot">LOADING ORDNANCE…</div>
+<div id="boot">弹药装载中…</div>
 <div id="err"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -4457,13 +4457,13 @@ function updateAmmoUI(){
   UI.resNum.textContent = '/ ' + w.res;
   UI.magNum.classList.toggle('empty', w.mag===0);
   UI.wname.textContent = w.name;
-  UI.wmode.textContent = w.id==='rifle' ? (w.semi?'SEMI AUTO':'FULL AUTO')
-                        : w.id==='shotgun' ? 'PUMP ACTION'
-                        : w.id==='sniper'  ? 'BOLT ACTION' : 'SEMI AUTO';
+  UI.wmode.textContent = w.id==='rifle' ? (w.semi?'半自动':'全自动')
+                        : w.id==='shotgun' ? '泵动式'
+                        : w.id==='sniper'  ? '栓动式' : '半自动';
   if (UI._icon !== player.weapon){ UI._icon = player.weapon; UI.wicon.innerHTML = WICONS[player.weapon]; }
   const need = w.mag===0 || (w.mag <= w.magSize*0.25 && w.res>0);
-  UI.reloadHint.textContent = (w.mag===0 && w.res===0) ? 'NO AMMO'
-                            : (need && player.reloadT<=0 ? 'PRESS R TO RELOAD' : '');
+  UI.reloadHint.textContent = (w.mag===0 && w.res===0) ? '没有弹药'
+                            : (need && player.reloadT<=0 ? '按 R 换弹' : '');
   UI.reloadHint.classList.toggle('blink', w.mag===0 && w.res>0);
   UI.slots.forEach((s,i)=>s.classList.toggle('act', i===player.weapon));
 }
@@ -4478,7 +4478,7 @@ const SKULL_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#dfe6e
 function killFeed(victim, head){
   const el = document.createElement('div');
   el.className='kf';
-  el.innerHTML = `<span class="me">YOU</span><span class="ic">${head?HEADSHOT_ICON:SKULL_ICON}</span><span class="vic">${victim}</span>`;
+  el.innerHTML = `<span class="me">你</span><span class="ic">${head?HEADSHOT_ICON:SKULL_ICON}</span><span class="vic">${victim}</span>`;
   UI.feed.appendChild(el);
   setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),320); }, 4200);
   while (UI.feed.children.length>5) UI.feed.firstChild.remove();
@@ -5281,7 +5281,7 @@ function comms(e, text, priority){
   if (!priority && COMMS_COOLDOWN.last && now - COMMS_COOLDOWN.last < 1700) return;
   if (COMMS_COOLDOWN.last && now - COMMS_COOLDOWN.last < 420) return;
   COMMS_COOLDOWN.last = now;
-  pushComms(e ? e.name : 'COMMAND', text);
+  pushComms(e ? e.name : '指挥部', text);
   SFX.radio();
 }
 
@@ -5294,7 +5294,7 @@ function bearingWord(e){
   const dx = e.obj.position.x - player.pos.x, dz = e.obj.position.z - player.pos.z;
   const a = Math.atan2(dx, -dz);                       // 0 = north (-Z)
   const i = Math.round(((a + PI*2) % (PI*2)) / (PI/4)) % 8;
-  return ['NORTH','NORTH-EAST','EAST','SOUTH-EAST','SOUTH','SOUTH-WEST','WEST','NORTH-WEST'][i];
+  return ['北','东北','东','东南','南','西南','西','西北'][i];
 }
 /**
  * Combat director: everyone with eyes on the player keeps manoeuvring, but only
@@ -5410,7 +5410,7 @@ function updateEnemy(e, dt){
       e.state = ST.COMBAT;
       e.tacticT = 0;
       e.engage = 0;
-      comms(e, pick(['CONTACT '+bearingWord(e), 'TARGET SPOTTED — '+bearingWord(e),
+      comms(e, pick(['发现敌人 '+bearingWord(e), '目标确认 — '+bearingWord(e),
                      'EYES ON, '+bearingWord(e), 'HOSTILE '+bearingWord(e)]), true);
     }
   }
@@ -5435,10 +5435,10 @@ function updateEnemy(e, dt){
       e.tactic = roll<0.42 ? 'hold' : (roll<0.72 ? 'flank' : 'push');
       e.cover = null;
       if (e.tactic==='flank' && !wasFlank && Math.random()<0.55)
-        comms(e, pick(['FLANKING '+(e.strafeDir>0?'RIGHT':'LEFT'),
+        comms(e, pick(['包抄 '+(e.strafeDir>0?'右侧':'左侧'),
                        'MOVING WIDE', 'GOING AROUND, PIN HIM']));
       if (e.tactic==='push' && Math.random()<0.35)
-        comms(e, pick(['PUSHING UP','CLOSING IN','ON HIM']));
+        comms(e, pick(['正在推进','正在逼近','咬住他了']));
     }
 
     if (e.canSee){
@@ -5491,7 +5491,7 @@ function updateEnemy(e, dt){
           if (e.burst===0) e.fireT = rand(0.85,1.9);
           if (e.rounds<=0){
             e.burst = 0; e.reloadT = rand(2.0,2.9); e.cover = null;
-            if (Math.random()<0.6) comms(e, pick(['RELOADING — COVER ME','MAG OUT','CHANGING MAGS']));
+            if (Math.random()<0.6) comms(e, pick(['换弹 — 掩护我','弹匣打空','更换弹匣']));
           }
         } else if (e.mayFire){
           if (muzzleClear(e)){
@@ -5528,7 +5528,7 @@ function updateEnemy(e, dt){
       e.burst = 0;
       if (e.lastSeen>2.4 && !e.saidLost){
         e.saidLost = true;
-        if (Math.random()<0.5) comms(e, pick(['LOST VISUAL','WHERE IS HE','HE BROKE CONTACT']));
+        if (Math.random()<0.5) comms(e, pick(['丢失视野','人呢','他脱离接触了']));
       }
       if (e.lastSeen>4.5 && e.hunt<=0) e.state = ST.PATROL;
     }
@@ -6351,8 +6351,8 @@ function endGame(win){
   const es = UI.endScreen;
   es.classList.remove('hide','win','lose');
   es.classList.add(win?'win':'lose');
-  $('endTitle').textContent = win ? 'SECTOR CLEARED' : (player.dead?'KILLED IN ACTION':'TIME EXPIRED');
-  $('endTag').textContent = win ? 'MISSION REPORT // SUCCESS' : 'MISSION REPORT // FAILURE';
+  $('endTitle').textContent = win ? '区域已肃清' : (player.dead?'阵亡':'时间耗尽');
+  $('endTag').textContent = win ? '任务报告 // 成功' : '任务报告 // 失败';
   $('sKills').innerHTML = G.kills + '<span>/10</span>';
   $('sHeads').textContent = G.headshots;
   const acc = G.shots>0 ? Math.round(G.hits/G.shots*100) : 0;

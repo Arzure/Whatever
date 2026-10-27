@@ -196,11 +196,11 @@ export class WaveManager {
     const el = document.getElementById("wave-announce");
     const txt = document.getElementById("wave-announce-text");
     const sub = document.getElementById("wave-announce-sub");
-    txt.textContent = `WAVE ${wave}`;
+    txt.textContent = `第 ${wave} 波`;
     sub.textContent =
       wave === 1
-        ? "PREPARE FOR BATTLE"
-        : `${this._waveConfig(wave).count} ZOMBIES INCOMING`;
+        ? "准备战斗"
+        : `${this._waveConfig(wave).count} 只僵尸来袭`;
     el.style.opacity = "1";
     setTimeout(() => {
       el.style.opacity = "0";
@@ -211,9 +211,9 @@ export class WaveManager {
     const el = document.getElementById("wave-announce");
     const txt = document.getElementById("wave-announce-text");
     const sub = document.getElementById("wave-announce-sub");
-    txt.textContent = "WAVE CLEARED!";
+    txt.textContent = "波次清空！";
     txt.style.color = "#22c55e";
-    sub.textContent = `NEXT WAVE IN ${BETWEEN_WAVE_DELAY}s`;
+    sub.textContent = `${BETWEEN_WAVE_DELAY} 秒后进入下一波`;
     el.style.opacity = "1";
     setTimeout(() => {
       el.style.opacity = "0";
@@ -226,7 +226,7 @@ export class WaveManager {
     const alive = this.enemySystem.getAliveCount();
     document.getElementById("enemy-count").textContent =
       this.state === "between"
-        ? `NEXT WAVE IN ${Math.ceil(this._timer)}s`
-        : `${alive} zombies`;
+        ? `${Math.ceil(this._timer)} 秒后进入下一波`
+        : `剩余 ${alive} 只僵尸`;
   }
 }

@@ -56,10 +56,10 @@ export class HUD {
 
     const alive = window._enemySystem?.getAliveCount() ?? 0;
     if (this.waveManager.state === "active") {
-      document.getElementById("enemy-count").textContent = `${alive} zombies`;
+      document.getElementById("enemy-count").textContent = `剩余 ${alive} 只僵尸`;
     } else if (this.waveManager.state === "between") {
       const t = Math.ceil(this.waveManager._timer);
-      document.getElementById("enemy-count").textContent = `Next wave in ${t}s`;
+      document.getElementById("enemy-count").textContent = `${t} 秒后进入下一波`;
     }
   }
 
@@ -83,7 +83,7 @@ export class HUD {
     const feed = document.getElementById("kill-feed");
     const el = document.createElement("div");
     el.className = "kill-notification";
-    el.textContent = `✕ ZOMBIE DOWN  +${100 * this.waveManager.currentWave}`;
+    el.textContent = `✕ 击杀僵尸  +${100 * this.waveManager.currentWave}`;
     feed.appendChild(el);
     setTimeout(() => {
       if (el.parentNode) el.parentNode.removeChild(el);
