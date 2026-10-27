@@ -748,11 +748,11 @@ export class SurvivorGame {
     const camX = p.x - this.W / 2
     const camY = p.y - this.H / 2
     // 背景
-    ctx.fillStyle = '#0a0e1a'
+    ctx.fillStyle = '#0d1526'
     ctx.fillRect(0, 0, this.W, this.H)
     // 网格
-    ctx.strokeStyle = 'rgba(56,80,140,0.15)'
-    ctx.lineWidth = 1
+    ctx.strokeStyle = 'rgba(94,140,220,0.35)'
+    ctx.lineWidth = 1.5
     ctx.beginPath()
     const g = 64
     const ox = -((camX % g) + g) % g
