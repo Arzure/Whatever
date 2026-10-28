@@ -64,10 +64,10 @@ export const WEAPONS = {
     maxLv: 5, up: ['+触发概率', '+伤害', '+半径', '+概率与伤害']
   },
   backup: {
-    name: '备份分身', color: '#e879f9', type: 'orbit',
-    desc: '环绕旋转的备份节点',
-    dmg: 7, count: 3, radius: 110, size: 10, spin: -3.2,
-    maxLv: 5, up: ['+1 节点', '+伤害', '+1 节点', '+速度与伤害']
+    name: '备份分身', color: '#e879f9', type: 'clone',
+    desc: '自动作战的克隆体；致命伤害时牺牲自己替你恢复',
+    dmg: 5, cd: 0.8,
+    maxLv: 5, up: ['+1 分身', '伤害+35%', '+1 分身', '射速+40%']
   }
 }
 
@@ -82,7 +82,7 @@ export const EVOLUTIONS = {
   grep: { name: '全局递归搜索', color: '#6ee7b7', desc: '伤害×2.2 射速×1.4', dmgMul: 2.2, cdMul: 0.7 },
   ping: { name: '心跳风暴', color: '#93c5fd', desc: '伤害×2.2 冷却-30%', dmgMul: 2.2, cdMul: 0.7 },
   cache: { name: '缓存雪崩', color: '#fda4af', desc: '触发概率与伤害大增', dmgMul: 2.2, cdMul: 1 },
-  backup: { name: '异地多活', color: '#f0abfc', desc: '伤害×2.2 旋转加速', dmgMul: 2.2, cdMul: 1 }
+  backup: { name: '异地多活', color: '#f0abfc', desc: '伤害×2.2 射速×1.6，备份恢复冷却减半', dmgMul: 2.2, cdMul: 0.625 }
 }
 
 // ---------- 数值表：角色（不同初始武器与特性） ----------
@@ -340,6 +340,8 @@ export class SurvivorGame {
     this.glass = false
     this.greed = false
     this.pickups = []
+    this.clones = []
+    this.cloneReviveT = 0
     this.props = []
     this.swamps = []
     this.propSeed()
@@ -577,6 +579,8 @@ export class SurvivorGame {
       if (this.overdrive > 0) this.overdrive -= dt
       // 大招演出计时
       if (this.ultT > 0) this.ultT -= dt
+      // 备份恢复冷却计时
+      if (this.cloneReviveT > 0) this.cloneReviveT -= dt
       // 动态音乐分层：敌人密度/Boss/狂暴决定伴奏强度
       let bossOn = false
       for (let bi = 0; bi < this.enemies.length; bi++) if (this.enemies[bi].boss && !this.enemies[bi].dead) { bossOn = true; break }
@@ -735,7 +739,7 @@ export class SurvivorGame {
     for (const id in p.weapons) {
       const lv = p.weapons[id]
       const w = WEAPONS[id]
-      if (w.type === 'orbit') {
+      if (w.type === 'orbit' && w.arc) {
         p.orbitA += w.spin * dt
         const rings = lv >= 5 ? 3 : (lv >= 3 ? 2 : 1)
         const dmg = w.dmg * (1 + (lv - 1) * 0.35)
@@ -744,11 +748,38 @@ export class SurvivorGame {
           const n = w.count + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + ring
           for (let i = 0; i < n; i++) {
             const a = p.orbitA * (ring % 2 ? -1 : 1) + i * TAU / n
-            if (w.arc) {
-              const key = ring + '_' + i
-              this.orbits.push({ arc: true, radius: rad, a, arc: w.arc, size: w.size, dmg, color: w.color, key, cd: this.wallCds[key] || 0 })
-            } else {
-              this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
+            const key = ring + '_' + i
+            this.orbits.push({ arc: true, radius: rad, a, arc: w.arc, size: w.size, dmg, color: w.color, key, cd: this.wallCds[key] || 0 })
+          }
+        }
+      } else if (w.type === 'clone') {
+        // 备份分身：维持克隆体数量，跟随玩家并自动开火
+        const want = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0)
+        while (this.clones.length < want) {
+          this.clones.push({ x: p.x, y: p.y, a: 0, cd: 0, dead: false, respawnT: 0 })
+        }
+        const evo = p.evolutions[id] && EVOLUTIONS[id]
+        const dmgMul = (1 + (lv - 1) * 0.35) * (evo ? evo.dmgMul : 1)
+        const cdMul = (lv >= 5 ? 0.6 : 1) * (evo ? evo.cdMul : 1)
+        for (let i = 0; i < this.clones.length; i++) {
+          const c = this.clones[i]
+          // 阵位：围绕玩家分布
+          const slot = i * TAU / this.clones.length + this.time * 0.5
+          const tx = p.x + Math.cos(slot) * 46, ty = p.y + Math.sin(slot) * 46
+          const dx = tx - c.x, dy = ty - c.y
+          const dd = Math.hypot(dx, dy) || 1
+          const spd = Math.min(dd / dt, 260)
+          c.x += dx / dd * spd * dt
+          c.y += dy / dd * spd * dt
+          // 自动朝最近敌人开火
+          c.cd -= dt
+          if (c.cd <= 0) {
+            const t = this.nearestEnemy(c.x, c.y)
+            if (t && dist2(c.x, c.y, t.x, t.y) < 420 * 420) {
+              c.cd = w.cd * cdMul * (1 - p.cdr) * (this.overdrive > 0 ? 0.5 : 1)
+              const a = Math.atan2(t.y - c.y, t.x - c.x)
+              this.addBullet(c.x, c.y, a, 420, w.dmg * dmgMul, 0, 4, w.color, false)
+              this.particles.push({ x: c.x + Math.cos(a) * 10, y: c.y + Math.sin(a) * 10, vx: Math.cos(a) * 50, vy: Math.sin(a) * 50, t: 0.1, color: '#fde047', size: 3 })
             }
           }
         }
@@ -1660,6 +1691,19 @@ export class SurvivorGame {
     sound.play('hurt')
     this.floats.push({ x: p.x, y: p.y - 16, txt: '-' + String(d | 0), t: 0.7, color: '#f87171' })
     if (p.hp <= 0) {
+      // 备份恢复：分身牺牲自己替玩家挡下致命伤害
+      if (this.clones.length > 0 && this.cloneReviveT <= 0) {
+        this.clones.pop()
+        this.cloneReviveT = 90
+        p.hp = p.maxHp * 0.3
+        p.invuln = 1.5
+        this.floats.push({ x: p.x, y: p.y - 50, txt: '★ 备份恢复成功！分身牺牲，恢复 30% 生命', t: 2.5, color: '#e879f9', big: true })
+        this.novas.push({ x: p.x, y: p.y, t: 0, dur: 0.5, radius: 120, color: '#e879f9' })
+        this.burst(p.x, p.y, '#e879f9', 16)
+        this.slowmo = 0.5
+        sound.play('bosskill')
+        return
+      }
       p.hp = 0
       this.state = 'over'
       sound.play('over')
@@ -2192,6 +2236,28 @@ export class SurvivorGame {
     }
 
     // 玩家：能量核心造型（外辉光 + 主体 + 内核 + 旋转能量弧）
+    // 备份分身：玩家缩小克隆体（紫色，跟随作战）
+    for (let i = 0; i < this.clones.length; i++) {
+      const c = this.clones[i]
+      ctx.save()
+      ctx.translate(c.x, c.y)
+      ctx.shadowColor = '#e879f9'
+      ctx.shadowBlur = 12
+      ctx.fillStyle = '#86198f'
+      ctx.beginPath()
+      ctx.arc(0, 0, 8, 0, TAU)
+      ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.fillStyle = '#e879f9'
+      ctx.beginPath()
+      ctx.arc(0, 0, 5.5, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#fae8ff'
+      ctx.beginPath()
+      ctx.arc(0, 0, 2, 0, TAU)
+      ctx.fill()
+      ctx.restore()
+    }
     ctx.save()
     ctx.translate(p.x, p.y)
     if (p.invuln > 0 && ((this.time * 20) | 0) % 2 === 0) ctx.globalAlpha = 0.4
