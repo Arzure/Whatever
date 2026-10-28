@@ -12,14 +12,20 @@ export const WEAPONS = {
   firewall: {
     name: '防火墙', color: '#22d3ee', type: 'orbit',
     desc: '旋转的弧形防护墙，撞击伤害并击退故障',
-    dmg: 10, count: 2, radius: 95, size: 14, spin: 2.4, arc: 1.4,
-    maxLv: 5, up: ['+1 墙段', '+外层防护环', '+1 墙段', '第三层防护环']
+    dmg: 10, count: 2, radius: 95, size: 14, spin: 2.4, arc: 0.9,
+    maxLv: 5, up: ['+1 墙段', '+外层防护环', '格挡冷却 -1s', '第三层防护环']
   },
   cannon: {
     name: '主炮', color: '#e0f2fe', type: 'auto',
     desc: '朝鼠标方向自动连射补丁弹',
     dmg: 12, cd: 0.5, speed: 560, pierce: 1,
     maxLv: 5, up: ['射速 +30%', '伤害 +40%', '+1 穿透', '双联装：两发齐射']
+  },
+  turret: {
+    name: '副机枪', color: '#5eead4', type: 'turret',
+    desc: '环绕玩家的自动炮塔，锁定最近故障持续扫射',
+    dmg: 3, cd: 0.3, speed: 520, pierce: 1,
+    maxLv: 5, up: ['射速 +40%', '伤害 +50%', '+1 座炮塔', '子弹可穿透']
   },
   patch: {
     name: '热修复', color: '#a78bfa', type: 'shot',
@@ -215,6 +221,7 @@ export class SurvivorGame {
     this.dashCd = 0
     this.dashT = 0
     this.dashTrail = []
+    this.wallCds = {}
     this.mouse = { x: 0, y: 0 }
     this.event = null
     this.eventT = 0
@@ -273,6 +280,7 @@ export class SurvivorGame {
     this.dashCd = 0
     this.dashT = 0
     this.dashTrail = []
+    this.wallCds = {}
     this.mouse = { x: 0, y: 0 }
     this.event = null
     this.eventT = 0
@@ -407,6 +415,10 @@ export class SurvivorGame {
   fireWeapons(dt) {
     const p = this.player
     this.orbits = []
+    for (const k in this.wallCds) {
+      this.wallCds[k] -= dt
+      if (this.wallCds[k] <= 0) delete this.wallCds[k]
+    }
     for (const id in p.weapons) {
       const lv = p.weapons[id]
       const w = WEAPONS[id]
@@ -420,7 +432,8 @@ export class SurvivorGame {
           for (let i = 0; i < n; i++) {
             const a = p.orbitA * (ring % 2 ? -1 : 1) + i * TAU / n
             if (w.arc) {
-              this.orbits.push({ arc: true, radius: rad, a, arc: w.arc, size: w.size, dmg, color: w.color })
+              const key = ring + '_' + i
+              this.orbits.push({ arc: true, radius: rad, a, arc: w.arc, size: w.size, dmg, color: w.color, key, cd: this.wallCds[key] || 0 })
             } else {
               this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
             }
@@ -432,7 +445,7 @@ export class SurvivorGame {
         p.cds[id] = (p.cds[id] || 0) - dt
         if (p.cds[id] <= 0) {
           const fired = this.fireWeapon(id, w, lv)
-          if (fired) p.cds[id] = w.cd * (id === 'cannon' && lv >= 2 ? 0.7 : 1) * (1 - p.cdr)
+          if (fired) p.cds[id] = w.cd * (id === 'cannon' && lv >= 2 ? 0.7 : 1) * (id === 'turret' && lv >= 2 ? 0.6 : 1) * (1 - p.cdr)
         }
       }
     }
@@ -466,6 +479,23 @@ export class SurvivorGame {
       const tipY = p.y + Math.sin(a) * (p.r + 10)
       this.particles.push({ x: tipX, y: tipY, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60, t: 0.12, color: '#fde047', size: 5 })
       this.particles.push({ x: tipX, y: tipY, vx: rand(-30, 30), vy: rand(-30, 30), t: 0.1, color: '#fef9c3', size: 3 })
+      sound.play('shoot')
+      return true
+    }
+    if (w.type === 'turret') {
+      // 副机枪：环绕玩家的炮塔自动锁定最近故障扫射
+      const t = this.nearestEnemy(p.x, p.y)
+      if (!t) return false
+      const n = lv >= 4 ? 2 : 1
+      const dm = w.dmg * mul * (lv >= 3 ? 1.5 : 1)
+      const pierce = w.pierce + (lv >= 5 ? 1 : 0)
+      for (let i = 0; i < n; i++) {
+        const off = this.time * 1.2 + (i * Math.PI) / n
+        const gx = p.x + Math.cos(off) * 26, gy = p.y + Math.sin(off) * 26
+        const a = Math.atan2(t.y - gy, t.x - gx)
+        this.addBullet(gx, gy, a, w.speed, dm, pierce, 4, w.color, false)
+        this.particles.push({ x: gx + Math.cos(a) * 7, y: gy + Math.sin(a) * 7, vx: 0, vy: 0, t: 0.08, color: '#fde047', size: 3 })
+      }
       sound.play('shoot')
       return true
     }
@@ -706,6 +736,7 @@ export class SurvivorGame {
       } else {
         for (let j = 0; j < this.orbits.length; j++) {
           const o = this.orbits[j]
+          if (o.arc && o.cd > 0) continue
           let hit = false
           if (o.arc) {
             // 弧形墙段：角度 + 半径双判定
@@ -723,6 +754,7 @@ export class SurvivorGame {
           }
           if (hit) {
             this.dealDamage(e, o.dmg)
+            if (o.arc) this.wallCds[o.key] = 3 - ((this.player.weapons.firewall || 1) >= 4 ? 1 : 0)
             // 击退：把故障推离玩家
             const kx = e.x - p.x, ky = e.y - p.y
             const kd = Math.hypot(kx, ky) || 1
@@ -1181,14 +1213,15 @@ export class SurvivorGame {
       if (o.arc) {
         // 弧形防护墙：发光弧线墙体 + 内芯提亮
         ctx.save()
+        ctx.globalAlpha = o.cd > 0 ? 0.22 : 1
         ctx.shadowColor = o.color
-        ctx.shadowBlur = 14
+        ctx.shadowBlur = o.cd > 0 ? 4 : 14
         ctx.strokeStyle = o.color
         ctx.lineWidth = o.size
         ctx.beginPath()
         ctx.arc(p.x, p.y, o.radius, o.a - o.arc / 2, o.a + o.arc / 2)
         ctx.stroke()
-        ctx.globalAlpha = 0.35
+        ctx.globalAlpha = o.cd > 0 ? 0.1 : 0.35
         ctx.strokeStyle = '#e0f2fe'
         ctx.lineWidth = o.size * 0.4
         ctx.stroke()
@@ -1355,6 +1388,24 @@ export class SurvivorGame {
     ctx.arc(p.r + 8, 0, 1.8, 0, TAU)
     ctx.fill()
     ctx.restore()
+    // 副机枪：环绕玩家的自动炮塔
+    const tLv = p.weapons.turret || 0
+    if (tLv > 0) {
+      const tn = tLv >= 4 ? 2 : 1
+      for (let i = 0; i < tn; i++) {
+        const ta = this.time * 1.2 + (i * Math.PI) / tn
+        ctx.save()
+        ctx.translate(Math.cos(ta) * 26, Math.sin(ta) * 26)
+        ctx.fillStyle = '#134e4a'
+        ctx.strokeStyle = '#5eead4'
+        ctx.lineWidth = 1.2
+        ctx.beginPath()
+        ctx.arc(0, 0, 4.5, 0, TAU)
+        ctx.fill()
+        ctx.stroke()
+        ctx.restore()
+      }
+    }
     ctx.restore()
 
     // 粒子
