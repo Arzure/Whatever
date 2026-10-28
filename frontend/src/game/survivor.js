@@ -115,6 +115,8 @@ export const ENEMIES = {
   spam: { name: '垃圾流量', color: '#f472b6', hp: 60, dmg: 14, speed: 38, r: 15, xp: 5, shape: 'square' },
   splitter: { name: '分裂进程', color: '#c084fc', hp: 36, dmg: 10, speed: 46, r: 14, xp: 3, shape: 'square' },
   sniper: { name: '远程注入', color: '#22d3ee', hp: 22, dmg: 8, speed: 40, r: 10, xp: 3, shape: 'diamond' },
+  flanker: { name: '侧翼包抄', color: '#a3e635', hp: 28, dmg: 10, speed: 78, r: 11, xp: 3, shape: 'tri' },
+  kiter: { name: '风筝射手', color: '#38bdf8', hp: 24, dmg: 9, speed: 66, r: 10, xp: 4, shape: 'diamond' },
   charger: { name: '暴力破解', color: '#fb923c', hp: 30, dmg: 16, speed: 50, r: 11, xp: 4, shape: 'tri' },
   bomber: { name: '自爆程序', color: '#f87171', hp: 18, dmg: 26, speed: 88, r: 9, xp: 3, shape: 'pent' },
   healer: { name: '修复进程', color: '#4ade80', hp: 34, dmg: 6, speed: 36, r: 12, xp: 5, shape: 'hex' },
@@ -135,14 +137,14 @@ export const WAVES = [
   { t: 350, interval: 0.55, types: { leak: 3, ddos: 2 } },
   { t: 430, interval: 0.5, types: { zombie: 3, ddos: 3 } },
   { t: 510, interval: 0.45, types: { ddos: 3, worm: 2 } },
-  { t: 600, interval: 0.42, types: { leak: 3, worm: 2, splitter: 1, sniper: 1 } },
-  { t: 680, interval: 0.4, types: { ddos: 4, worm: 2, charger: 1, bomber: 2 } },
-  { t: 760, interval: 0.38, types: { worm: 3, spam: 2, splitter: 1, sniper: 2, healer: 1 } },
-  { t: 840, interval: 0.35, types: { ddos: 3, spam: 3, charger: 2, bomber: 2, tank: 1 } },
+  { t: 600, interval: 0.42, types: { leak: 3, worm: 2, splitter: 1, sniper: 1, flanker: 1 } },
+  { t: 680, interval: 0.4, types: { ddos: 4, worm: 2, charger: 1, bomber: 2, flanker: 2 } },
+  { t: 760, interval: 0.38, types: { worm: 3, spam: 2, splitter: 1, sniper: 2, healer: 1, kiter: 1 } },
+  { t: 840, interval: 0.35, types: { ddos: 3, spam: 3, charger: 2, bomber: 2, tank: 1, flanker: 2 } },
   { t: 900, interval: 0.4, types: { spam: 3 }, boss: 'kernel_panic' },
-  { t: 960, interval: 0.32, types: { worm: 3, spam: 3, sniper: 2, healer: 1, tank: 1 } },
-  { t: 1040, interval: 0.28, types: { ddos: 4, spam: 3, splitter: 2, charger: 2, bomber: 3 } },
-  { t: 1120, interval: 0.25, types: { spam: 4, worm: 3, sniper: 2, charger: 2, tank: 2, healer: 1 } },
+  { t: 960, interval: 0.32, types: { worm: 3, spam: 3, sniper: 2, healer: 1, tank: 1, kiter: 2 } },
+  { t: 1040, interval: 0.28, types: { ddos: 4, spam: 3, splitter: 2, charger: 2, bomber: 3, flanker: 3 } },
+  { t: 1120, interval: 0.25, types: { spam: 4, worm: 3, sniper: 2, charger: 2, tank: 2, healer: 1, kiter: 2 } },
   { t: 1200, interval: 0.35, types: { spam: 4 }, boss: 'data_destroyer' }
 ]
 
@@ -338,6 +340,9 @@ export class SurvivorGame {
     this.glass = false
     this.greed = false
     this.pickups = []
+    this.props = []
+    this.swamps = []
+    this.propSeed()
     this.combo = 0
     this.comboT = 0
     this.dashCd = 0
@@ -558,6 +563,7 @@ export class SurvivorGame {
     this.spawnLogic(dt)
     this.updateEnemies(dt)
     this.updateBullets(dt)
+    this.updateProps(dt)
     this.updateGems(dt)
     this.updateFx(dt)
     // 波次商店：每 90 秒弹出
@@ -891,6 +897,108 @@ export class SurvivorGame {
     this.bullets.push(b)
   }
 
+  // ---------- 可交互地图物件 ----------
+  propSeed() {
+    const p = this.player
+    if (!p) return
+    const want = { capacitor: 5, crystal: 4, emp: 2 }
+    const counts = { capacitor: 0, crystal: 0, emp: 0 }
+    for (let i = 0; i < this.props.length; i++) counts[this.props[i].kind] = (counts[this.props[i].kind] || 0) + 1
+    for (const kind in want) {
+      while (counts[kind] < want[kind]) {
+        const a = Math.random() * TAU
+        const r = rand(380, 900)
+        this.props.push({ kind, x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, r: kind === 'emp' ? 14 : 12, pulseT: rand(2, 5), fuse: 0 })
+        counts[kind]++
+      }
+    }
+    while (this.swamps.length < 3) {
+      const a = Math.random() * TAU
+      const r = rand(500, 1100)
+      this.swamps.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, r: rand(90, 150) })
+    }
+  }
+  explodeCapacitor(c) {
+    const dmg = 90 * (1 + this.time / 60)
+    const near = this.hash.query(c.x, c.y, 150)
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i]
+      if (e.dead) continue
+      if (dist2(c.x, c.y, e.x, e.y) < 150 * 150) {
+        this.dealDamage(e, dmg)
+        if (!e.boss) { e.x += (e.x - c.x) / 150 * 30; e.y += (e.y - c.y) / 150 * 30 }
+      }
+    }
+    this.novas.push({ x: c.x, y: c.y, t: 0, dur: 0.4, radius: 150, color: '#fb923c' })
+    this.burst(c.x, c.y, '#fb923c', 14)
+    this.shakeT = this.time + 0.25
+    sound.play('bosskill')
+    for (let i = 0; i < this.props.length; i++) {
+      const o = this.props[i]
+      if (o.kind === 'capacitor' && o.fuse <= 0 && dist2(c.x, c.y, o.x, o.y) < 170 * 170) o.fuse = 0.15
+    }
+  }
+  breakCrystal(c) {
+    const n = 4 + ((this.time / 240) | 0)
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * TAU, d = rand(6, 30)
+      this.gems.push({ x: c.x + Math.cos(a) * d, y: c.y + Math.sin(a) * d, v: 3 })
+    }
+    for (let i = 0; i < 3; i++) this.coins.push({ x: c.x + rand(-14, 14), y: c.y + rand(-14, 14) })
+    this.burst(c.x, c.y, '#22d3ee', 12)
+    this.floats.push({ x: c.x, y: c.y - 20, txt: '数据水晶击碎！', t: 1.2, color: '#22d3ee', big: true })
+    sound.play('pickup')
+  }
+  updateProps(dt) {
+    const p = this.player
+    if (!p) return
+    this.propSeedT = (this.propSeedT || 0) - dt
+    if (this.propSeedT <= 0) { this.propSeedT = 4; this.propSeed() }
+    this.swampTick = (this.swampTick || 0) - dt
+    if (this.swampTick <= 0) {
+      this.swampTick = 0.5
+      for (let i = 0; i < this.swamps.length; i++) {
+        const s = this.swamps[i]
+        if (dist2(p.x, p.y, s.x, s.y) < s.r * s.r) {
+          this.hurtPlayer(3 + this.time / 120)
+          this.floats.push({ x: p.x, y: p.y - 14, txt: '毒沼侵蚀', t: 0.5, color: '#a3e635' })
+          break
+        }
+      }
+    }
+    for (let i = this.props.length - 1; i >= 0; i--) {
+      const c = this.props[i]
+      if (c.fuse > 0) {
+        c.fuse -= dt
+        if (c.fuse <= 0) { this.explodeCapacitor(c); this.props.splice(i, 1); continue }
+      }
+      if (c.kind === 'emp') {
+        c.pulseT -= dt
+        if (c.pulseT <= 0) {
+          c.pulseT = 5
+          const near = this.hash.query(c.x, c.y, 170)
+          let hit = 0
+          for (let k = 0; k < near.length; k++) {
+            const e = near[k]
+            if (e.dead) continue
+            if (dist2(c.x, c.y, e.x, e.y) < 170 * 170) { e.frozenT = 1.5; hit++ }
+          }
+          this.novas.push({ x: c.x, y: c.y, t: 0, dur: 0.5, radius: 170, color: '#60a5fa' })
+          if (hit > 0) this.floats.push({ x: c.x, y: c.y - 24, txt: 'EMP 麻痹 x' + hit, t: 1, color: '#60a5fa' })
+        }
+      }
+      if (c.kind === 'capacitor' || c.kind === 'crystal') {
+        for (let j = 0; j < this.bullets.length; j++) {
+          const b = this.bullets[j]
+          if (b.dead) continue
+          if (dist2(b.x, b.y, c.x, c.y) < (c.r + b.r + 2) * (c.r + b.r + 2)) {
+            if (c.kind === 'capacitor') { c.fuse = 0.01 } else { this.breakCrystal(c); this.props.splice(i, 1) }
+            break
+          }
+        }
+      }
+    }
+  }
   // ---------- 生成 ----------
 
   spawnLogic(dt) {
@@ -921,7 +1029,7 @@ export class SurvivorGame {
     const R = Math.hypot(this.W, this.H) / 2 + 60
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0
-    e.elite = false; e.child = false; e.gold = Math.random() < 0.03
+    e.elite = false; e.child = false; e.gold = Math.random() < 0.03; e.frozenT = 0
     e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
@@ -1075,6 +1183,12 @@ export class SurvivorGame {
         }
       }
       if (e.slowT > 0) e.slowT -= dt
+      // EMP 麻痹：冻结期间完全停止行动
+      if (e.frozenT > 0) {
+        e.frozenT -= dt
+        if (Math.random() < 0.2) this.particles.push({ x: e.x + rand(-6, 6), y: e.y + rand(-6, 6), vx: 0, vy: 0, t: 0.2, color: '#60a5fa', size: 2 })
+        continue
+      }
       const dx = p.x - e.x, dy = p.y - e.y
       const d = Math.hypot(dx, dy) || 1
       let spd = e.speed * (this.event === 'slow' ? 0.45 : 1) * (e.slowT > 0 ? 0.5 : 1)
@@ -1163,6 +1277,34 @@ export class SurvivorGame {
             this.burst(e.x, e.y, e.color, 8)
           }
         }
+      } else if (e.type === 'flanker') {
+        // 侧翼包抄：绕到玩家侧后方弧线接近，不正面挤堆
+        e.flankA = (e.flankA === undefined ? (Math.random() < 0.5 ? 1 : -1) : e.flankA)
+        const orbit = Math.atan2(-dy, -dx) + e.flankA * 1.2
+        const tx = p.x + Math.cos(orbit) * 60, ty = p.y + Math.sin(orbit) * 60
+        const fdx = tx - e.x, fdy = ty - e.y
+        const fd = Math.hypot(fdx, fdy) || 1
+        e.x += fdx / fd * spd * dt
+        e.y += fdy / fd * spd * dt
+      } else if (e.type === 'kiter') {
+        // 风筝射手：保持 250~350 距离，边退边射
+        e.kiteT = (e.kiteT === undefined ? rand(1.5, 2.5) : e.kiteT) - dt
+        if (d > 350) {
+          e.x += dx / d * spd * dt
+          e.y += dy / d * spd * dt
+        } else if (d < 250) {
+          e.x -= dx / d * spd * 0.9 * dt
+          e.y -= dy / d * spd * 0.9 * dt
+        } else {
+          // 距离合适时横向游走
+          e.x += -dy / d * spd * 0.5 * dt
+          e.y += dx / d * spd * 0.5 * dt
+        }
+        if (e.kiteT <= 0 && d < 450) {
+          e.kiteT = rand(1.8, 2.6)
+          const a = Math.atan2(dy, dx)
+          this.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 260, vy: Math.sin(a) * 260, r: 4, dmg: e.dmg * 0.55, t: 3 })
+        }
       } else if (e.type === 'sniper') {
         e.shootT = (e.shootT || 0) - dt
         if (d > 300) {
@@ -1195,8 +1337,16 @@ export class SurvivorGame {
           e.y += dy / d * spd * dt
         }
       } else {
-        e.x += dx / d * spd * dt
-        e.y += dy / d * spd * dt
+        // 转向惯性：限制角速度，不再瞬间掉头，高速绕圈可甩开怪群
+        const ta = Math.atan2(dy, dx)
+        if (e.headA === undefined) e.headA = ta
+        let da = ta - e.headA
+        while (da > Math.PI) da -= TAU
+        while (da < -Math.PI) da += TAU
+        const maxTurn = 3.2 * dt
+        e.headA += Math.max(-maxTurn, Math.min(maxTurn, da))
+        e.x += Math.cos(e.headA) * spd * dt
+        e.y += Math.sin(e.headA) * spd * dt
       }
       if (d < e.r + p.r) this.hurtPlayer(e.dmg)
       if (e.orbitCd > 0) {
@@ -1721,6 +1871,68 @@ export class SurvivorGame {
     ctx.save()
     ctx.translate(-camX, -camY)
 
+    // 毒沼：绿色腐蚀区域（危险地形）
+    for (let i = 0; i < this.swamps.length; i++) {
+      const s = this.swamps[i]
+      const g = ctx.createRadialGradient(s.x, s.y, s.r * 0.2, s.x, s.y, s.r)
+      g.addColorStop(0, 'rgba(163,230,53,0.30)')
+      g.addColorStop(1, 'rgba(101,163,13,0.05)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(s.x, s.y, s.r, 0, TAU)
+      ctx.fill()
+      if (Math.random() < 0.15) this.particles.push({ x: s.x + rand(-s.r, s.r) * 0.7, y: s.y + rand(-s.r, s.r) * 0.7, vx: 0, vy: -rand(10, 30), t: 0.5, color: '#a3e635', size: 2 })
+    }
+    // 可交互物件：电容 / 水晶 / EMP 塔
+    for (let i = 0; i < this.props.length; i++) {
+      const c = this.props[i]
+      ctx.save()
+      ctx.translate(c.x, c.y)
+      if (c.kind === 'capacitor') {
+        const blink = c.fuse > 0 && Math.sin(this.time * 40) > 0
+        ctx.fillStyle = blink ? '#fff' : '#fb923c'
+        ctx.fillRect(-6, -9, 12, 18)
+        ctx.fillStyle = '#7c2d12'
+        ctx.fillRect(-6, -9, 12, 4)
+        ctx.fillRect(-6, 5, 12, 4)
+        ctx.shadowColor = '#fb923c'
+        ctx.shadowBlur = 8
+        ctx.strokeStyle = '#fdba74'
+        ctx.lineWidth = 1.5
+        ctx.strokeRect(-6, -9, 12, 18)
+      } else if (c.kind === 'crystal') {
+        ctx.rotate(this.time * 0.8)
+        ctx.shadowColor = '#22d3ee'
+        ctx.shadowBlur = 10
+        ctx.fillStyle = '#22d3ee'
+        ctx.beginPath()
+        ctx.moveTo(0, -11)
+        ctx.lineTo(8, 0)
+        ctx.lineTo(0, 11)
+        ctx.lineTo(-8, 0)
+        ctx.closePath()
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'
+        ctx.beginPath()
+        ctx.moveTo(0, -11)
+        ctx.lineTo(4, 0)
+        ctx.lineTo(0, 0)
+        ctx.closePath()
+        ctx.fill()
+      } else if (c.kind === 'emp') {
+        ctx.fillStyle = '#1e3a5f'
+        ctx.fillRect(-5, -12, 10, 24)
+        ctx.fillStyle = '#60a5fa'
+        ctx.fillRect(-5, -12, 10, 5)
+        const charge = 1 - Math.min(1, c.pulseT / 5)
+        ctx.strokeStyle = 'rgba(96,165,250,' + (0.2 + charge * 0.5).toFixed(2) + ')'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(0, 0, 16 + charge * 6, 0, TAU)
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
     // 经验宝石
     for (let i = 0; i < this.gems.length; i++) {
       const gm = this.gems[i]
