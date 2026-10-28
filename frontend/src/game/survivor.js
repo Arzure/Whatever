@@ -461,6 +461,11 @@ export class SurvivorGame {
       } else {
         this.addBullet(p.x, p.y, a, w.speed, dmg, pierce, 6, w.color, false)
       }
+      // 枪口焰：炮口炸出短促亮黄闪光
+      const tipX = p.x + Math.cos(a) * (p.r + 10)
+      const tipY = p.y + Math.sin(a) * (p.r + 10)
+      this.particles.push({ x: tipX, y: tipY, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60, t: 0.12, color: '#fde047', size: 5 })
+      this.particles.push({ x: tipX, y: tipY, vx: rand(-30, 30), vy: rand(-30, 30), t: 0.1, color: '#fef9c3', size: 3 })
       sound.play('shoot')
       return true
     }
@@ -1305,44 +1310,50 @@ export class SurvivorGame {
       ctx.globalAlpha = 1
     }
 
-    // 玩家
+    // 玩家：能量核心造型（外辉光 + 主体 + 内核 + 旋转能量弧）
     ctx.save()
     ctx.translate(p.x, p.y)
     if (p.invuln > 0 && ((this.time * 20) | 0) % 2 === 0) ctx.globalAlpha = 0.4
     ctx.shadowColor = '#22d3ee'
-    ctx.shadowBlur = 16
-    ctx.fillStyle = '#22d3ee'
+    ctx.shadowBlur = 18
+    ctx.fillStyle = '#0e7490'
     ctx.beginPath()
     ctx.arc(0, 0, p.r, 0, TAU)
     ctx.fill()
-    // 移动方向箭头（弱化：仅表示行走方向）
-    ctx.save()
-    ctx.rotate(p.face)
-    ctx.globalAlpha = 0.55
+    ctx.shadowBlur = 0
+    ctx.fillStyle = '#22d3ee'
+    ctx.beginPath()
+    ctx.arc(0, 0, p.r - 3, 0, TAU)
+    ctx.fill()
     ctx.fillStyle = '#e0f2fe'
     ctx.beginPath()
-    ctx.moveTo(p.r + 5, 0)
-    ctx.lineTo(p.r - 1, -4)
-    ctx.lineTo(p.r - 1, 4)
-    ctx.closePath()
+    ctx.arc(0, 0, 3.5, 0, TAU)
     ctx.fill()
-    ctx.restore()
-    // 主炮炮管：朝鼠标方向（射击方向指示）
+    // 旋转能量弧（装饰）
+    ctx.strokeStyle = 'rgba(224,242,254,0.7)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(0, 0, p.r - 1.5, this.time * 1.6, this.time * 1.6 + 1.1)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(0, 0, p.r - 1.5, this.time * 1.6 + Math.PI, this.time * 1.6 + Math.PI + 1.1)
+    ctx.stroke()
+    // 主炮：紧凑炮身（朝鼠标方向）
     let aimA = p.face
     if (this.mouse.x || this.mouse.y) {
       aimA = Math.atan2(this.mouse.y - this.H / 2, this.mouse.x - this.W / 2)
     }
     ctx.save()
     ctx.rotate(aimA)
-    ctx.shadowColor = '#e0f2fe'
-    ctx.shadowBlur = 8
-    ctx.strokeStyle = '#e0f2fe'
-    ctx.lineWidth = 5
-    ctx.lineCap = 'round'
+    ctx.fillStyle = '#164e63'
+    ctx.strokeStyle = '#67e8f9'
+    ctx.lineWidth = 1.5
+    ctx.fillRect(p.r - 6, -3, 14, 6)
+    ctx.strokeRect(p.r - 6, -3, 14, 6)
+    ctx.fillStyle = '#e0f2fe'
     ctx.beginPath()
-    ctx.moveTo(p.r - 2, 0)
-    ctx.lineTo(p.r + 10, 0)
-    ctx.stroke()
+    ctx.arc(p.r + 8, 0, 1.8, 0, TAU)
+    ctx.fill()
     ctx.restore()
     ctx.restore()
 
