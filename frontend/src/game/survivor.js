@@ -269,6 +269,14 @@ export class SurvivorGame {
     this.shopRerolled = false
     this.curse = 0
     this.difficulty = 1
+    this.overdrive = 0
+    this.rootCharges = 0
+    this.ultT = 0
+    this.huntT = 180
+    this.hunt = null
+    this.glass = false
+    this.greed = false
+    this.daily = false
     // 视差星尘
     this.stars = []
     for (let i = 0; i < 70; i++) {
@@ -322,6 +330,13 @@ export class SurvivorGame {
     this.shopItems = []
     this.shopRerolled = false
     this.curse = 0
+    this.overdrive = 0
+    this.rootCharges = 0
+    this.ultT = 0
+    this.huntT = 180
+    this.hunt = null
+    this.glass = false
+    this.greed = false
     this.pickups = []
     this.combo = 0
     this.comboT = 0
@@ -334,6 +349,19 @@ export class SurvivorGame {
     this.eventT = 0
     this.nextEvent = 75
     this.achv = {}
+    this.maxCombo = 0
+    this.synergies = []
+    this.zoomT = 0
+    this.dailyMod = null
+    if (this.daily) {
+      const mods = [
+        { name: '超频之日：敌人移速 +20%', speed: 1.2, elite: 1, gold: 1, xp: 1 },
+        { name: '精英之日：精英出现频率 ×2', speed: 1, elite: 2, gold: 1, xp: 1 },
+        { name: '匮乏之日：金币 -40%，经验 +30%', speed: 1, elite: 1, gold: 0.6, xp: 1.3 }
+      ]
+      this.dailyMod = mods[Math.floor(Date.now() / 86400000) % mods.length]
+      this.floats.push({ x: 0, y: -40, txt: '📅 每日挑战：' + this.dailyMod.name, t: 3, color: '#f472b6', big: true })
+    }
     this.player = {
       x: 0, y: 0, r: 12, hp: 100, maxHp: 100,
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
@@ -373,8 +401,25 @@ export class SurvivorGame {
     p.crit = Math.min(0.8, crit)
     p.regen = regen
     p.dmgMul = 1 + dmg
-    if (p.hp > maxHp) p.hp = maxHp
-    p.maxHp = maxHp
+    // 武器协同：特定武器组合触发额外加成（Synergy）
+    const has = id => !!p.weapons[id]
+    const syn = []
+    if (has('cannon') && has('firewall')) { p.armor = Math.min(0.7, p.armor + 0.10); syn.push('纵深防御：护甲+10%') }
+    if (has('turret') && has('patch')) { p.cdr = Math.min(0.7, p.cdr + 0.10); syn.push('自动化运维：冷却-10%') }
+    if (has('log') && has('grep')) { p.dmgMul += 0.10; syn.push('全链路追踪：伤害+10%') }
+    if (has('ping') && has('backup')) { p.maxHp += 20; p.hp = Math.min(p.maxHp, p.hp + 20); syn.push('高可用架构：生命+20') }
+    if (has('cron') && has('cache')) { p.crit = Math.min(0.85, p.crit + 0.05); syn.push('定时清理：暴击+5%') }
+    this.synergies = this.synergies || []
+    for (let i = 0; i < syn.length; i++) {
+      if (this.synergies.indexOf(syn[i]) < 0) {
+        this.synergies.push(syn[i])
+        this.floats.push({ x: p.x, y: p.y - 60, txt: '⚡ 协同激活：' + syn[i], t: 2.5, color: '#5eead4', big: true })
+        sound.play('levelup')
+      }
+    }
+    if (p.hp > maxHp + 20) p.hp = maxHp + 20
+    if (!this.synergies.length && p.hp > maxHp) p.hp = maxHp
+    p.maxHp = Math.max(p.maxHp, maxHp)
   }
 
   start(charId) {
@@ -471,7 +516,75 @@ export class SurvivorGame {
         this.shopTimer = 90
         this.openShop()
       }
+      // 狂暴时刻计时
+      if (this.overdrive > 0) this.overdrive -= dt
+      // 大招演出计时
+      if (this.ultT > 0) this.ultT -= dt
+      // 动态音乐分层：敌人密度/Boss/狂暴决定伴奏强度
+      let bossOn = false
+      for (let bi = 0; bi < this.enemies.length; bi++) if (this.enemies[bi].boss && !this.enemies[bi].dead) { bossOn = true; break }
+      sound.setIntensity(this.overdrive > 0 || bossOn ? 2 : (this.enemies.length > 25 ? 1 : 0))
+      // zoom punch 计时
+      if (this.zoomT > 0) this.zoomT -= dt
+      // 猎杀目标：每 3 分钟强制刷限时精英
+      if (this.hunt) {
+        this.hunt.t -= dt
+        if (this.hunt.e.dead) {
+          // 猎杀成功：进化直通卡（直接进化一件满级武器）+ 金币奖励
+          this.gold += 30
+          const full = Object.keys(this.player.weapons).filter(id => this.player.weapons[id] >= 5 && !this.player.evolutions[id] && EVOLUTIONS[id])
+          if (full.length) {
+            const id = full[(Math.random() * full.length) | 0]
+            this.player.evolutions[id] = true
+            this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '★ 猎杀达成：' + EVOLUTIONS[id].name + ' 直接进化！', t: 2.5, color: EVOLUTIONS[id].color, big: true })
+          } else {
+            this.gold += 30
+            this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '猎杀达成！+60 金币', t: 2, color: '#fde047', big: true })
+          }
+          sound.play('bosskill')
+          this.hunt = null
+        } else if (this.hunt.t <= 0) {
+          // 猎杀失败：精英狂暴化
+          this.hunt.e.speed *= 1.6
+          this.hunt.e.dmg *= 1.4
+          this.hunt.e.maxHp *= 1.5; this.hunt.e.hp = this.hunt.e.maxHp
+          this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '猎杀失败！目标已狂暴化！', t: 2, color: '#f87171', big: true })
+          this.hunt = null
+        }
+      } else {
+        this.huntT -= dt
+        if (this.huntT <= 0) {
+          this.huntT = 180
+          this.spawnHunt()
+        }
+      }
     }
+  }
+  // ---------- 猎杀目标 ----------
+  spawnHunt() {
+    // 生成限时猎杀精英（带倒计时标记）
+    const w = WAVES[this.waveIdx]
+    const types = Object.keys(w.types)
+    const type = types[(Math.random() * types.length) | 0]
+    const d = ENEMIES[type]
+    const a = Math.random() * TAU
+    const R = Math.hypot(this.W, this.H) / 2 + 60
+    const e = this.pool.enemy.get()
+    e.type = type; e.dead = false; e.orbitCd = 0; e.elite = true
+    e.flashT = 0
+    e.x = this.player.x + Math.cos(a) * R
+    e.y = this.player.y + Math.sin(a) * R
+    const mul = 1 + (this.time / 60) * 0.35
+    e.maxHp = d.hp * mul * 8
+    e.hp = e.maxHp
+    e.dmg = d.dmg * 1.3
+    e.speed = d.speed * 0.9; e.r = d.r * 1.4; e.xp = d.xp * 6
+    e.shape = d.shape; e.color = '#f0abfc'; e.boss = false
+    e.affix = 'hunt'; e.affixName = '猎杀目标'; e.affixColor = '#f0abfc'
+    this.enemies.push(e)
+    this.hunt = { e, t: 45 }
+    this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '🎯 猎杀目标出现！45 秒内击杀有重奖', t: 2.5, color: '#f0abfc', big: true })
+    sound.play('boss')
   }
   // ---------- 波次商店 ----------
   openShop() {
@@ -501,6 +614,8 @@ export class SurvivorGame {
     }
     pool.push({ kind: 'heal', id: 'heal', name: '紧急修复', desc: '回复 50% 生命', color: '#4ade80', cost: 12 })
     pool.push({ kind: 'curse', id: 'curse', name: '黑暗契约', desc: '敌人伤害+12%，金币掉率大增（可叠加）', color: '#c084fc', cost: 0 })
+    if (!this.glass) pool.push({ kind: 'glass', id: 'glass', name: '玻璃大炮协议', desc: '造成伤害 +50%，受到伤害 ×2（一次性）', color: '#f87171', cost: 15 })
+    if (!this.greed) pool.push({ kind: 'greed', id: 'greed', name: '贪婪协议', desc: '每枚金币价值 ×2（一次性）', color: '#fde047', cost: 15 })
     while (items.length < 4 && pool.length) {
       items.push(pool.splice((Math.random() * pool.length) | 0, 1)[0])
     }
@@ -537,6 +652,12 @@ export class SurvivorGame {
     } else if (it.kind === 'curse') {
       this.curse++
       this.floats.push({ x: p.x, y: p.y - 40, txt: '☠ 黑暗契约 ×' + this.curse, t: 2, color: '#c084fc', big: true })
+    } else if (it.kind === 'glass') {
+      this.glass = true
+      this.floats.push({ x: p.x, y: p.y - 40, txt: '☠ 玻璃大炮协议：伤害+50%，承伤×2', t: 2.5, color: '#f87171', big: true })
+    } else if (it.kind === 'greed') {
+      this.greed = true
+      this.floats.push({ x: p.x, y: p.y - 40, txt: '☠ 贪婪协议：金币价值×2', t: 2.5, color: '#fde047', big: true })
     }
     sound.play('pickup')
   }
@@ -581,7 +702,7 @@ export class SurvivorGame {
         if (p.cds[id] <= 0) {
           const fired = this.fireWeapon(id, w, lv)
           const evo = p.evolutions[id] && EVOLUTIONS[id]
-          if (fired) p.cds[id] = w.cd * (id === 'cannon' && lv >= 2 ? 0.7 : 1) * (id === 'turret' && lv >= 2 ? 0.6 : 1) * (evo ? evo.cdMul : 1) * (1 - p.cdr)
+          if (fired) p.cds[id] = w.cd * (id === 'cannon' && lv >= 2 ? 0.7 : 1) * (id === 'turret' && lv >= 2 ? 0.6 : 1) * (evo ? evo.cdMul : 1) * (this.overdrive > 0 ? 0.5 : 1) * (1 - p.cdr)
         }
       }
     }
@@ -729,7 +850,7 @@ export class SurvivorGame {
     }
     this.eliteTimer -= dt
     if (this.eliteTimer <= 0) {
-      this.eliteTimer = 75
+      this.eliteTimer = 75 / (this.dailyMod ? this.dailyMod.elite : 1)
       this.spawnElite()
     }
     this.spawnTimer -= dt
@@ -757,7 +878,7 @@ export class SurvivorGame {
     e.maxHp = d.hp * mul
     e.hp = e.maxHp
     e.dmg = d.dmg * (1 + (this.time / 60) * 0.12)
-    e.speed = d.speed * (1 + (this.time / 60) * 0.06); e.r = d.r; e.xp = d.xp
+    e.speed = d.speed * (1 + (this.time / 60) * 0.06) * (this.dailyMod ? this.dailyMod.speed : 1); e.r = d.r; e.xp = d.xp * (this.dailyMod ? this.dailyMod.xp : 1)
     e.shape = d.shape; e.color = d.color; e.boss = !!d.boss
     if (e.gold) {
       e.maxHp *= 3; e.hp = e.maxHp
@@ -832,6 +953,10 @@ export class SurvivorGame {
       this.novas.push({ x: p.x, y: p.y, t: 0, dur: 0.6, radius: 420, color: '#fb7185' })
       this.shakeT = this.time + 0.4
       sound.play('bosskill')
+    } else if (type === 'root') {
+      this.rootCharges++
+      this.floats.push({ x: p.x, y: p.y - 20, txt: 'root 权限获取！按 Q 释放 rm -rf', t: 1.6, color: '#f0abfc', big: true })
+      sound.play('levelup')
     }
   }
 
@@ -1140,7 +1265,7 @@ export class SurvivorGame {
       }
       if (cd2 < 18 * 18) {
         c.got = true
-        this.gold += 1
+        this.gold += this.greed ? 2 : 1
         sound.play('pickup')
       }
     }
@@ -1229,7 +1354,7 @@ export class SurvivorGame {
   dealDamage(e, base) {
     if (e.dead) return
     const p = this.player
-    let d = base * p.dmgMul
+    let d = base * p.dmgMul * (this.glass ? 1.5 : 1)
     const crit = Math.random() < p.crit
     if (crit) d *= 2
     e.hp -= d
@@ -1237,7 +1362,7 @@ export class SurvivorGame {
     sound.play('hit')
     if (crit) {
       this.hitStop = 0.02
-      this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(d | 0) + '!', t: 0.8, color: '#fde047', big: true })
+      this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(d | 0) + '!', t: 0.8, color: '#fde047', big: true, huge: d >= 100 })
     } else {
       this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(d | 0), t: 0.7, color: '#e2e8f0' })
     }
@@ -1250,11 +1375,28 @@ export class SurvivorGame {
     this.kills++
     this.combo++
     this.comboT = 3
+    if (this.combo > this.maxCombo) this.maxCombo = this.combo
+    // 狂暴时刻：连杀 30/50 触发 8 秒全武器射速翻倍
+    if ((this.combo === 30 || this.combo === 50) && this.overdrive <= 0) {
+      this.overdrive = 8
+      this.floats.push({ x: this.player.x, y: this.player.y - 50, txt: '⚡ 狂暴时刻！火力全开！', t: 2, color: '#fde047', big: true })
+      sound.play('bosskill')
+      this.shakeT = this.time + 0.3
+    }
+    // 连杀大字提示
+    if (this.combo > 0 && this.combo % 25 === 0) {
+      this.floats.push({ x: this.player.x, y: this.player.y - 70, txt: 'x' + this.combo + ' COMBO', t: 1.4, color: '#fde047', big: true, huge: this.combo % 100 === 0 })
+    }
+    // root 权限道具：Boss/精英概率掉落
+    if ((e.boss || e.elite) && Math.random() < (e.boss ? 0.8 : 0.25)) {
+      this.pickups.push({ x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), type: 'root' })
+    }
     this.burst(e.x, e.y, e.color, e.boss ? 24 : 6)
     // 击杀冲击波
     this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.22, radius: e.boss ? 90 : 26, color: '#e2e8f0' })
     if (e.boss) {
       this.slowmo = 0.5
+      this.zoomT = 0.25
       sound.play('bosskill')
       for (let i = 0; i < 12; i++) {
         const a = Math.random() * TAU, d = rand(10, 60)
@@ -1309,7 +1451,7 @@ export class SurvivorGame {
   hurtPlayer(dmg) {
     const p = this.player
     if (p.invuln > 0 || this.state !== 'playing') return
-    const d = Math.max(1, dmg * (1 - p.armor) * (1 + this.curse * 0.12))
+    const d = Math.max(1, dmg * (1 - p.armor) * (1 + this.curse * 0.12) * (this.glass ? 2 : 1))
     p.hp -= d
     p.invuln = 0.6
     this.shakeT = this.time + 0.3
@@ -1406,6 +1548,25 @@ export class SurvivorGame {
     this.burst(this.player.x, this.player.y, '#67e8f9', 10)
     sound.play('shoot')
   }
+  // ---------- 全屏必杀技：rm -rf ----------
+  useUlt() {
+    if (this.state !== 'playing' || this.rootCharges <= 0) return false
+    this.rootCharges--
+    this.ultT = 1.2
+    this.slowmo = 1.0
+    this.shakeT = this.time + 0.5
+    this.zoomT = 0.25
+    const dmg = 260 * (1 + this.time / 60)
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      if (!e.dead) this.dealDamage(e, e.boss ? dmg * 1.5 : dmg)
+    }
+    this.novas.push({ x: this.player.x, y: this.player.y, t: 0, dur: 0.9, radius: 900, color: '#f0abfc' })
+    this.burst(this.player.x, this.player.y, '#f0abfc', 24)
+    this.floats.push({ x: this.player.x, y: this.player.y - 60, txt: 'rm -rf /* 执行完成', t: 1.6, color: '#f0abfc', big: true })
+    sound.play('bosskill')
+    return true
+  }
 
   // 鼠标瞄准：记录屏幕坐标（准星渲染 + 主炮方向）
   aim(sx, sy) {
@@ -1451,6 +1612,11 @@ export class SurvivorGame {
     if (this.kills >= 500 && !this.achv.k500) { this.achv.k500 = true; newAchv.push('五百人斩：累计击杀 500') }
     if (this.time >= 600 && !this.achv.t10) { this.achv.t10 = true; newAchv.push('坚壁清野：存活 10 分钟') }
     if (this.achv.win && !this.achv.winned) { this.achv.winned = true; newAchv.push('数据守护者：击败数据毁灭者') }
+    if (this.maxCombo >= 50 && !this.achv.c50) { this.achv.c50 = true; newAchv.push('连锁反应：单局连杀 50') }
+    if (this.synergies && this.synergies.length >= 3 && !this.achv.syn3) { this.achv.syn3 = true; newAchv.push('架构师：同时激活 3 条武器协同') }
+    if (this.gold >= 100 && !this.achv.g100) { this.achv.g100 = true; newAchv.push('财富自由：单局持有 100 金币') }
+    if (this.curse >= 5 && !this.achv.curse5) { this.achv.curse5 = true; newAchv.push('与魔共舞：叠加 5 层黑暗契约') }
+    if (this.rootCharges >= 3 && !this.achv.root3) { this.achv.root3 = true; newAchv.push('root 大师：同时持有 3 次 root 权限') }
     for (let i = 0; i < newAchv.length; i++) {
       this.floats.push({ x: p.x, y: p.y - 70 - i * 22, txt: '🏆 ' + newAchv[i], t: 3, color: '#fde047', big: true })
       sound.play('levelup')
@@ -1459,7 +1625,8 @@ export class SurvivorGame {
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
       time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), event: this.event, eventT: Math.max(0, this.eventT),
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives), evolutions: Object.assign({}, p.evolutions),
-      gold: this.gold, curse: this.curse, shopIn: Math.max(0, this.shopTimer)
+      gold: this.gold, curse: this.curse, shopIn: Math.max(0, this.shopTimer),
+      overdrive: Math.max(0, this.overdrive), rootCharges: this.rootCharges, huntT: this.hunt ? Math.max(0, this.hunt.t) : 0
     })
   }
 
@@ -1841,7 +2008,7 @@ export class SurvivorGame {
       const f = this.floats[i]
       ctx.globalAlpha = Math.min(1, f.t / 0.3)
       ctx.fillStyle = f.color
-      ctx.font = (f.big ? 'bold 20px' : '12px') + ' monospace'
+      ctx.font = (f.huge ? 'bold 30px' : f.big ? 'bold 20px' : '12px') + ' monospace'
       ctx.fillText(f.txt, f.x, f.y)
       ctx.globalAlpha = 1
     }
@@ -1920,6 +2087,68 @@ export class SurvivorGame {
       const blink = Math.sin(this.time * 16) > -0.3
       if (blink) ctx.fillText('⚠ 检测到核心故障体 ⚠', this.W / 2, this.H / 2)
       ctx.restore()
+    }
+    // 狂暴时刻：屏幕边缘金色电弧
+    if (this.overdrive > 0) {
+      ctx.save()
+      const a = 0.35 + 0.25 * Math.sin(this.time * 12)
+      ctx.strokeStyle = 'rgba(253,224,71,' + a.toFixed(3) + ')'
+      ctx.lineWidth = 4
+      ctx.shadowColor = '#fde047'
+      ctx.shadowBlur = 16
+      ctx.strokeRect(3, 3, this.W - 6, this.H - 6)
+      ctx.restore()
+    }
+    // 大招演出：rm -rf 全屏紫闪 + 大字
+    if (this.ultT > 0) {
+      ctx.save()
+      const k = this.ultT / 1.2
+      ctx.fillStyle = 'rgba(240,171,252,' + (k * 0.25).toFixed(3) + ')'
+      ctx.fillRect(0, 0, this.W, this.H)
+      ctx.globalAlpha = Math.min(1, k * 1.5)
+      ctx.fillStyle = '#f0abfc'
+      ctx.font = 'bold 42px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.shadowColor = '#f0abfc'
+      ctx.shadowBlur = 24
+      ctx.fillText('rm -rf /*', this.W / 2, this.H / 2)
+      ctx.restore()
+    }
+    // 猎杀目标倒计时
+    if (this.hunt && !this.hunt.e.dead) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      ctx.fillRect(this.W / 2 - 110, 52, 220, 22)
+      ctx.fillStyle = '#f0abfc'
+      ctx.font = 'bold 13px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('🎯 猎杀目标 ' + Math.ceil(this.hunt.t) + 's', this.W / 2, 63)
+      ctx.restore()
+    }
+    // zoom punch：击杀 Boss/释放大招时镜头快速拉近再弹回
+    if (this.zoomT > 0) {
+      const k = this.zoomT / 0.25
+      const sc = 1 + 0.06 * k
+      ctx.save()
+      ctx.translate(this.W / 2, this.H / 2)
+      ctx.scale(sc, sc)
+      ctx.translate(-this.W / 2, -this.H / 2)
+      ctx.fillStyle = 'rgba(255,255,255,' + (k * 0.08).toFixed(3) + ')'
+      ctx.fillRect(0, 0, this.W, this.H)
+      ctx.restore()
+    }
+    // Boss 二阶段红闪：血量低于 40% 时全屏红色脉冲
+    let boss2 = null
+    for (let bi = 0; bi < this.enemies.length; bi++) {
+      const be = this.enemies[bi]
+      if (be.boss && !be.dead && be.hp < be.maxHp * 0.4) { boss2 = be; break }
+    }
+    if (boss2) {
+      const pulse = 0.10 + 0.08 * Math.sin(this.time * 9)
+      ctx.fillStyle = 'rgba(239,68,68,' + pulse.toFixed(3) + ')'
+      ctx.fillRect(0, 0, this.W, this.H)
     }
     // CRT 扫描线滤镜
     if (this.crt) {

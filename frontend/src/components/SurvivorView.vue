@@ -116,6 +116,7 @@
             <span class="char-desc">{{ c.desc }}</span>
           </button>
         </div>
+        <label v-if="!over && !result.win" class="daily-toggle"><input type="checkbox" v-model="daily" /> 每日挑战（按日期轮换词缀：超频/精英/匮乏之日）</label>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
     </div>
@@ -142,6 +143,7 @@ const over = ref(false);
 const isTouch = ref(false);
 const choices = ref([]);
 const charId = ref('ops');
+const daily = ref(false);
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
@@ -249,6 +251,7 @@ function start() {
   levelup.value = false;
   paused.value = false;
   playing.value = true;
+  if (game) game.daily = daily.value;
   game.start(charId.value);
   if (musicOn.value) sound.startMusic();
 }
@@ -301,6 +304,10 @@ function onKeyDown(e) {
   }
   if (k === ' ') {
     if (game && playing.value) game.dash();
+    return;
+  }
+  if (k === 'q') {
+    if (game && playing.value) game.useUlt();
     return;
   }
   keys[k] = true;

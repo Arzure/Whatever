@@ -93,18 +93,26 @@ class SoundKit {
     }
   }
 
+  // 动态音乐分层：0 平静 / 1 战斗 / 3 高潮（Boss/狂暴），叠加伴奏层
+  setIntensity(v) { this.intensity = v }
   // 简易芯片音乐循环：三角波低音 + 方波主旋律
   startMusic() {
     if (this.musicTimer || !this.musicOn) return
     if (!this.ensure()) return
     const bass = [110, 0, 110, 0, 131, 0, 147, 0]
     const lead = [440, 523, 659, 523, 440, 392, 523, 659]
+    const lead2 = [659, 784, 880, 784, 659, 587, 784, 880]
     let i = 0
     this.musicTimer = setInterval(() => {
       if (!this.musicOn) return
       const b = bass[i % 8]
       if (b) this.beep(b, 0.22, 'triangle', 0.05)
       this.beep(lead[i % 8], 0.18, 'square', 0.018)
+      if (this.intensity >= 1) this.beep(lead2[i % 8], 0.1, 'square', 0.014)
+      if (this.intensity >= 2) {
+        this.beep((b || 110) * 2, 0.06, 'sawtooth', 0.02)
+        if (i % 2 === 0) this.beep(220, 0.05, 'sawtooth', 0.016)
+      }
       i++
     }, 260)
   }
