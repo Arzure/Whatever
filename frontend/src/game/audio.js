@@ -66,6 +66,9 @@ class SoundKit {
       case 'hurt':
         this.beep(160, 0.18, 'sawtooth', 0.1, 60)
         break
+      case 'heartbeat':
+        this.beep(75, 0.1, 'sine', 0.14, 48)
+        break
       case 'boss':
         this.beep(110, 0.3, 'sawtooth', 0.1, 55)
         setTimeout(() => this.beep(110, 0.3, 'sawtooth', 0.1, 55), 320)

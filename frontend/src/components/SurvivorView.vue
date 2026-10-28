@@ -15,6 +15,8 @@
         </div>
         <div class="hud-time">{{ timeText }}</div>
         <div class="hud-kills">击杀 {{ stats.kills }}</div>
+        <div class="hud-gold">{{ stats.gold || 0 }} ¢</div>
+        <div v-if="stats.shopIn > 0" class="hud-shopin">商店 {{ Math.ceil(stats.shopIn) }}s</div>
         <div v-if="stats.combo >= 5" class="hud-combo" :key="stats.combo">{{ stats.combo }} 连杀</div>
         <div class="hud-dash" :class="{ ready: stats.dashCd <= 0 }" :title="stats.dashCd <= 0 ? '冲刺就绪（空格）' : '冲刺冷却 ' + stats.dashCd.toFixed(1) + 's'">»</div>
       </div>
@@ -24,7 +26,7 @@
         <span class="hud-lv">Lv {{ stats.level }}</span>
       </div>
       <div class="hud-weapons">
-        <span v-for="(lv, id) in stats.weapons" :key="id" class="hud-wchip" :style="{ borderColor: weaponColor(id) }">{{ weaponName(id) }} {{ lv }}</span>
+        <span v-for="(lv, id) in stats.weapons" :key="id" class="hud-wchip" :style="{ borderColor: weaponColor(id) }">{{ weaponName(id) }} {{ lv }}{{ stats.evolutions && stats.evolutions[id] ? '★' : '' }}</span>
         <span v-for="(lv, id) in stats.passives" :key="'p' + id" class="hud-pchip" :style="{ borderColor: passiveColor(id) }">{{ passiveName(id) }} {{ lv }}</span>
       </div>
     </div>
@@ -61,11 +63,35 @@
       </div>
     </div>
 
+    <!-- 波次商店 -->
+    <div v-if="shopOpen" class="overlay">
+      <div class="panel">
+        <h2>补给商店</h2>
+        <p class="tip">金币：{{ shopGold }} ¢</p>
+        <div class="choices">
+          <button v-for="(it, i) in shopItems" :key="i" class="choice" :style="{ borderColor: it.color }" :class="{ poor: shopGold < it.cost }" @click="buyItem(i)">
+            <span class="choice-kind">{{ it.kind === 'curse' ? '风险' : '商品' }}</span>
+            <span class="choice-name">{{ it.name }}</span>
+            <span class="choice-lv">{{ it.cost }} ¢</span>
+            <span class="choice-desc">{{ it.desc }}</span>
+          </button>
+        </div>
+        <div class="shop-btns">
+          <button class="play-btn small" :disabled="shopGold < 5 || shopRerolled" @click="rerollShop">重掷 5¢</button>
+          <button class="play-btn small" @click="closeShop">继续战斗</button>
+        </div>
+      </div>
+    </div>
     <!-- 暂停 -->
     <div v-if="paused" class="overlay">
       <div class="panel">
         <h2>已暂停</h2>
-        <p class="final-score">存活 {{ timeText }} · 击杀 {{ stats.kills }} · Lv {{ stats.level }}</p>
+        <p class="final-score">存活 {{ timeText }} · 击杀 {{ stats.kills }} · Lv {{ stats.level }} · 金币 {{ stats.gold || 0 }} ¢</p>
+        <div class="pause-stats">
+          <span v-for="(lv, id) in stats.weapons" :key="id" class="hud-wchip" :style="{ borderColor: weaponColor(id) }">{{ weaponName(id) }} {{ lv }}{{ stats.evolutions && stats.evolutions[id] ? '★' : '' }}</span>
+          <span v-for="(lv, id) in stats.passives" :key="'p' + id" class="hud-pchip" :style="{ borderColor: passiveColor(id) }">{{ passiveName(id) }} {{ lv }}</span>
+          <span v-if="stats.curse" class="hud-pchip" style="border-color: #c084fc">☠ 黑暗契约 ×{{ stats.curse }}</span>
+        </div>
         <div class="pause-actions">
           <button class="play-btn" @click="resume">继续</button>
           <button class="ghost-btn" @click="restart">重新开始</button>
@@ -84,6 +110,12 @@
         </p>
         <p v-if="(over || result.win) && best" class="tip">最佳记录：存活 {{ fmtTime(best.time) }} · 击杀 {{ best.kills }}{{ best.win ? ' · 通关' : '' }}</p>
         <p class="tip" v-else>WASD / 方向键移动，空格冲刺，主炮自动朝鼠标方向射击<br />击杀故障获取经验，升级选择强化；连续击杀有经验加成<br />精英与稀有故障掉宝箱，怪物掉落治疗包/磁铁/炸弹<br />存活 20 分钟，击败数据毁灭者即胜利</p>
+        <div v-if="!over && !result.win" class="char-pick">
+          <button v-for="(c, id) in CHARACTERS" :key="id" class="char-card" :class="{ sel: charId === id }" :style="{ borderColor: c.color }" @click="charId = id">
+            <span class="char-name">{{ c.name }}</span>
+            <span class="char-desc">{{ c.desc }}</span>
+          </button>
+        </div>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
     </div>
@@ -92,7 +124,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
-import { SurvivorGame, WEAPONS, PASSIVES } from '../game/survivor.js';
+import { SurvivorGame, WEAPONS, PASSIVES, CHARACTERS } from '../game/survivor.js';
 import { sound } from '../game/audio.js';
 
 const canvasEl = ref(null);
@@ -109,10 +141,11 @@ const levelup = ref(false);
 const over = ref(false);
 const isTouch = ref(false);
 const choices = ref([]);
+const charId = ref('ops');
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
-  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0, event: null, eventT: 0,
+  time: 0, kills: 0, weapons: {}, passives: {}, evolutions: {}, combo: 0, dashCd: 0, event: null, eventT: 0,
 });
 
 let game = null;
@@ -160,6 +193,35 @@ function onChest(cs) {
   choices.value = cs;
   levelup.value = true;
 }
+const shopOpen = ref(false);
+const shopItems = ref([]);
+const shopGold = ref(0);
+const shopRerolled = ref(false);
+function onShop(s) {
+  shopItems.value = s.items;
+  shopGold.value = s.gold;
+  shopRerolled.value = !!s.rerollCost ? false : true;
+  shopOpen.value = true;
+}
+function buyItem(i) {
+  const r = game.shopBuy(i);
+  if (r && r.ok) {
+    shopItems.value = game.shopItems.slice();
+    shopGold.value = r.gold;
+  }
+}
+function rerollShop() {
+  const r = game.shopReroll();
+  if (r && r.ok) {
+    shopItems.value = game.shopItems.slice();
+    shopGold.value = game.gold;
+    shopRerolled.value = true;
+  }
+}
+function closeShop() {
+  shopOpen.value = false;
+  game.shopClose();
+}
 
 function pick(c) {
   levelup.value = false;
@@ -187,7 +249,7 @@ function start() {
   levelup.value = false;
   paused.value = false;
   playing.value = true;
-  game.start();
+  game.start(charId.value);
   if (musicOn.value) sound.startMusic();
 }
 
@@ -312,6 +374,7 @@ onMounted(() => {
     onStats,
     onLevelUp,
     onChest,
+    onShop,
     onEnd,
   });
   canvasEl.value.addEventListener('mousemove', onMouseMove);
@@ -626,6 +689,72 @@ onBeforeUnmount(() => {
 .ghost-btn:hover {
   border-color: #94a3b8;
   color: #e2e8f0;
+}
+.shop-btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 14px;
+}
+.play-btn.small {
+  padding: 8px 20px;
+  font-size: 14px;
+}
+.play-btn.small:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.choice.poor {
+  opacity: 0.45;
+}
+.hud-gold {
+  color: #fde047;
+  font-weight: bold;
+}
+.hud-shopin {
+  color: #5eead4;
+}
+.char-pick {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 10px 0 16px;
+}
+.char-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #475569;
+  background: rgba(15, 23, 42, 0.6);
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 120px;
+}
+.char-card:hover {
+  background: rgba(30, 41, 59, 0.8);
+}
+.char-card.sel {
+  background: rgba(34, 211, 238, 0.12);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.3);
+}
+.char-name {
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: bold;
+}
+.char-desc {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.pause-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 10px 0 14px;
+  max-width: 420px;
 }
 .pause-actions {
   display: flex;
