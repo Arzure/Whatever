@@ -116,6 +116,9 @@ export const ENEMIES = {
   splitter: { name: '分裂进程', color: '#c084fc', hp: 36, dmg: 10, speed: 46, r: 14, xp: 3, shape: 'square' },
   sniper: { name: '远程注入', color: '#22d3ee', hp: 22, dmg: 8, speed: 40, r: 10, xp: 3, shape: 'diamond' },
   charger: { name: '暴力破解', color: '#fb923c', hp: 30, dmg: 16, speed: 50, r: 11, xp: 4, shape: 'tri' },
+  bomber: { name: '自爆程序', color: '#f87171', hp: 18, dmg: 26, speed: 88, r: 9, xp: 3, shape: 'pent' },
+  healer: { name: '修复进程', color: '#4ade80', hp: 34, dmg: 6, speed: 36, r: 12, xp: 5, shape: 'hex' },
+  tank: { name: '堡垒进程', color: '#94a3b8', hp: 130, dmg: 14, speed: 22, r: 17, xp: 6, shape: 'square' },
   kernel_panic: { name: '内核恐慌', color: '#dc2626', hp: 2600, dmg: 30, speed: 40, r: 34, xp: 120, shape: 'boss', boss: true },
   data_destroyer: { name: '数据毁灭者', color: '#7c3aed', hp: 5200, dmg: 40, speed: 46, r: 40, xp: 300, shape: 'boss', boss: true }
 }
@@ -133,13 +136,13 @@ export const WAVES = [
   { t: 430, interval: 0.5, types: { zombie: 3, ddos: 3 } },
   { t: 510, interval: 0.45, types: { ddos: 3, worm: 2 } },
   { t: 600, interval: 0.42, types: { leak: 3, worm: 2, splitter: 1, sniper: 1 } },
-  { t: 680, interval: 0.4, types: { ddos: 4, worm: 2, charger: 1 } },
-  { t: 760, interval: 0.38, types: { worm: 3, spam: 2, splitter: 1, sniper: 2 } },
-  { t: 840, interval: 0.35, types: { ddos: 3, spam: 3, charger: 2 } },
+  { t: 680, interval: 0.4, types: { ddos: 4, worm: 2, charger: 1, bomber: 2 } },
+  { t: 760, interval: 0.38, types: { worm: 3, spam: 2, splitter: 1, sniper: 2, healer: 1 } },
+  { t: 840, interval: 0.35, types: { ddos: 3, spam: 3, charger: 2, bomber: 2, tank: 1 } },
   { t: 900, interval: 0.4, types: { spam: 3 }, boss: 'kernel_panic' },
-  { t: 960, interval: 0.32, types: { worm: 3, spam: 3, sniper: 2 } },
-  { t: 1040, interval: 0.28, types: { ddos: 4, spam: 3, splitter: 2, charger: 2 } },
-  { t: 1120, interval: 0.25, types: { spam: 4, worm: 3, sniper: 2, charger: 2 } },
+  { t: 960, interval: 0.32, types: { worm: 3, spam: 3, sniper: 2, healer: 1, tank: 1 } },
+  { t: 1040, interval: 0.28, types: { ddos: 4, spam: 3, splitter: 2, charger: 2, bomber: 3 } },
+  { t: 1120, interval: 0.25, types: { spam: 4, worm: 3, sniper: 2, charger: 2, tank: 2, healer: 1 } },
   { t: 1200, interval: 0.35, types: { spam: 4 }, boss: 'data_destroyer' }
 ]
 
@@ -899,8 +902,92 @@ export class SurvivorGame {
       const dx = p.x - e.x, dy = p.y - e.y
       const d = Math.hypot(dx, dy) || 1
       let spd = e.speed * (this.event === 'slow' ? 0.45 : 1) * (e.slowT > 0 ? 0.5 : 1)
-      // 远程注入：保持距离放弹幕
-      if (e.type === 'sniper') {
+      // 群体分离力：敌人互相推开，形成潮水包抄而非叠罗汉
+      if (!e.boss) {
+        const near = this.hash.query(e.x, e.y, e.r * 2)
+        for (let k = 0; k < near.length; k++) {
+          const o = near[k]
+          if (o === e || o.dead) continue
+          const odx = e.x - o.x, ody = e.y - o.y
+          const odd = Math.hypot(odx, ody) || 1
+          const minD = e.r + o.r
+          if (odd < minD) {
+            const push = (minD - odd) / minD * 60 * dt
+            e.x += odx / odd * push
+            e.y += ody / odd * push
+          }
+        }
+      }
+      // 自爆程序：贴近后引信闪烁 0.8s 自爆 AoE
+      if (e.type === 'bomber') {
+        if (e.fuseT > 0) {
+          e.fuseT -= dt
+          if (e.fuseT <= 0) {
+            // 自爆：范围伤害 + 冲击波
+            if (Math.hypot(p.x - e.x, p.y - e.y) < 70 + p.r) this.hurtPlayer(e.dmg)
+            this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.35, radius: 70, color: '#f87171' })
+            this.burst(e.x, e.y, '#f87171', 10)
+            this.shakeT = this.time + 0.2
+            e.hp = 0
+            this.killEnemy(e)
+            continue
+          }
+        } else {
+          e.x += dx / d * spd * dt
+          e.y += dy / d * spd * dt
+          if (d < e.r + p.r + 26) e.fuseT = 0.8
+        }
+      } else if (e.type === 'healer') {
+        // 修复进程：保持距离，周期治疗附近敌人（绿色光束）
+        e.healT = (e.healT === undefined ? 2 : e.healT) - dt
+        if (d > 260) {
+          e.x += dx / d * spd * dt
+          e.y += dy / d * spd * dt
+        } else if (d < 180) {
+          e.x -= dx / d * spd * 0.6 * dt
+          e.y -= dy / d * spd * 0.6 * dt
+        }
+        if (e.healT <= 0) {
+          e.healT = 2.4
+          const near = this.hash.query(e.x, e.y, 160)
+          let healed = 0
+          for (let k = 0; k < near.length && healed < 2; k++) {
+            const t = near[k]
+            if (t === e || t.dead || t.hp >= t.maxHp) continue
+            t.hp = Math.min(t.maxHp, t.hp + t.maxHp * 0.15)
+            this.lasers.push({ x: e.x, y: e.y, ex: t.x, ey: t.y, t: 0.2, w: 2, color: '#4ade80' })
+            healed++
+          }
+        }
+      } else if (e.type === 'tank') {
+        // 堡垒进程：超慢超厚肉盾，免疫击退
+        e.x += dx / d * spd * dt
+        e.y += dy / d * spd * dt
+      } else if (e.boss) {
+        // Boss 技能循环：追击 + 周期性环形弹幕 + 召唤小怪
+        e.x += dx / d * spd * dt
+        e.y += dy / d * spd * dt
+        e.bossSkillT = (e.bossSkillT === undefined ? 3 : e.bossSkillT) - dt
+        if (e.bossSkillT <= 0) {
+          e.bossSkillT = 4.5
+          e.bossPhase = ((e.bossPhase || 0) + 1) % 2
+          if (e.bossPhase === 0) {
+            // 环形弹幕：12 发放射状弹
+            for (let k = 0; k < 12; k++) {
+              const a = (k / 12) * TAU + this.time
+              this.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5, dmg: e.dmg * 0.5, t: 3.5 })
+            }
+            this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.4, radius: 60, color: e.color })
+          } else {
+            // 召唤 4 只小怪
+            for (let k = 0; k < 4; k++) {
+              const a = Math.random() * TAU
+              this.spawnChild('bug', e.x + Math.cos(a) * 40, e.y + Math.sin(a) * 40)
+            }
+            this.burst(e.x, e.y, e.color, 8)
+          }
+        }
+      } else if (e.type === 'sniper') {
         e.shootT = (e.shootT || 0) - dt
         if (d > 300) {
           e.x += dx / d * spd * dt
@@ -963,7 +1050,7 @@ export class SurvivorGame {
             // 击退：把故障推离玩家
             const kx = e.x - p.x, ky = e.y - p.y
             const kd = Math.hypot(kx, ky) || 1
-            if (!e.boss) { e.x += kx / kd * 24; e.y += ky / kd * 24 }
+            if (!e.boss && e.type !== 'tank') { e.x += kx / kd * 24; e.y += ky / kd * 24 }
             e.orbitCd = 0.4
             break
           }
@@ -1446,6 +1533,30 @@ export class SurvivorGame {
       const e = this.enemies[i]
       ctx.save()
       ctx.translate(e.x, e.y)
+      // 精英词缀光环：词缀颜色外圈
+      if (e.elite && e.affixColor) {
+        ctx.save()
+        ctx.globalAlpha = 0.5 + 0.2 * Math.sin(this.time * 5)
+        ctx.strokeStyle = e.affixColor
+        ctx.lineWidth = 2
+        ctx.setLineDash([5, 4])
+        ctx.beginPath()
+        ctx.arc(0, 0, e.r + 6, this.time * 2, this.time * 2 + TAU)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+      // 自爆程序：引信闪烁预警圈
+      if (e.type === 'bomber' && e.fuseT > 0) {
+        ctx.save()
+        ctx.globalAlpha = 0.3 + 0.5 * Math.abs(Math.sin(this.time * 20))
+        ctx.strokeStyle = '#fca5a5'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(0, 0, 70, 0, TAU)
+        ctx.stroke()
+        ctx.restore()
+      }
       ctx.rotate(this.time * (e.boss ? 0.5 : 1.5))
       ctx.shadowColor = e.color
       ctx.shadowBlur = e.boss ? 24 : (e.elite ? 16 : 8)
