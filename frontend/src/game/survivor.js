@@ -432,6 +432,12 @@ export class SurvivorGame {
   stop() {
     cancelAnimationFrame(this.raf)
   }
+  // 暂停后恢复：仅重启渲染循环，不重置游戏状态
+  resume() {
+    this.last = performance.now()
+    cancelAnimationFrame(this.raf)
+    this.raf = requestAnimationFrame(this.loop)
+  }
 
   loop = (ts) => {
     if (this.state === 'over' || this.state === 'win') return

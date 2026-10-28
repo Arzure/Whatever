@@ -284,7 +284,7 @@ function pause() {
 function resume() {
   paused.value = false;
   playing.value = true;
-  game.start();
+  game.resume();
   if (musicOn.value) sound.startMusic();
 }
 
