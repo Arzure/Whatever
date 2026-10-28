@@ -225,6 +225,12 @@ export class SurvivorGame {
     this.shakeT = 0
     this.flash = 0
     this.slowmo = 0
+    // 视差星尘
+    this.stars = []
+    for (let i = 0; i < 70; i++) {
+      this.stars.push({ x: Math.random(), y: Math.random(), s: rand(1, 2.4), d: rand(0.08, 0.35), a: rand(0.15, 0.5) })
+    }
+    this.vignette = null
     this.resize()
   }
 
@@ -237,6 +243,11 @@ export class SurvivorGame {
     this.W = w
     this.H = h
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    // 渐晕暗角（缓存渐变，避免每帧重建）
+    const vg = this.ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.42, w / 2, h / 2, Math.hypot(w, h) * 0.62)
+    vg.addColorStop(0, 'rgba(5,8,16,0)')
+    vg.addColorStop(1, 'rgba(5,8,16,0.55)')
+    this.vignette = vg
   }
 
   reset() {
@@ -369,6 +380,10 @@ export class SurvivorGame {
     p.x += ix * p.speed * dt
     p.y += iy * p.speed * dt
     if (m > 0.1) p.face = Math.atan2(iy, ix)
+    // 移动拖尾微粒
+    if (m > 0.1 && Math.random() < 0.35) {
+      this.particles.push({ x: p.x - ix * 10, y: p.y - iy * 10, vx: -ix * 40 + rand(-15, 15), vy: -iy * 40 + rand(-15, 15), t: rand(0.2, 0.4), color: '#22d3ee', size: rand(1.5, 2.5) })
+    }
     if (p.invuln > 0) p.invuln -= dt
     // 回血
     if (p.regen > 0 && p.hp < p.maxHp) {
@@ -551,6 +566,7 @@ export class SurvivorGame {
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0
     e.elite = false; e.child = false; e.gold = Math.random() < 0.03
+    e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
     const mul = 1 + (this.time / 60) * 0.35
@@ -597,6 +613,7 @@ export class SurvivorGame {
     const d = ENEMIES[type]
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0; e.elite = false; e.child = true
+    e.flashT = 0
     e.x = x; e.y = y
     const mul = 1 + (this.time / 60) * 0.35
     e.maxHp = d.hp * mul; e.hp = e.maxHp
@@ -643,6 +660,7 @@ export class SurvivorGame {
     const R = Math.hypot(this.W, this.H) / 2 + 60
     const e = this.pool.enemy.get()
     e.type = type; e.dead = false; e.orbitCd = 0; e.elite = true
+    e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
     const mul = 1 + (this.time / 60) * 0.35
@@ -671,6 +689,7 @@ export class SurvivorGame {
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i]
       if (e.dead) continue
+      if (e.flashT > 0) e.flashT -= dt
       const dx = p.x - e.x, dy = p.y - e.y
       const d = Math.hypot(dx, dy) || 1
       const spd = e.speed * (this.event === 'slow' ? 0.45 : 1)
@@ -831,6 +850,7 @@ export class SurvivorGame {
     const crit = Math.random() < p.crit
     if (crit) d *= 2
     e.hp -= d
+    e.flashT = 0.08
     sound.play('hit')
     this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(d | 0), t: 0.7, color: crit ? '#fde047' : '#e2e8f0' })
     if (e.hp <= 0) this.killEnemy(e)
@@ -843,6 +863,8 @@ export class SurvivorGame {
     this.combo++
     this.comboT = 3
     this.burst(e.x, e.y, e.color, e.boss ? 24 : 6)
+    // 击杀冲击波
+    this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.22, radius: e.boss ? 90 : 26, color: '#e2e8f0' })
     if (e.boss) {
       this.slowmo = 0.5
       sound.play('bosskill')
@@ -1064,6 +1086,16 @@ export class SurvivorGame {
     for (let x = ox; x < this.W; x += g) { ctx.moveTo(x, 0); ctx.lineTo(x, this.H) }
     for (let y = oy; y < this.H; y += g) { ctx.moveTo(0, y); ctx.lineTo(this.W, y) }
     ctx.stroke()
+    // 视差星尘：随镜头慢速漂移，营造空间深度
+    for (let i = 0; i < this.stars.length; i++) {
+      const s = this.stars[i]
+      const sx = ((s.x * this.W - camX * s.d) % this.W + this.W) % this.W
+      const sy = ((s.y * this.H - camY * s.d) % this.H + this.H) % this.H
+      ctx.globalAlpha = s.a
+      ctx.fillStyle = '#a5b4d4'
+      ctx.fillRect(sx, sy, s.s, s.s)
+    }
+    ctx.globalAlpha = 1
 
     ctx.save()
     ctx.translate(-camX, -camY)
@@ -1107,6 +1139,12 @@ export class SurvivorGame {
       ctx.stroke()
       ctx.fillStyle = e.color + '33'
       ctx.fill()
+      // 受击闪白
+      if (e.flashT > 0) {
+        ctx.shadowBlur = 0
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        ctx.fill()
+      }
       ctx.restore()
       if (e.hp < e.maxHp && !e.boss) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -1329,6 +1367,12 @@ export class SurvivorGame {
     }
 
     ctx.restore()
+
+    // 渐晕暗角：聚焦画面中心
+    if (this.vignette) {
+      ctx.fillStyle = this.vignette
+      ctx.fillRect(0, 0, this.W, this.H)
+    }
 
     // Boss 血条（屏幕顶部）
     let boss = null
