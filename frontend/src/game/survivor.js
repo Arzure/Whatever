@@ -11,9 +11,15 @@ import { sound } from './audio.js'
 export const WEAPONS = {
   firewall: {
     name: '防火墙', color: '#22d3ee', type: 'orbit',
-    desc: '多层环绕防护墙，撞击伤害并击退故障',
-    dmg: 10, count: 2, radius: 95, size: 18, spin: 2.4,
-    maxLv: 5, up: ['+1 防护块与击退', '+外层防护环', '+伤害', '第三层防护环']
+    desc: '旋转的弧形防护墙，撞击伤害并击退故障',
+    dmg: 10, count: 2, radius: 95, size: 14, spin: 2.4, arc: 1.4,
+    maxLv: 5, up: ['+1 墙段', '+外层防护环', '+1 墙段', '第三层防护环']
+  },
+  cannon: {
+    name: '主炮', color: '#e0f2fe', type: 'auto',
+    desc: '朝鼠标方向自动连射补丁弹',
+    dmg: 12, cd: 0.5, speed: 560, pierce: 1,
+    maxLv: 5, up: ['射速 +30%', '伤害 +40%', '+1 穿透', '双联装：两发齐射']
   },
   patch: {
     name: '热修复', color: '#a78bfa', type: 'shot',
@@ -209,7 +215,7 @@ export class SurvivorGame {
     this.dashCd = 0
     this.dashT = 0
     this.dashTrail = []
-    this.attackCd = 0
+    this.mouse = { x: 0, y: 0 }
     this.event = null
     this.eventT = 0
     this.nextEvent = 75
@@ -256,7 +262,7 @@ export class SurvivorGame {
     this.dashCd = 0
     this.dashT = 0
     this.dashTrail = []
-    this.attackCd = 0
+    this.mouse = { x: 0, y: 0 }
     this.event = null
     this.eventT = 0
     this.nextEvent = 75
@@ -266,7 +272,7 @@ export class SurvivorGame {
       speed: 170, pickup: 70, cdr: 0, armor: 0, crit: 0.05, regen: 0, dmgMul: 1,
       invuln: 0, face: 0, regenAcc: 0,
       level: 1, xp: 0, xpNeed: XP_CURVE(1),
-      weapons: { firewall: 1 }, passives: {},
+      weapons: { firewall: 1, cannon: 1 }, passives: {},
       cds: {}, orbitA: 0
     }
   }
@@ -342,7 +348,6 @@ export class SurvivorGame {
     }
     // 冲刺
     if (this.dashCd > 0) this.dashCd -= dt
-    if (this.attackCd > 0) this.attackCd -= dt
     if (this.dashT > 0) {
       this.dashT -= dt
       const a = p.face
@@ -399,7 +404,11 @@ export class SurvivorGame {
           const n = w.count + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + ring
           for (let i = 0; i < n; i++) {
             const a = p.orbitA * (ring % 2 ? -1 : 1) + i * TAU / n
-            this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
+            if (w.arc) {
+              this.orbits.push({ arc: true, radius: rad, a, arc: w.arc, size: w.size, dmg, color: w.color })
+            } else {
+              this.orbits.push({ x: p.x + Math.cos(a) * rad, y: p.y + Math.sin(a) * rad, size: w.size, dmg, color: w.color })
+            }
           }
         }
       } else if (w.type === 'wave') {
@@ -408,7 +417,7 @@ export class SurvivorGame {
         p.cds[id] = (p.cds[id] || 0) - dt
         if (p.cds[id] <= 0) {
           const fired = this.fireWeapon(id, w, lv)
-          if (fired) p.cds[id] = w.cd * (1 - p.cdr)
+          if (fired) p.cds[id] = w.cd * (id === 'cannon' && lv >= 2 ? 0.7 : 1) * (1 - p.cdr)
         }
       }
     }
@@ -417,6 +426,29 @@ export class SurvivorGame {
   fireWeapon(id, w, lv) {
     const p = this.player
     const mul = 1 + (lv - 1) * 0.3
+    if (w.type === 'auto') {
+      // 主炮：朝鼠标方向单发自动射击
+      let tx, ty
+      if (this.mouse.x || this.mouse.y) {
+        tx = p.x + (this.mouse.x - this.W / 2)
+        ty = p.y + (this.mouse.y - this.H / 2)
+      } else {
+        tx = p.x + Math.cos(p.face) * 100
+        ty = p.y + Math.sin(p.face) * 100
+      }
+      const a = Math.atan2(ty - p.y, tx - p.x)
+      const dmg = w.dmg * mul + p.level
+      const pierce = w.pierce + (lv >= 4 ? 1 : 0)
+      if (lv >= 5) {
+        const ox = Math.cos(a + Math.PI / 2) * 8, oy = Math.sin(a + Math.PI / 2) * 8
+        this.addBullet(p.x + ox, p.y + oy, a, w.speed, dmg, pierce, 6, w.color, false)
+        this.addBullet(p.x - ox, p.y - oy, a, w.speed, dmg, pierce, 6, w.color, false)
+      } else {
+        this.addBullet(p.x, p.y, a, w.speed, dmg, pierce, 6, w.color, false)
+      }
+      sound.play('shoot')
+      return true
+    }
     if (w.type === 'shot') {
       const t = this.nearestEnemy(p.x, p.y)
       if (!t) return false
@@ -650,8 +682,22 @@ export class SurvivorGame {
       } else {
         for (let j = 0; j < this.orbits.length; j++) {
           const o = this.orbits[j]
-          const rr = e.r + o.size * 0.6
-          if (dist2(e.x, e.y, o.x, o.y) < rr * rr) {
+          let hit = false
+          if (o.arc) {
+            // 弧形墙段：角度 + 半径双判定
+            const dx = e.x - p.x, dy = e.y - p.y
+            const d = Math.hypot(dx, dy)
+            if (Math.abs(d - o.radius) < o.size / 2 + e.r) {
+              let da = Math.atan2(dy, dx) - o.a
+              while (da > Math.PI) da -= TAU
+              while (da < -Math.PI) da += TAU
+              if (Math.abs(da) < o.arc / 2 + Math.atan2(e.r, d || 1)) hit = true
+            }
+          } else {
+            const rr = e.r + o.size * 0.6
+            if (dist2(e.x, e.y, o.x, o.y) < rr * rr) hit = true
+          }
+          if (hit) {
             this.dealDamage(e, o.dmg)
             // 击退：把故障推离玩家
             const kx = e.x - p.x, ky = e.y - p.y
@@ -937,17 +983,10 @@ export class SurvivorGame {
     sound.play('shoot')
   }
 
-  // 主动攻击：朝目标点发射 5 连补丁弹
-  attack(tx, ty) {
-    if (this.state !== 'playing' || this.attackCd > 0) return
-    this.attackCd = 1.2
-    const p = this.player
-    const base = Math.atan2(ty - p.y, tx - p.x)
-    const dmg = 14 + p.level * 2
-    for (let i = -2; i <= 2; i++) {
-      this.addBullet(p.x, p.y, base + i * 0.14, 520, dmg, 2, 6, '#e0f2fe', false)
-    }
-    sound.play('shoot')
+  // 鼠标瞄准：记录屏幕坐标（准星渲染 + 主炮方向）
+  aim(sx, sy) {
+    this.mouse.x = sx
+    this.mouse.y = sy
   }
 
   screenToWorld(x, y) {
@@ -994,7 +1033,7 @@ export class SurvivorGame {
     }
     this.cb.onStats({
       hp: p.hp, maxHp: p.maxHp, level: p.level, xp: p.xp, xpNeed: p.xpNeed,
-      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), attackCd: Math.max(0, this.attackCd), event: this.event, eventT: Math.max(0, this.eventT),
+      time: this.time, kills: this.kills, state: this.state, combo: this.combo, dashCd: Math.max(0, this.dashCd), event: this.event, eventT: Math.max(0, this.eventT),
       weapons: Object.assign({}, p.weapons), passives: Object.assign({}, p.passives)
     })
   }
@@ -1096,17 +1135,35 @@ export class SurvivorGame {
     // 环绕武器
     for (let i = 0; i < this.orbits.length; i++) {
       const o = this.orbits[i]
-      ctx.save()
-      ctx.translate(o.x, o.y)
-      ctx.rotate(this.time * 3)
-      ctx.shadowColor = o.color
-      ctx.shadowBlur = 12
-      ctx.strokeStyle = o.color
-      ctx.lineWidth = 2
-      ctx.strokeRect(-o.size / 2, -o.size / 2, o.size, o.size)
-      ctx.fillStyle = o.color + '44'
-      ctx.fillRect(-o.size / 2, -o.size / 2, o.size, o.size)
-      ctx.restore()
+      if (o.arc) {
+        // 弧形防护墙：发光弧线墙体 + 内芯提亮
+        ctx.save()
+        ctx.shadowColor = o.color
+        ctx.shadowBlur = 14
+        ctx.strokeStyle = o.color
+        ctx.lineWidth = o.size
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, o.radius, o.a - o.arc / 2, o.a + o.arc / 2)
+        ctx.stroke()
+        ctx.globalAlpha = 0.35
+        ctx.strokeStyle = '#e0f2fe'
+        ctx.lineWidth = o.size * 0.4
+        ctx.stroke()
+        ctx.globalAlpha = 1
+        ctx.restore()
+      } else {
+        ctx.save()
+        ctx.translate(o.x, o.y)
+        ctx.rotate(this.time * 3)
+        ctx.shadowColor = o.color
+        ctx.shadowBlur = 12
+        ctx.strokeStyle = o.color
+        ctx.lineWidth = 2
+        ctx.strokeRect(-o.size / 2, -o.size / 2, o.size, o.size)
+        ctx.fillStyle = o.color + '44'
+        ctx.fillRect(-o.size / 2, -o.size / 2, o.size, o.size)
+        ctx.restore()
+      }
     }
 
     // 光束
@@ -1269,6 +1326,21 @@ export class SurvivorGame {
       ctx.textAlign = 'center'
       ctx.fillText(ENEMIES[boss.type].name, this.W / 2, 38)
     }
+    // 鼠标准星
+    if (this.state === 'playing' && (this.mouse.x || this.mouse.y)) {
+      ctx.strokeStyle = 'rgba(34,211,238,0.8)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(this.mouse.x, this.mouse.y, 9, 0, TAU)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(this.mouse.x - 14, this.mouse.y); ctx.lineTo(this.mouse.x - 5, this.mouse.y)
+      ctx.moveTo(this.mouse.x + 5, this.mouse.y); ctx.lineTo(this.mouse.x + 14, this.mouse.y)
+      ctx.moveTo(this.mouse.x, this.mouse.y - 14); ctx.lineTo(this.mouse.x, this.mouse.y - 5)
+      ctx.moveTo(this.mouse.x, this.mouse.y + 5); ctx.lineTo(this.mouse.x, this.mouse.y + 14)
+      ctx.stroke()
+    }
+
     // 受击红闪
     if (this.flash > 0) {
       ctx.fillStyle = 'rgba(239,68,68,' + (Math.min(0.5, this.flash) * 0.6).toFixed(3) + ')'

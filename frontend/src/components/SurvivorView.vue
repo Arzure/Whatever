@@ -17,7 +17,6 @@
         <div class="hud-kills">击杀 {{ stats.kills }}</div>
         <div v-if="stats.combo >= 5" class="hud-combo" :key="stats.combo">{{ stats.combo }} 连杀</div>
         <div class="hud-dash" :class="{ ready: stats.dashCd <= 0 }" :title="stats.dashCd <= 0 ? '冲刺就绪（空格）' : '冲刺冷却 ' + stats.dashCd.toFixed(1) + 's'">»</div>
-        <div class="hud-dash" :class="{ ready: stats.attackCd <= 0 }" :title="stats.attackCd <= 0 ? '攻击就绪（点击/J）' : '攻击冷却 ' + stats.attackCd.toFixed(1) + 's'">✦</div>
       </div>
       <div v-if="stats.event" class="hud-event" :class="stats.event">{{ eventText }}</div>
       <div class="hud-xp">
@@ -84,7 +83,7 @@
           存活 {{ timeText }} · 击杀 {{ result.kills }} · Lv {{ result.level }}
         </p>
         <p v-if="(over || result.win) && best" class="tip">最佳记录：存活 {{ fmtTime(best.time) }} · 击杀 {{ best.kills }}{{ best.win ? ' · 通关' : '' }}</p>
-        <p class="tip" v-else>WASD / 方向键移动，空格冲刺，鼠标点击 / J 键主动攻击<br />击杀故障获取经验，升级选择强化；连续击杀有经验加成<br />精英与稀有故障掉宝箱，怪物掉落治疗包/磁铁/炸弹<br />存活 20 分钟，击败数据毁灭者即胜利</p>
+        <p class="tip" v-else>WASD / 方向键移动，空格冲刺，主炮自动朝鼠标方向射击<br />击杀故障获取经验，升级选择强化；连续击杀有经验加成<br />精英与稀有故障掉宝箱，怪物掉落治疗包/磁铁/炸弹<br />存活 20 分钟，击败数据毁灭者即胜利</p>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
     </div>
@@ -113,7 +112,7 @@ const choices = ref([]);
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
-  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0, attackCd: 0, event: null, eventT: 0,
+  time: 0, kills: 0, weapons: {}, passives: {}, combo: 0, dashCd: 0, event: null, eventT: 0,
 });
 
 let game = null;
@@ -242,13 +241,6 @@ function onKeyDown(e) {
     if (game && playing.value) game.dash();
     return;
   }
-  if (k === 'j') {
-    if (game && playing.value) {
-      const p = game.player;
-      game.attack(p.x + Math.cos(p.face) * 100, p.y + Math.sin(p.face) * 100);
-    }
-    return;
-  }
   keys[k] = true;
   syncKeys();
 }
@@ -304,11 +296,10 @@ function onStickEnd(e) {
   }
 }
 
-function onCanvasClick(e) {
-  if (!game || !playing.value) return;
+function onMouseMove(e) {
+  if (!game) return;
   const rect = canvasEl.value.getBoundingClientRect();
-  const w = game.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-  game.attack(w.x, w.y);
+  game.aim(e.clientX - rect.left, e.clientY - rect.top);
 }
 
 function onResize() {
@@ -323,7 +314,7 @@ onMounted(() => {
     onChest,
     onEnd,
   });
-  canvasEl.value.addEventListener('click', onCanvasClick);
+  canvasEl.value.addEventListener('mousemove', onMouseMove);
   try { best.value = JSON.parse(localStorage.getItem('survivor_best') || 'null'); } catch (e) { best.value = null; }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -336,7 +327,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keyup', onKeyUp);
   window.removeEventListener('resize', onResize);
   document.removeEventListener('visibilitychange', onVis);
-  if (canvasEl.value) canvasEl.value.removeEventListener('click', onCanvasClick);
+  if (canvasEl.value) canvasEl.value.removeEventListener('mousemove', onMouseMove);
   sound.stopMusic();
   if (game) game.stop();
 });
