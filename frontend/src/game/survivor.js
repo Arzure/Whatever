@@ -438,6 +438,51 @@ export class SurvivorGame {
     cancelAnimationFrame(this.raf)
     this.raf = requestAnimationFrame(this.loop)
   }
+  // ---------- 存档系统 ----------
+  saveGame() {
+    if (this.state !== 'playing') return
+    try {
+      localStorage.setItem('survivor_save', JSON.stringify({
+        v: 1, charId: this.charId, time: this.time, kills: this.kills, gold: this.gold, curse: this.curse,
+        glass: this.glass, greed: this.greed, daily: this.daily, dailyMod: this.dailyMod,
+        maxCombo: this.maxCombo, synergies: this.synergies, achv: this.achv,
+        shopTimer: this.shopTimer, shopRerolled: this.shopRerolled, huntT: this.huntT, rootCharges: this.rootCharges,
+        eliteTimer: this.eliteTimer, spawnTimer: this.spawnTimer, waveIdx: this.waveIdx,
+        player: {
+          hp: this.player.hp, level: this.player.level, xp: this.player.xp, xpNeed: this.player.xpNeed,
+          weapons: this.player.weapons, passives: this.player.passives, evolutions: this.player.evolutions
+        }
+      }))
+    } catch (e) { /* localStorage 不可用时忽略 */ }
+  }
+  static hasSave() {
+    try { return !!localStorage.getItem('survivor_save') } catch (e) { return false }
+  }
+  static clearSave() {
+    try { localStorage.removeItem('survivor_save') } catch (e) {}
+  }
+  // 从存档恢复：重置后回填存档数据并重启循环
+  restoreSave() {
+    let d
+    try { d = JSON.parse(localStorage.getItem('survivor_save') || 'null') } catch (e) { return false }
+    if (!d || !d.player) return false
+    this.reset(d.charId)
+    this.time = d.time; this.kills = d.kills; this.gold = d.gold; this.curse = d.curse
+    this.glass = d.glass; this.greed = d.greed; this.daily = d.daily; this.dailyMod = d.dailyMod
+    this.maxCombo = d.maxCombo || 0; this.synergies = d.synergies || []; this.achv = d.achv || {}
+    this.shopTimer = d.shopTimer; this.shopRerolled = d.shopRerolled
+    this.huntT = d.huntT; this.rootCharges = d.rootCharges
+    this.eliteTimer = d.eliteTimer; this.spawnTimer = d.spawnTimer; this.waveIdx = d.waveIdx
+    const p = this.player
+    p.level = d.player.level; p.xp = d.player.xp; p.xpNeed = d.player.xpNeed
+    p.weapons = d.player.weapons; p.passives = d.player.passives; p.evolutions = d.player.evolutions
+    this.recalc()
+    p.hp = Math.min(d.player.hp, p.maxHp)
+    this.last = performance.now()
+    cancelAnimationFrame(this.raf)
+    this.raf = requestAnimationFrame(this.loop)
+    return true
+  }
 
   loop = (ts) => {
     if (this.state === 'over' || this.state === 'win') return

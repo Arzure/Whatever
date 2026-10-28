@@ -117,6 +117,10 @@
           </button>
         </div>
         <label v-if="!over && !result.win" class="daily-toggle"><input type="checkbox" v-model="daily" /> 每日挑战（按日期轮换词缀：超频/精英/匮乏之日）</label>
+        <div v-if="!over && !result.win && hasSave" class="save-actions">
+          <button class="play-btn" @click="continueSave">继续上次存档</button>
+          <button class="ghost-btn" @click="discardSave">放弃存档</button>
+        </div>
         <button class="play-btn" @click="start">{{ over || result.win ? '再来一局' : '开始游戏' }}</button>
       </div>
     </div>
@@ -144,6 +148,7 @@ const isTouch = ref(false);
 const choices = ref([]);
 const charId = ref('ops');
 const daily = ref(false);
+const hasSave = ref(false);
 const result = reactive({ win: false, kills: 0, level: 1, time: 0 });
 const stats = reactive({
   hp: 100, maxHp: 100, level: 1, xp: 0, xpNeed: 5,
@@ -236,6 +241,7 @@ function onEnd(r) {
   over.value = !r.win;
   levelup.value = false;
   sound.stopMusic();
+  SurvivorGame.clearSave();
   // 最佳成绩：存活时间优先，其次击杀
   try {
     const prev = JSON.parse(localStorage.getItem('survivor_best') || 'null');
@@ -254,6 +260,23 @@ function start() {
   if (game) game.daily = daily.value;
   game.start(charId.value);
   if (musicOn.value) sound.startMusic();
+}
+function continueSave() {
+  if (!game || !SurvivorGame.hasSave()) return;
+  over.value = false;
+  levelup.value = false;
+  paused.value = false;
+  playing.value = true;
+  if (game.restoreSave()) {
+    hasSave.value = false;
+    if (musicOn.value) sound.startMusic();
+  } else {
+    start();
+  }
+}
+function discardSave() {
+  SurvivorGame.clearSave();
+  hasSave.value = false;
 }
 
 function toggleMusic() {
@@ -275,6 +298,7 @@ function restart() {
 
 function pause() {
   if (!playing.value || levelup.value) return;
+  if (game) game.saveGame();
   paused.value = true;
   playing.value = false;
   game.stop();
@@ -386,6 +410,7 @@ onMounted(() => {
   });
   canvasEl.value.addEventListener('mousemove', onMouseMove);
   try { best.value = JSON.parse(localStorage.getItem('survivor_best') || 'null'); } catch (e) { best.value = null; }
+  hasSave.value = SurvivorGame.hasSave();
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('resize', onResize);
@@ -839,5 +864,11 @@ onBeforeUnmount(() => {
   height: 18px;
   accent-color: #f472b6;
   cursor: pointer;
+}
+.save-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 8px 0 4px;
 }
 </style>
