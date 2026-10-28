@@ -823,4 +823,21 @@ onBeforeUnmount(() => {
   .panel { padding: 20px; }
   .choices { min-width: 240px; }
 }
+.daily-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  color: #f472b6;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.daily-toggle input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #f472b6;
+  cursor: pointer;
+}
 </style>
