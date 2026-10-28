@@ -1277,14 +1277,35 @@ export class SurvivorGame {
     ctx.beginPath()
     ctx.arc(0, 0, p.r, 0, TAU)
     ctx.fill()
+    // 移动方向箭头（弱化：仅表示行走方向）
+    ctx.save()
     ctx.rotate(p.face)
+    ctx.globalAlpha = 0.55
     ctx.fillStyle = '#e0f2fe'
     ctx.beginPath()
-    ctx.moveTo(p.r + 7, 0)
-    ctx.lineTo(p.r - 2, -5)
-    ctx.lineTo(p.r - 2, 5)
+    ctx.moveTo(p.r + 5, 0)
+    ctx.lineTo(p.r - 1, -4)
+    ctx.lineTo(p.r - 1, 4)
     ctx.closePath()
     ctx.fill()
+    ctx.restore()
+    // 主炮炮管：朝鼠标方向（射击方向指示）
+    let aimA = p.face
+    if (this.mouse.x || this.mouse.y) {
+      aimA = Math.atan2(this.mouse.y - this.H / 2, this.mouse.x - this.W / 2)
+    }
+    ctx.save()
+    ctx.rotate(aimA)
+    ctx.shadowColor = '#e0f2fe'
+    ctx.shadowBlur = 8
+    ctx.strokeStyle = '#e0f2fe'
+    ctx.lineWidth = 5
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(p.r - 2, 0)
+    ctx.lineTo(p.r + 10, 0)
+    ctx.stroke()
+    ctx.restore()
     ctx.restore()
 
     // 粒子
