@@ -8,24 +8,22 @@ const TAU = Math.PI * 2
 // 对墙角顶点发射射线，计算可见多边形顶点序列
 export function computeFov(game, ox, oy, radius) {
   const walls = game.map.walls
-  const pts = []
-  // 收集墙顶点 + 玩家周围基准角
-  const angles = []
-  for (let i = 0; i < 16; i++) angles.push(i / 16 * TAU)
+  // 只对视野半径内的墙做检测（性能优化）
+  const near = []
   for (const w of walls) {
-    // 只处理视野半径内的墙
     if (w.x > ox + radius || w.x + w.w < ox - radius || w.y > oy + radius || w.y + w.h < oy - radius) continue
-    for (const [cx, cy] of [[w.x, w.y], [w.x + w.w, w.y], [w.x, w.y + w.h], [w.x + w.w, w.y + w.h]]) {
-      const a = Math.atan2(cy - oy, cx - ox)
-      angles.push(a - 0.0001, a, a + 0.0001)
-    }
+    near.push(w)
   }
-  angles.sort((a, b) => a - b)
-  for (const a of angles) {
-    // 射线步进求交（墙 AABB 求交）
+  // 纯径向扇形采样：240 条均匀射线（1.5° 间隔），每条取最近墙交点。
+  // 不做墙角射线：角点射线在角透过缝隙可见时会产生自相交多边形（尖刺/口袋），
+  // 导致规整房间内视野呈锯齿星芒状；均匀扇形保证多边形星形平滑，边界圆整。
+  const N = 240
+  const pts = []
+  for (let i = 0; i < N; i++) {
+    const a = i / N * TAU
     const dx = Math.cos(a), dy = Math.sin(a)
     let best = radius
-    for (const w of walls) {
+    for (const w of near) {
       const t = rayAabb(ox, oy, dx, dy, w)
       if (t !== null && t < best) best = t
     }
