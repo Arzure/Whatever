@@ -80,8 +80,14 @@ export class DuckovGame {
       if (WEAPONS[id] && WEAPONS[id].mag !== Infinity) this.player.ammo[id] = WEAPONS[id].mag
     }
     this.state = 'playing'
+    this.paused = false
     this.lastTs = performance.now()
     this.loop()
+  }
+
+  togglePause() {
+    if (this.state !== 'playing') return
+    this.paused = !this.paused
   }
 
   loop() {
@@ -90,7 +96,7 @@ export class DuckovGame {
     let dt = (now - this.lastTs) / 1000
     this.lastTs = now
     if (dt > 0.05) dt = 0.05
-    if (this.state === 'playing') {
+    if (this.state === 'playing' && !this.paused) {
       try {
         this.update(dt)
       } catch (err) {

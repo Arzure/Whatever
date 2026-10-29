@@ -162,7 +162,7 @@ export function consumeMedkits(s, n) {
 }
 
 export function bagCapacity(s) {
-  return 10 + (s.bagLv || 0) * 4
+  return 20 + (s.bagLv || 0) * 4
 }
 
 export function armorMul(s) {

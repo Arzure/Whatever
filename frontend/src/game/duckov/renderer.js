@@ -142,13 +142,17 @@ export function render(ctx, game) {
     if (game.fovPoly && inFov(game, e.x, e.y)) {
       ctx.save()
       ctx.translate(e.x, e.y)
-      ctx.globalAlpha = 0.08
+      ctx.globalAlpha = 0.16
       ctx.fillStyle = e.state === 'combat' ? '#ef4444' : (e.state === 'patrol' ? '#f59e0b' : '#fbbf24')
       ctx.beginPath()
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, e.d.sight, e.face - e.d.fov, e.face + e.d.fov)
       ctx.closePath()
       ctx.fill()
+      ctx.globalAlpha = 0.5
+      ctx.strokeStyle = e.state === 'combat' ? '#fca5a5' : '#fcd34d'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
       ctx.restore()
     }
     // 身体

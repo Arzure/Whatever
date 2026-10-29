@@ -1261,6 +1261,20 @@ function resolveTheme(input) {
 }
 
 // 读取存档
+// 撤离协议：按账号的仓库存档（登录后云端同步，跨浏览器可用）
+app.get('/api/duckov/stash', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  res.json({ stash: storage.loadDuckovStash(user.id) });
+});
+app.post('/api/duckov/stash', (req, res) => {
+  const user = userFromRequest(req);
+  if (!user) return res.status(401).json({ error: '请先登录' });
+  const stash = req.body && req.body.stash;
+  if (!stash || typeof stash !== 'object') return res.status(400).json({ error: '无效存档数据' });
+  storage.saveDuckovStash(user.id, stash);
+  res.json({ ok: true });
+});
 app.get('/api/games/:id', (req, res) => {
   const found = findGame(req, res);
   if (!found) return;

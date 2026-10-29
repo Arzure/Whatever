@@ -9,15 +9,23 @@
           <span class="weapon">{{ hud.weapon }} [{{ hud.ammo }}]</span>
           <span class="bag">背包 {{ hud.bag }}/{{ hud.bagSize }} · 价值 {{ hud.value }}</span>
           <span class="med">+{{ hud.medkits }} 医疗包(H)</span>
-          <span class="exit-t" :class="{ danger: hud.exitT < 30 }">撤离 {{ Math.ceil(hud.exitT) }}s</span>
           <span v-if="hud.hasKey" class="key">🔑</span>
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
+        <!-- 撤离倒计时（醒目居中） -->
+        <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
+        <!-- 小地图（点击展开大图） -->
+        <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @click="mapBig = !mapBig"></canvas>
         <div class="hud-bottom">
           <span>体力 {{ Math.round(hud.stamina) }}/100</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3/4 切枪 · H 医疗包 · Tab 背包</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3/4 切枪 · H 医疗包 · Tab 背包 · Esc 暂停</span>
         </div>
+      </div>
+      <!-- 暂停遮罩 -->
+      <div v-if="panel === 'playing' && paused" class="pause-mask">
+        <h2>已暂停</h2>
+        <p>按 Esc 继续</p>
       </div>
       <!-- 局内背包 -->
       <div v-if="panel === 'playing' && bagOpen && hud" class="bag-panel">
@@ -164,10 +172,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
+import { getAuthToken } from '../api.js';
 import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
@@ -181,6 +190,35 @@ let game = null;
 const stash = ref(loadStash());
 const modal = ref(null);
 const msg = ref('');
+
+// —— 云端存档同步：跟随账号而非浏览器 ——
+let syncTimer = null;
+async function pullCloudStash() {
+  if (!getAuthToken()) return; // 未登录保持本地存档
+  try {
+    const res = await fetch('/api/duckov/stash', { headers: { Authorization: 'Bearer ' + getAuthToken() } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.stash) {
+      stash.value = data.stash;
+      saveStash(data.stash);
+    }
+  } catch (e) { /* 离线时忽略 */ }
+}
+function pushCloudStash() {
+  if (!getAuthToken()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    try {
+      await fetch('/api/duckov/stash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getAuthToken() },
+        body: JSON.stringify({ stash: stash.value })
+      });
+    } catch (e) { /* 离线时忽略 */ }
+  }, 800);
+}
+watch(stash, pushCloudStash, { deep: true });
 
 function toggleLoadoutWeapon(w) {
   if (w === 'pistol') return; // 默认武器必带
@@ -229,6 +267,60 @@ function onDropFromStash(ev) {
   stash.value = { ...stash.value };
 }
 const bagItems = ref([]);
+const minimapRef = ref(null);
+const mapBig = ref(false);
+const paused = ref(false);
+
+function fmtTime(t) {
+  const s = Math.max(0, Math.ceil(t));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+// 小地图：房间轮廓 + 玩家位置 + 撤离点标记（点击展开大图）
+function drawMinimap() {
+  const c = minimapRef.value;
+  if (!c || !game || !game.map) return;
+  const big = mapBig.value;
+  const size = big ? 420 : 150;
+  if (c.width !== size) { c.width = size; c.height = size; }
+  const ctx = c.getContext('2d');
+  const m = game.map;
+  const scale = size / Math.max(m.W, m.H);
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = 'rgba(5,10,18,0.88)';
+  ctx.fillRect(0, 0, size, size);
+  // 房间
+  for (const r of m.rooms) {
+    ctx.fillStyle = 'rgba(34,211,238,0.10)';
+    ctx.fillRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+    ctx.strokeStyle = 'rgba(103,232,249,0.45)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+  }
+  // 撤离点（绿色 EXIT 标记）
+  for (const e of m.exits) {
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.arc(e.x * scale, e.y * scale, big ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    if (big) {
+      ctx.fillStyle = '#4ade80';
+      ctx.font = '10px monospace';
+      ctx.fillText('EXIT', e.x * scale + 8, e.y * scale + 3);
+    }
+  }
+  // 玩家（青色脉冲点）
+  const p = game.player;
+  ctx.fillStyle = '#22d3ee';
+  ctx.beginPath();
+  ctx.arc(p.x * scale, p.y * scale, big ? 6 : 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(34,211,238,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x * scale, p.y * scale, big ? 10 : 7, 0, Math.PI * 2);
+  ctx.stroke();
+}
 
 // —— 手绘 SVG 物品图标（48x48 矢量绘制，禁用 emoji）——
 function iconSvg(id) {
@@ -308,7 +400,7 @@ function start() {
       else failStash(stash.value);
       stash.value = { ...stash.value };
     },
-    onHud: (h) => { hud.value = h; }
+    onHud: (h) => { hud.value = h; drawMinimap(); }
   });
   game.renderer = render;
   game.start({
@@ -320,6 +412,7 @@ function start() {
 }
 
 onMounted(() => {
+  pullCloudStash();
   fit();
   window.addEventListener('resize', fit);
   window.addEventListener('keydown', onKeyDown);
@@ -359,7 +452,11 @@ function onKeyDown(ev) {
     }
     return;
   }
-  if (k === 'escape') { modal.value = null; return; }
+  if (k === 'escape') {
+    if (modal.value) { modal.value = null; return; }
+    if (panel.value === 'playing' && game) { game.togglePause(); paused.value = game.paused; }
+    return;
+  }
   if (!game || game.state !== 'playing') return;
   game.keys[k] = true;
   if (k === 'shift' && game.player.stamina > 25 && game.player.dashCd <= 0) {
@@ -421,6 +518,16 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .stamina-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .stamina-fill { height: 100%; background: #22d3ee; transition: width 0.1s; }
 .tip { margin-left: auto; color: #475569; }
+/* 撤离倒计时（顶部居中醒目） */
+.exit-countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 22px; font-weight: bold; color: #e2e8f0; text-shadow: 0 0 12px rgba(34,211,238,0.6); pointer-events: none; }
+.exit-countdown.danger { color: #f87171; animation: blink 0.6s infinite; }
+/* 小地图（右上角，点击展开大图） */
+.minimap { position: absolute; top: 10px; right: 12px; width: 150px; height: 150px; border: 1px solid #1e3a5f; border-radius: 8px; cursor: pointer; pointer-events: auto; z-index: 5; transition: width 0.2s, height 0.2s; }
+.minimap.big { width: 420px; height: 420px; }
+/* 暂停遮罩 */
+.pause-mask { position: absolute; inset: 0; background: rgba(2,4,10,0.72); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #e2e8f0; font-family: monospace; z-index: 8; }
+.pause-mask h2 { font-size: 34px; color: #67e8f9; margin: 0 0 8px; text-shadow: 0 0 20px rgba(34,211,238,0.5); }
+.pause-mask p { color: #94a3b8; }
 .panel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(5,7,13,0.92); color: #e2e8f0; font-family: monospace; text-align: center; padding: 20px; overflow-y: auto; }
 .panel h1 { font-size: 42px; margin: 0 0 6px; color: #67e8f9; text-shadow: 0 0 24px rgba(34,211,238,0.5); }
 .panel h1.win { color: #4ade80; }
@@ -471,6 +578,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .loadout-ctrl { display: flex; align-items: center; gap: 10px; }
 .loadout-num { color: #fde047; font-size: 18px; min-width: 24px; text-align: center; }
 /* 局内背包 */
+.bag-panel .svg-icon { width: 26px; height: 26px; }
 .bag-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; max-height: 70vh; overflow-y: auto; background: rgba(8,12,20,0.96); border: 1px solid #1e3a5f; border-radius: 10px; padding: 16px 18px; font-family: monospace; color: #e2e8f0; pointer-events: auto; box-shadow: 0 0 30px rgba(34,211,238,0.15); }
 .bag-panel h3 { margin: 0 0 12px; color: #67e8f9; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
 .bag-sum { font-size: 12px; color: #fde047; font-weight: normal; }

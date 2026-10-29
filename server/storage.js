@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS saves (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS duckov_stash (
+  user_id TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS online_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -128,6 +133,24 @@ function saveGame(id, game, userId) {
   } else {
     db.prepare('INSERT INTO saves (id, user_id, mode, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, userId, game.mode || 'world', row, createdAt, now);
   }
+}
+
+// 撤离协议：按账号保存/读取仓库存档（每账号一份）
+function saveDuckovStash(userId, stash) {
+  const now = Date.now();
+  const row = JSON.stringify(stash);
+  const existing = db.prepare('SELECT user_id FROM duckov_stash WHERE user_id = ?').get(userId);
+  if (existing) {
+    db.prepare('UPDATE duckov_stash SET data = ?, updated_at = ? WHERE user_id = ?').run(row, now, userId);
+  } else {
+    db.prepare('INSERT INTO duckov_stash (user_id, data, updated_at) VALUES (?, ?, ?)').run(userId, row, now);
+  }
+}
+
+function loadDuckovStash(userId) {
+  const row = db.prepare('SELECT data FROM duckov_stash WHERE user_id = ?').get(userId);
+  if (!row) return null;
+  try { return JSON.parse(row.data); } catch (e) { return null; }
 }
 function loadGame(id) {
   const row = db.prepare('SELECT data FROM saves WHERE id = ?').get(id);
@@ -348,6 +371,8 @@ module.exports = {
   deleteUserCascade,
   saveGame,
   loadGame,
+  saveDuckovStash,
+  loadDuckovStash,
   getSaveOwner,
   deleteGame,
   deleteAllSaves,
