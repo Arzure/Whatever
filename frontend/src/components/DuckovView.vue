@@ -48,7 +48,7 @@
           <button class="btn btn2" @click="modal = 'shop'">商店</button>
           <button class="btn btn2" @click="modal = 'loadout'">出击配置</button>
         </div>
-        <p class="ready-info">💰 {{ stash.coins }} 金币 · 仓库 {{ stash.items.length }} 件 · 携带医疗包 {{ stash.loadout.medkits }}/{{ medkitCount(stash) }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次</p>
+        <p class="ready-info">💰 {{ stash.coins }} 金币 · 仓库 {{ stash.items.length }} 件 · 携带医疗包 {{ loadoutMedkitCount(stash) }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次</p>
       </div>
       <!-- 结算面板 -->
       <div v-else-if="panel === 'end'" class="panel">
@@ -113,43 +113,56 @@
       </div>
       <!-- 出击配置弹窗 -->
       <div v-if="modal === 'loadout'" class="modal-mask" @click.self="modal = null">
-        <div class="modal">
+        <div class="modal modal-wide">
           <h2>出击配置 <button class="modal-x" @click="modal = null">✕</button></h2>
-          <p class="modal-sub">选择带入封锁区的装备（默认携带运维手枪）</p>
-          <p class="loadout-sec">武器（可多选）</p>
-          <div class="loadout-grid">
-            <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" @click="toggleLoadoutWeapon(w)">
-              <span class="item-icon big" :class="'icon-' + w"></span>
-              <b>{{ WEAPONS[w] ? WEAPONS[w].name : w }}</b>
-              <em>{{ w === 'pistol' ? '默认必带' : (stash.loadout.weapons.includes(w) ? '已携带' : '点击携带') }}</em>
+          <p class="modal-sub">点击勾选武器/护甲 · 拖拽道具到出击栏 · 默认携带运维手枪</p>
+          <div class="loadout-cols">
+            <!-- 左：仓库 -->
+            <div class="loadout-col">
+              <p class="loadout-sec">仓库物品（拖拽到右侧携带）</p>
+              <div class="loadout-drop" @dragover.prevent @drop="onDropFromStash($event)">
+                <div v-for="(it, i) in stash.items" :key="'st' + i" class="loadout-card" :class="{ supply: it.kind === 'supply' || it.usable }" :draggable="it.kind === 'supply' || it.usable" @dragstart="onDragStash($event, i)">
+                  <span class="item-icon big" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+                  <b>{{ it.name }}</b>
+                  <em>{{ (it.kind === 'supply' || it.usable) ? '可携带' : '战利品' }}</em>
+                </div>
+                <p v-if="!stash.items.length" class="bag-empty">仓库空空如也</p>
+              </div>
+            </div>
+            <!-- 右：出击配置 -->
+            <div class="loadout-col">
+              <p class="loadout-sec">武器（点击勾选）</p>
+              <div class="loadout-grid">
+                <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" @click="toggleLoadoutWeapon(w)">
+                  <span class="item-icon big" :class="'icon-' + w"></span>
+                  <b>{{ WEAPONS[w] ? WEAPONS[w].name : w }}</b>
+                  <em>{{ w === 'pistol' ? '默认必带' : (stash.loadout.weapons.includes(w) ? '已携带' : '点击携带') }}</em>
+                </div>
+              </div>
+              <p class="loadout-sec">护甲（点击穿戴）</p>
+              <div class="loadout-grid">
+                <div class="loadout-card" :class="{ on: !stash.loadout.armor }" @click="stash.loadout.armor = null; saveStash(stash)">
+                  <span class="item-icon big icon-none"></span>
+                  <b>无护甲</b><em>{{ stash.loadout.armor ? '点击卸下' : '当前' }}</em>
+                </div>
+                <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
+                  <span class="item-icon big" :class="'icon-' + stash.armor"></span>
+                  <b>{{ stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲' }}</b>
+                  <em>{{ stash.loadout.armor === stash.armor ? '已穿戴' : '点击穿戴' }}</em>
+                </div>
+              </div>
+              <p class="loadout-sec">携带道具（拖入 / 拖回仓库）</p>
+              <div class="loadout-drop target" @dragover.prevent @drop="onDropToLoadout($event)">
+                <div v-for="(it, i) in stash.loadout.items" :key="'lo' + i" class="loadout-card on" draggable="true" @dragstart="onDragLoadout($event, i)">
+                  <span class="item-icon big" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+                  <b>{{ it.name }}</b>
+                  <em>拖回仓库</em>
+                </div>
+                <p v-if="!stash.loadout.items.length" class="bag-empty">拖拽道具到这里携带出击</p>
+              </div>
             </div>
           </div>
-          <p class="loadout-sec">护甲（单选）</p>
-          <div class="loadout-grid">
-            <div class="loadout-card" :class="{ on: !stash.loadout.armor }" @click="stash.loadout.armor = null; saveStash(stash)">
-              <span class="item-icon big icon-none"></span>
-              <b>无护甲</b><em>{{ stash.loadout.armor ? '点击卸下' : '当前' }}</em>
-            </div>
-            <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
-              <span class="item-icon big" :class="'icon-' + stash.armor"></span>
-              <b>{{ stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲' }}</b>
-              <em>{{ stash.loadout.armor === stash.armor ? '已穿戴' : '点击穿戴' }}</em>
-            </div>
-          </div>
-          <p class="loadout-sec">道具</p>
-          <div class="loadout-row">
-            <span class="item-icon big icon-medkit"></span>
-            <div class="loadout-info">
-              <b>纳米医疗包</b>
-              <em>局内按 H 恢复 50 HP · 仓库存量 {{ medkitCount(stash) }}</em>
-            </div>
-            <div class="loadout-ctrl">
-              <button class="buy-btn" @click="setLoadoutMedkits(stash.loadout.medkits - 1)">−</button>
-              <span class="loadout-num">{{ stash.loadout.medkits }}</span>
-              <button class="buy-btn" @click="setLoadoutMedkits(stash.loadout.medkits + 1)">＋</button>
-            </div>
-          </div>
-          <p class="modal-sub">背包容量 {{ 10 + stash.bagLv * 4 }} · 携带武器 {{ stash.loadout.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }}</p>
+          <p class="modal-sub">背包容量 {{ 10 + stash.bagLv * 4 }} · 携带武器 {{ stash.loadout.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }} · 携带道具 {{ stash.loadout.items.length }} 件</p>
         </div>
       </div>
     </div>
@@ -161,7 +174,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -188,6 +201,37 @@ function toggleLoadoutWeapon(w) {
 function setLoadoutMedkits(n) {
   stash.value.loadout.medkits = Math.max(0, Math.min(medkitCount(stash.value), n));
   saveStash(stash.value);
+  stash.value = { ...stash.value };
+}
+
+// —— 拖拽联动 ——
+function onDragStash(ev, idx) {
+  ev.dataTransfer.setData('text/plain', 'stash:' + idx);
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragLoadout(ev, idx) {
+  ev.dataTransfer.setData('text/plain', 'loadout:' + idx);
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function onDropToLoadout(ev) {
+  const data = ev.dataTransfer.getData('text/plain');
+  if (!data.startsWith('stash:')) return;
+  const idx = parseInt(data.slice(6), 10);
+  const r = moveItemToLoadout(stash.value, idx);
+  msg.value = r.msg;
+  if (r.ok) sound.play('pickup');
+  stash.value = { ...stash.value };
+}
+
+function onDropFromStash(ev) {
+  const data = ev.dataTransfer.getData('text/plain');
+  if (!data.startsWith('loadout:')) return;
+  const idx = parseInt(data.slice(8), 10);
+  const r = moveItemBack(stash.value, idx);
+  msg.value = r.msg;
+  if (r.ok) sound.play('pickup');
   stash.value = { ...stash.value };
 }
 const bagItems = ref([]);
@@ -233,7 +277,7 @@ function fit() {
 
 function start() {
   const lo = stash.value.loadout;
-  const takeMedkits = Math.min(lo.medkits || 0, medkitCount(stash.value));
+  const takeMedkits = lo.items.filter(it => it.id === 'medkit').length;
   consumeMedkits(stash.value, takeMedkits);
   stash.value = { ...stash.value };
   panel.value = 'playing';
@@ -399,6 +443,12 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .shop-msg { color: #4ade80; font-size: 12px; margin: 12px 0 0; text-align: center; }
 /* 出击配置 */
+.loadout-cols { display: flex; gap: 14px; }
+.loadout-col { flex: 1; min-width: 0; }
+.loadout-drop { min-height: 90px; border: 1.5px dashed #1e3a5f; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
+.loadout-drop.target { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
+.loadout-card.supply { cursor: grab; }
+.loadout-card.supply:active { cursor: grabbing; }
 .loadout-row { display: flex; align-items: center; gap: 14px; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px 16px; background: rgba(15,23,42,0.6); margin-bottom: 14px; }
 .loadout-info { flex: 1; text-align: left; }
 .loadout-info b { color: #f87171; display: block; font-size: 14px; }

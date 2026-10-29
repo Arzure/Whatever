@@ -43,12 +43,34 @@ export function loadStash() {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null')
     if (s) {
       if (!Array.isArray(s.items)) s.items = []
-      if (!s.loadout) s.loadout = { weapons: ['pistol'], armor: null, medkits: 0 }
+      if (!s.loadout) s.loadout = { weapons: ['pistol'], armor: null, items: [] }
       if (!Array.isArray(s.loadout.weapons) || !s.loadout.weapons.length) s.loadout.weapons = ['pistol']
+      if (!Array.isArray(s.loadout.items)) s.loadout.items = []
       return s
     }
   } catch (e) { /* 忽略 */ }
-  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0, loadout: { weapons: ['pistol'], armor: null, medkits: 0 } }
+  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0, loadout: { weapons: ['pistol'], armor: null, items: [] } }
+}
+
+// 仓库物品放入出击配置（仅可用道具：医疗包等；战利品不可携带）
+export function moveItemToLoadout(s, idx) {
+  const it = s.items[idx]
+  if (!it) return { ok: false, msg: '无效物品' }
+  if (it.kind !== 'supply' && !it.usable) return { ok: false, msg: it.name + '是战利品，不可携带出击' }
+  s.items.splice(idx, 1)
+  s.loadout.items.push(it)
+  saveStash(s)
+  return { ok: true, msg: '已放入出击配置：' + it.name }
+}
+
+// 出击配置物品放回仓库
+export function moveItemBack(s, idx) {
+  const it = s.loadout.items[idx]
+  if (!it) return { ok: false, msg: '无效物品' }
+  s.loadout.items.splice(idx, 1)
+  s.items.push(it)
+  saveStash(s)
+  return { ok: true, msg: '已放回仓库：' + it.name }
 }
 
 export function saveStash(s) {
@@ -125,11 +147,16 @@ export function medkitCount(s) {
   return s.items.filter(it => it.id === 'medkit').length
 }
 
-// 出击后从仓库移除已携带的医疗包
+// 出击配置中医疗包数量
+export function loadoutMedkitCount(s) {
+  return s.loadout.items.filter(it => it.id === 'medkit').length
+}
+
+// 出击后从出击配置移除已携带的医疗包
 export function consumeMedkits(s, n) {
   let left = n
-  for (let i = s.items.length - 1; i >= 0 && left > 0; i--) {
-    if (s.items[i].id === 'medkit') { s.items.splice(i, 1); left-- }
+  for (let i = s.loadout.items.length - 1; i >= 0 && left > 0; i--) {
+    if (s.loadout.items[i].id === 'medkit') { s.loadout.items.splice(i, 1); left-- }
   }
   saveStash(s)
 }
