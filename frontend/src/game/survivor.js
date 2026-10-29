@@ -1159,6 +1159,7 @@ export class SurvivorGame {
       e.color = '#fde047'
     }
     this.enemies.push(e)
+    return e
   }
 
   triggerEvent() {
@@ -1266,11 +1267,17 @@ export class SurvivorGame {
   }
 
   spawnBoss(type) {
-    this.spawnEnemy(type)
+    const be = this.spawnEnemy(type)
     const d = ENEMIES[type]
     sound.play('boss')
     this.bossWarn = 2
     this.slowmo = 0.6
+    // 出场冲击波：脚下三重扩散环
+    if (be) {
+      for (let ri = 0; ri < 3; ri++) {
+        this.lasers.push({ ring: true, x: be.x, y: be.y, r: 10 + ri * 14, t: 0.5 + ri * 0.15, color: d.color })
+      }
+    }
     this.floats.push({ x: this.player.x, y: this.player.y - 60, txt: '⚠ ' + d.name + ' 出现', t: 2, color: d.color, big: true })
   }
 
@@ -2228,13 +2235,14 @@ export class SurvivorGame {
         ctx.stroke()
         ctx.restore()
       }
-      // 身体呼吸脉动
-      const br = 1 + 0.06 * Math.sin(this.time * 6 + e.x * 0.1)
+      // 身体呼吸脉动（精英体型放大 1.25 倍）
+      const es = e.elite ? 1.25 : 1
+      const br = (1 + 0.06 * Math.sin(this.time * 6 + e.x * 0.1)) * es
       ctx.rotate(this.time * (e.boss ? 0.5 : 1.5))
       ctx.shadowColor = e.color
-      ctx.shadowBlur = e.boss ? 24 : (e.elite ? 16 : 8)
+      ctx.shadowBlur = e.boss ? 24 : (e.elite ? 16 : 6)
       ctx.strokeStyle = e.color
-      ctx.lineWidth = 2
+      ctx.lineWidth = e.elite ? 3 : 2
       drawShape(ctx, e.shape, e.r * br)
       ctx.stroke()
       ctx.fillStyle = e.color + '33'
@@ -2244,6 +2252,19 @@ export class SurvivorGame {
         ctx.shadowBlur = 0
         ctx.fillStyle = 'rgba(255,255,255,0.85)'
         ctx.fill()
+      }
+      // Boss 内层反向旋转四边形（嵌套结构，一眼即知是终极敌人）
+      if (e.boss) {
+        ctx.shadowBlur = 0
+        ctx.save()
+        ctx.rotate(-this.time * 2.1)
+        ctx.strokeStyle = e.color
+        ctx.lineWidth = 1.5
+        drawShape(ctx, 'diamond', e.r * 0.55)
+        ctx.stroke()
+        ctx.fillStyle = e.color + '55'
+        ctx.fill()
+        ctx.restore()
       }
       ctx.restore()
       // 怪物之眼：朝向玩家的双眼（不随身体旋转；Boss 独眼怒视）
@@ -2268,6 +2289,28 @@ export class SurvivorGame {
           ctx.fillStyle = '#111'
           ctx.beginPath(); ctx.arc(ox + ex * e.r * 0.09, oy + ey * e.r * 0.09, e.r * 0.12, 0, TAU); ctx.fill()
         }
+      }
+      // 环绕轨道光点：Boss 3 个 / 精英 2 个（量级差一眼可辨）
+      if (e.boss || e.elite) {
+        const on = e.boss ? 3 : 2
+        const orR = e.r * (e.boss ? 1.5 : 1.35)
+        for (let oi = 0; oi < on; oi++) {
+          const oa = this.time * (e.boss ? 1.8 : 2.4) + oi / on * TAU
+          ctx.shadowColor = e.color
+          ctx.shadowBlur = 8
+          ctx.fillStyle = '#fff'
+          ctx.beginPath(); ctx.arc(Math.cos(oa) * orR, Math.sin(oa) * orR, e.boss ? 3 : 2.2, 0, TAU); ctx.fill()
+          ctx.shadowBlur = 0
+        }
+      }
+      // 精英头顶小皇冠
+      if (e.elite) {
+        ctx.fillStyle = '#fde047'
+        const cy = -e.r * 1.25 - 8
+        ctx.beginPath()
+        ctx.moveTo(-6, cy + 4); ctx.lineTo(-6, cy - 3); ctx.lineTo(-3, cy); ctx.lineTo(0, cy - 4); ctx.lineTo(3, cy); ctx.lineTo(6, cy - 3); ctx.lineTo(6, cy + 4)
+        ctx.closePath()
+        ctx.fill()
       }
       // 类型特征细节
       if (e.type === 'healer') {
@@ -2364,6 +2407,21 @@ export class SurvivorGame {
     // 光束
     for (let i = 0; i < this.lasers.length; i++) {
       const l = this.lasers[i]
+      if (l.ring) {
+        // 扩散环：Boss 出场冲击波
+        const k = Math.max(0, l.t / 0.65)
+        ctx.globalAlpha = k
+        ctx.strokeStyle = l.color
+        ctx.shadowColor = l.color
+        ctx.shadowBlur = 14
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(l.x, l.y, l.r + (1 - k) * 90, 0, TAU)
+        ctx.stroke()
+        ctx.globalAlpha = 1
+        ctx.shadowBlur = 0
+        continue
+      }
       ctx.globalAlpha = Math.max(0, l.t / 0.25)
       ctx.strokeStyle = l.color
       ctx.shadowColor = l.color
