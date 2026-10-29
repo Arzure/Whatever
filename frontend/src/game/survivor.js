@@ -122,6 +122,7 @@ export const ENEMIES = {
   healer: { name: '修复进程', color: '#4ade80', hp: 34, dmg: 6, speed: 36, r: 12, xp: 5, shape: 'hex' },
   tank: { name: '堡垒进程', color: '#94a3b8', hp: 130, dmg: 14, speed: 22, r: 17, xp: 6, shape: 'square' },
   kernel_panic: { name: '内核恐慌', color: '#dc2626', hp: 2600, dmg: 30, speed: 40, r: 34, xp: 120, shape: 'boss', boss: true },
+  memory_leak: { name: '内存泄漏巨兽', color: '#06b6d4', hp: 900, dmg: 22, speed: 55, r: 26, xp: 60, shape: 'boss', boss: true },
   data_destroyer: { name: '数据毁灭者', color: '#7c3aed', hp: 5200, dmg: 40, speed: 46, r: 40, xp: 300, shape: 'boss', boss: true }
 }
 
@@ -133,7 +134,7 @@ export const WAVES = [
   { t: 90, interval: 0.75, types: { bug: 3, zombie: 1 } },
   { t: 150, interval: 0.7, types: { bug: 2, zombie: 3 } },
   { t: 210, interval: 0.65, types: { zombie: 3, leak: 2 } },
-  { t: 280, interval: 0.6, types: { bug: 2, leak: 3 } },
+  { t: 280, interval: 0.6, types: { bug: 2, leak: 3 }, boss: 'memory_leak' },
   { t: 350, interval: 0.55, types: { leak: 3, ddos: 2 } },
   { t: 430, interval: 0.5, types: { zombie: 3, ddos: 3 } },
   { t: 510, interval: 0.45, types: { ddos: 3, worm: 2 } },
@@ -342,9 +343,13 @@ export class SurvivorGame {
     this.pickups = []
     this.clones = []
     this.cloneReviveT = 0
+    this.leakPools = []
+    this.walls = []
+    this.reorgT = 180
     this.props = []
     this.swamps = []
     this.propSeed()
+    this.wallSeed()
     this.combo = 0
     this.comboT = 0
     this.dashCd = 0
@@ -546,6 +551,9 @@ export class SurvivorGame {
     if (m > 1) { ix /= m; iy /= m }
     p.x += ix * p.speed * dt
     p.y += iy * p.speed * dt
+    // 墙体碰撞：玩家沿墙滑动
+    const pc = this.collideWalls(p.x, p.y, p.r)
+    p.x = pc.x; p.y = pc.y
     if (m > 0.1) p.face = Math.atan2(iy, ix)
     // 移动拖尾微粒
     if (m > 0.1 && Math.random() < 0.35) {
@@ -635,7 +643,7 @@ export class SurvivorGame {
     e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
-    const mul = 1 + (this.time / 60) * 0.35
+    const mul = 1 + (this.time / 60) * (this.time < 300 ? 0.25 : 0.35)
     e.maxHp = d.hp * mul * 8
     e.hp = e.maxHp
     e.dmg = d.dmg * 1.3
@@ -929,6 +937,67 @@ export class SurvivorGame {
   }
 
   // ---------- 可交互地图物件 ----------
+  // 墙体：程序化机柜墙块（阻挡移动与子弹，形成走廊/掩体）
+  wallSeed() {
+    this.walls = []
+    const p = this.player
+    if (!p) return
+    // 以玩家出生点为中心的 3200x2400 数据中心内散布机柜集群
+    const CX = 0, CY = 0
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * TAU
+      const r = rand(320, 1500)
+      const wx = CX + Math.cos(a) * r
+      const wy = CY + Math.sin(a) * r
+      // 出生安全区不生成
+      if (Math.hypot(wx - CX, wy - CY) < 260) continue
+      // 机柜：竖长矩形，部分横放，成组生成
+      const horiz = Math.random() < 0.4
+      const w = horiz ? rand(60, 110) : rand(26, 40)
+      const h = horiz ? rand(26, 40) : rand(60, 110)
+      this.walls.push({ x: wx, y: wy, w, h })
+      // 30% 概率生成相邻第二柜，形成 L 形掩体
+      if (Math.random() < 0.3) {
+        this.walls.push({ x: wx + (horiz ? rand(50, 70) : rand(-16, 16)), y: wy + (horiz ? rand(-16, 16) : rand(50, 70)), w: horiz ? rand(26, 40) : rand(60, 110), h: horiz ? rand(60, 110) : rand(26, 40) })
+      }
+    }
+  }
+  // AABB 碰撞：圆形实体 vs 墙，返回推出后的坐标（滑墙效果）
+  collideWalls(x, y, r) {
+    for (let i = 0; i < this.walls.length; i++) {
+      const wd = this.walls[i]
+      // 快速剔除
+      if (x + r < wd.x || x - r > wd.x + wd.w || y + r < wd.y || y - r > wd.y + wd.h) continue
+      // 最近点推出
+      const nx = Math.max(wd.x, Math.min(x, wd.x + wd.w))
+      const ny = Math.max(wd.y, Math.min(y, wd.y + wd.h))
+      const dx = x - nx, dy = y - ny
+      const dd = Math.hypot(dx, dy)
+      if (dd < r) {
+        if (dd > 0.001) {
+          x = nx + dx / dd * r
+          y = ny + dy / dd * r
+        } else {
+          // 圆心在墙内：朝最近边推出
+          const l = x - wd.x, rt = wd.x + wd.w - x, tp = y - wd.y, bt = wd.y + wd.h - y
+          const mn = Math.min(l, rt, tp, bt)
+          if (mn === l) x = wd.x - r
+          else if (mn === rt) x = wd.x + wd.w + r
+          else if (mn === tp) y = wd.y - r
+          else y = wd.y + wd.h + r
+        }
+      }
+    }
+    return { x, y }
+  }
+  // 点是否在墙内（子弹判定）
+  pointInWall(x, y) {
+    for (let i = 0; i < this.walls.length; i++) {
+      const wd = this.walls[i]
+      if (x >= wd.x && x <= wd.x + wd.w && y >= wd.y && y <= wd.y + wd.h) return true
+    }
+    return false
+  }
   propSeed() {
     const p = this.player
     if (!p) return
@@ -983,6 +1052,20 @@ export class SurvivorGame {
   updateProps(dt) {
     const p = this.player
     if (!p) return
+    // 内存泄漏巨兽毒迹：倒计时衰减 + 玩家站入掉血
+    for (let i = this.leakPools.length - 1; i >= 0; i--) {
+      const lp = this.leakPools[i]
+      lp.t -= dt
+      if (lp.t <= 0) { this.leakPools.splice(i, 1); continue }
+      if (dist2(p.x, p.y, lp.x, lp.y) < lp.r * lp.r) {
+ this.leakHurtT = (this.leakHurtT || 0) - dt
+        if (this.leakHurtT <= 0) {
+          this.leakHurtT = 0.6
+          this.hurtPlayer(4 + this.time / 90)
+          this.floats.push({ x: p.x, y: p.y - 14, txt: '泄漏侵蚀', t: 0.5, color: '#06b6d4' })
+        }
+      }
+    }
     this.propSeedT = (this.propSeedT || 0) - dt
     if (this.propSeedT <= 0) { this.propSeedT = 4; this.propSeed() }
     this.swampTick = (this.swampTick || 0) - dt
@@ -1064,7 +1147,7 @@ export class SurvivorGame {
     e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
-    const mul = 1 + (this.time / 60) * 0.35
+    const mul = 1 + (this.time / 60) * (this.time < 300 ? 0.25 : 0.35)
     e.maxHp = d.hp * mul
     e.hp = e.maxHp
     e.dmg = d.dmg * (1 + (this.time / 60) * 0.12)
@@ -1110,7 +1193,7 @@ export class SurvivorGame {
     e.type = type; e.dead = false; e.orbitCd = 0; e.elite = false; e.child = true
     e.flashT = 0
     e.x = x; e.y = y
-    const mul = 1 + (this.time / 60) * 0.35
+    const mul = 1 + (this.time / 60) * (this.time < 300 ? 0.25 : 0.35)
     e.maxHp = d.hp * mul; e.hp = e.maxHp
     e.dmg = d.dmg
     e.speed = d.speed * 1.2; e.r = d.r * 0.8; e.xp = d.xp
@@ -1162,7 +1245,7 @@ export class SurvivorGame {
     e.flashT = 0
     e.x = this.player.x + Math.cos(a) * R
     e.y = this.player.y + Math.sin(a) * R
-    const mul = 1 + (this.time / 60) * 0.35
+    const mul = 1 + (this.time / 60) * (this.time < 300 ? 0.25 : 0.35)
     e.maxHp = d.hp * mul * 10
     e.hp = e.maxHp
     e.dmg = d.dmg * 1.5
@@ -1285,27 +1368,118 @@ export class SurvivorGame {
         e.x += dx / d * spd * dt
         e.y += dy / d * spd * dt
       } else if (e.boss) {
-        // Boss 技能循环：追击 + 周期性环形弹幕 + 召唤小怪
-        e.x += dx / d * spd * dt
-        e.y += dy / d * spd * dt
-        e.bossSkillT = (e.bossSkillT === undefined ? 3 : e.bossSkillT) - dt
-        if (e.bossSkillT <= 0) {
-          e.bossSkillT = 4.5
-          e.bossPhase = ((e.bossPhase || 0) + 1) % 2
-          if (e.bossPhase === 0) {
-            // 环形弹幕：12 发放射状弹
-            for (let k = 0; k < 12; k++) {
-              const a = (k / 12) * TAU + this.time
-              this.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5, dmg: e.dmg * 0.5, t: 3.5 })
+        // ---------- Boss 技能循环（按类型分化） ----------
+        if (e.type === 'memory_leak') {
+          // 内存泄漏巨兽：追击 + 泄漏毒迹 + 吞噬成长
+          e.x += dx / d * spd * dt
+          e.y += dy / d * spd * dt
+          // 泄漏毒迹：移动中周期性在脚下留下毒圈
+          e.leakT = (e.leakT === undefined ? 1.2 : e.leakT) - dt
+          if (e.leakT <= 0) {
+            e.leakT = 1.2
+            this.leakPools.push({ x: e.x, y: e.y, r: 46, t: 4 })
+          }
+          // 吞噬成长：周期吞噬附近小怪回血 + 体型增大
+          e.devourT = (e.devourT === undefined ? 8 : e.devourT) - dt
+          if (e.devourT <= 0) {
+            e.devourT = 8
+            const near = this.hash.query(e.x, e.y, 160)
+            for (let k = 0; k < near.length; k++) {
+              const t = near[k]
+              if (t === e || t.dead || t.boss) continue
+              if (dist2(e.x, e.y, t.x, t.y) < 160 * 160) {
+                t.hp = 0; this.killEnemy(t)
+                e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.06)
+                e.r = Math.min(40, e.r + 1.5)
+                this.lasers.push({ x: e.x, y: e.y, ex: t.x, ey: t.y, t: 0.25, w: 4, color: '#06b6d4' })
+                this.floats.push({ x: e.x, y: e.y - e.r - 10, txt: '吞噬成长！', t: 1, color: '#06b6d4' })
+                break
+              }
             }
-            this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.4, radius: 60, color: e.color })
+          }
+        } else if (e.type === 'kernel_panic') {
+          // 内核恐慌：蓄力冲锋（预警线）+ 环形弹幕 + 召唤
+          if (e.telegraph > 0) {
+            // 蓄力阶段：站定画预警线
+            e.telegraph -= dt
+            if (e.telegraph <= 0) {
+              e.charging = 0.55
+              e.chargeA = Math.atan2(p.y - e.y, p.x - e.x)
+              sound.play('boss')
+            }
+          } else if (e.charging > 0) {
+            // 冲锋阶段：直线猛冲
+            e.charging -= dt
+            e.x += Math.cos(e.chargeA) * spd * 7 * dt
+            e.y += Math.sin(e.chargeA) * spd * 7 * dt
+            if (Math.random() < 0.7) this.particles.push({ x: e.x + rand(-10, 10), y: e.y + rand(-10, 10), vx: 0, vy: 0, t: 0.25, color: '#dc2626', size: 3 })
           } else {
-            // 召唤 4 只小怪
-            for (let k = 0; k < 4; k++) {
-              const a = Math.random() * TAU
-              this.spawnChild('bug', e.x + Math.cos(a) * 40, e.y + Math.sin(a) * 40)
+            e.x += dx / d * spd * 0.7 * dt
+            e.y += dy / d * spd * 0.7 * dt
+            e.bossSkillT = (e.bossSkillT === undefined ? 3 : e.bossSkillT) - dt
+            if (e.bossSkillT <= 0) {
+              e.bossSkillT = 4.5
+              e.bossPhase = ((e.bossPhase || 0) + 1) % 3
+              if (e.bossPhase === 0) {
+                // 环形弹幕：12 发放射状弹
+                for (let k = 0; k < 12; k++) {
+                  const a = (k / 12) * TAU + this.time
+                  this.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5, dmg: e.dmg * 0.5, t: 3.5 })
+                }
+                this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.4, radius: 60, color: e.color })
+              } else if (e.bossPhase === 1) {
+                // 蓄力冲锋：0.8s 预警线后猛冲
+                e.telegraph = 0.8
+              } else {
+                // 召唤 4 只小怪
+                for (let k = 0; k < 4; k++) {
+                  const a = Math.random() * TAU
+                  this.spawnChild('bug', e.x + Math.cos(a) * 40, e.y + Math.sin(a) * 40)
+                }
+                this.burst(e.x, e.y, e.color, 8)
+              }
             }
-            this.burst(e.x, e.y, e.color, 8)
+          }
+        } else {
+          // 数据毁灭者：螺旋弹幕 + 数据虹吸（拉拽玩家）+ 召唤
+          if (e.siphon > 0) {
+            // 虹吸阶段：站定拉拽玩家，玩家可冲刺反向挣脱
+            e.siphon -= dt
+            const pull = 130 * dt
+            const pd = Math.hypot(p.x - e.x, p.y - e.y) || 1
+            p.x -= (p.x - e.x) / pd * pull
+            p.y -= (p.y - e.y) / pd * pull
+            this.lasers.push({ x: e.x, y: e.y, ex: p.x, ey: p.y, t: 0.05, w: 3, color: '#7c3aed' })
+            if (Math.random() < 0.5) this.particles.push({ x: p.x + rand(-8, 8), y: p.y + rand(-8, 8), vx: (e.x - p.x) * 0.8, vy: (e.y - p.y) * 0.8, t: 0.3, color: '#a78bfa', size: 2 })
+          } else {
+            e.x += dx / d * spd * 0.8 * dt
+            e.y += dy / d * spd * 0.8 * dt
+            e.bossSkillT = (e.bossSkillT === undefined ? 3 : e.bossSkillT) - dt
+            if (e.bossSkillT <= 0) {
+              e.bossSkillT = 4.5
+              e.bossPhase = ((e.bossPhase || 0) + 1) % 3
+              if (e.bossPhase === 0) {
+                // 螺旋弹幕：3 波旋转放射弹
+                for (let wave = 0; wave < 3; wave++) {
+                  for (let k = 0; k < 8; k++) {
+                    const a = (k / 8) * TAU + wave * 0.26 + this.time
+                    this.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * (150 + wave * 40), vy: Math.sin(a) * (150 + wave * 40), r: 5, dmg: e.dmg * 0.45, t: 3.5 })
+                  }
+                }
+                this.novas.push({ x: e.x, y: e.y, t: 0, dur: 0.5, radius: 80, color: e.color })
+              } else if (e.bossPhase === 1) {
+                // 数据虹吸：1.2s 拉拽
+                e.siphon = 1.2
+                this.floats.push({ x: e.x, y: e.y - e.r - 14, txt: '数据虹吸！冲刺挣脱！', t: 1.2, color: '#a78bfa', big: true })
+              } else {
+                // 召唤精英化小怪
+                for (let k = 0; k < 4; k++) {
+                  const a = Math.random() * TAU
+                  this.spawnChild(k < 2 ? 'worm' : 'bug', e.x + Math.cos(a) * 50, e.y + Math.sin(a) * 50)
+                }
+                this.burst(e.x, e.y, e.color, 10)
+              }
+            }
           }
         }
       } else if (e.type === 'flanker') {
@@ -1379,6 +1553,11 @@ export class SurvivorGame {
         e.x += Math.cos(e.headA) * spd * dt
         e.y += Math.sin(e.headA) * spd * dt
       }
+      // 墙体碰撞：敌人沿墙滑动（Boss 除外，Boss 挤墙而过）
+      if (!e.boss) {
+        const ec = this.collideWalls(e.x, e.y, e.r)
+        e.x = ec.x; e.y = ec.y
+      }
       if (d < e.r + p.r) this.hurtPlayer(e.dmg)
       if (e.orbitCd > 0) {
         e.orbitCd -= dt
@@ -1440,6 +1619,11 @@ export class SurvivorGame {
       }
       b.x += b.vx * dt
       b.y += b.vy * dt
+      // 子弹撞墙湮灭
+      if (this.pointInWall(b.x, b.y)) {
+        this.particles.push({ x: b.x, y: b.y, vx: rand(-30, 30), vy: rand(-30, 30), t: 0.15, color: b.color, size: 2 })
+        b.dead = true; continue
+      }
       const near = this.hash.query(b.x, b.y, 40)
       for (let j = 0; j < near.length; j++) {
         const e = near[j]
@@ -1916,6 +2100,19 @@ export class SurvivorGame {
     ctx.translate(-camX, -camY)
 
     // 毒沼：绿色腐蚀区域（危险地形）
+    // 内存泄漏巨兽毒迹：青色泄漏池（Boss 留下，站入掉血）
+    for (let i = 0; i < this.leakPools.length; i++) {
+      const lp = this.leakPools[i]
+      const k = Math.min(1, lp.t / 4)
+      const g = ctx.createRadialGradient(lp.x, lp.y, lp.r * 0.15, lp.x, lp.y, lp.r)
+      g.addColorStop(0, 'rgba(6,182,212,' + (0.35 * k).toFixed(2) + ')')
+      g.addColorStop(1, 'rgba(8,51,68,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(lp.x, lp.y, lp.r, 0, TAU)
+      ctx.fill()
+      if (Math.random() < 0.1) this.particles.push({ x: lp.x + rand(-lp.r, lp.r) * 0.5, y: lp.y + rand(-lp.r, lp.r) * 0.5, vx: 0, vy: -rand(8, 24), t: 0.4, color: '#22d3ee', size: 1.5 })
+    }
     for (let i = 0; i < this.swamps.length; i++) {
       const s = this.swamps[i]
       const g = ctx.createRadialGradient(s.x, s.y, s.r * 0.2, s.x, s.y, s.r)
@@ -2203,6 +2400,19 @@ export class SurvivorGame {
       ctx.restore()
     }
 
+    // Boss 冲锋预警线：内核恐慌蓄力时显示红色冲刺路径
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      if (e.dead || !e.boss || !(e.telegraph > 0)) continue
+      const a = Math.atan2(this.player.y - e.y, this.player.x - e.x)
+      ctx.save()
+      ctx.translate(e.x, e.y)
+      ctx.rotate(a)
+      const blink = 0.35 + 0.3 * Math.sin(this.time * 25)
+      ctx.fillStyle = 'rgba(220,38,38,' + blink.toFixed(2) + ')'
+      ctx.fillRect(0, -e.r * 0.7, 520, e.r * 1.4)
+      ctx.restore()
+    }
     // 宝箱
     for (let i = 0; i < this.chests.length; i++) {
       const c = this.chests[i]
