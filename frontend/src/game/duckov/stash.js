@@ -1,12 +1,23 @@
 /* ============================================================
- * 逃离鹅科夫 · 局外仓库与商店
- * 撤离成功 → 物资价值折算金币；金币购买武器/护甲/背包扩容
- * 装备带入下一局（搜打撤的局外成长循环）；localStorage 持久化
+ * 撤离协议 · 局外仓库 / 商店 / 出击配置
+ * 仓库：撤离带出的物资实体化存储，可变卖为金币
+ * 商店：金币购买武器/护甲/扩容/医疗包
+ * 出击配置：从仓库选择随身携带的消耗品（医疗包）
+ * localStorage 持久化
  * ============================================================ */
 
 const KEY = 'duckov_stash'
 
-// 可购买装备目录
+// 物资图鉴（icon 决定 CSS 绘制的图标样式）
+export const ITEM_DEFS = {
+  ram: { name: '内存条', value: 40, color: '#22d3ee', icon: 'ram' },
+  disk: { name: '机械硬盘', value: 80, color: '#94a3b8', icon: 'disk' },
+  gpu: { name: 'GPU 显卡', value: 220, color: '#4ade80', icon: 'gpu' },
+  core: { name: '量子核心', value: 500, color: '#fde047', icon: 'core' },
+  medkit: { name: '纳米医疗包', value: 60, color: '#f87171', icon: 'medkit', consumable: true }
+}
+
+// 商店目录
 export const SHOP = {
   weapons: [
     { id: 'smg', name: '散热冲锋枪', desc: '高射速 · 30 发弹匣', price: 300 },
@@ -21,37 +32,69 @@ export const SHOP = {
     { id: 'bag1', name: '扩容背包 I', desc: '背包容量 +4', price: 200 },
     { id: 'bag2', name: '扩容背包 II', desc: '背包容量 +4', price: 450 },
     { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 800 }
+  ],
+  supplies: [
+    { id: 'medkit', name: '纳米医疗包', desc: '局内按 H 恢复 50 HP', price: 80 }
   ]
 }
-
-// 轨道炮属性（game.js WEAPONS 之外的局外武器）
-export const RAILGUN = { name: '轨道炮', dmg: 90, cd: 1.1, speed: 760, spread: 0, mag: 5, reload: 2.0, noise: 420, color: '#c084fc' }
 
 export function loadStash() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null')
-    if (s) return s
+    if (s) {
+      if (!Array.isArray(s.items)) s.items = []
+      return s
+    }
   } catch (e) { /* 忽略 */ }
-  return { coins: 0, weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0 }
+  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0 }
 }
 
 export function saveStash(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)) } catch (e) { /* 忽略 */ }
 }
 
-// 撤离成功结算：物资价值折算金币
-export function bankStash(s, lootValue) {
-  s.coins += lootValue
+// 撤离成功：背包物资实体化入仓 + 未用医疗包回收
+export function bankStash(s, bag, leftoverMedkits) {
+  for (const it of bag) {
+    s.items.push({ id: it.id, name: it.name, value: it.value, color: it.color, size: it.size, kind: it.kind || 'loot' })
+  }
+  for (let i = 0; i < (leftoverMedkits || 0); i++) {
+    s.items.push({ id: 'medkit', ...ITEM_DEFS.medkit, kind: 'supply' })
+  }
   s.raids += 1
   s.extracts += 1
-  if (lootValue > s.bestValue) s.bestValue = lootValue
+  const v = bag.reduce((a, b) => a + b.value, 0)
+  if (v > s.bestValue) s.bestValue = v
   saveStash(s)
 }
 
-// 死亡结算：只计次数
+// 死亡结算：只计次数（携带物资掉落封锁区）
 export function failStash(s) {
   s.raids += 1
   saveStash(s)
+}
+
+// 变卖单件物资
+export function sellItem(s, idx) {
+  const it = s.items[idx]
+  if (!it) return { ok: false, msg: '无效物资' }
+  s.coins += it.value
+  s.items.splice(idx, 1)
+  saveStash(s)
+  return { ok: true, msg: '出售 ' + it.name + ' +' + it.value + ' 金币' }
+}
+
+// 一键变卖全部战利品（保留医疗包）
+export function sellAllLoot(s) {
+  let total = 0
+  s.items = s.items.filter(it => {
+    if (it.id === 'medkit') return true
+    total += it.value
+    return false
+  })
+  s.coins += total
+  saveStash(s)
+  return { ok: true, msg: '清仓出售 +' + total + ' 金币' }
 }
 
 export function buy(s, kind, id) {
@@ -62,24 +105,37 @@ export function buy(s, kind, id) {
   if (kind === 'weapons' && s.weapons.includes(id)) return { ok: false, msg: '已拥有' }
   if (kind === 'armors' && s.armor === id) return { ok: false, msg: '已装备' }
   if (kind === 'upgrades') {
-    const order = ['bag1', 'bag2', 'bag3']
-    if (order.indexOf(id) <= order.indexOf(['bag1', 'bag2', 'bag3'][s.bagLv]) && s.bagLv > order.indexOf(id)) return { ok: false, msg: '已购买' }
+    const lv = ['bag1', 'bag2', 'bag3'].indexOf(id) + 1
+    if (s.bagLv >= lv) return { ok: false, msg: '已购买' }
   }
   if (s.coins < item.price) return { ok: false, msg: '金币不足' }
   s.coins -= item.price
   if (kind === 'weapons') s.weapons.push(id)
   if (kind === 'armors') s.armor = id
   if (kind === 'upgrades') s.bagLv = Math.max(s.bagLv, ['bag1', 'bag2', 'bag3'].indexOf(id) + 1)
+  if (kind === 'supplies') s.items.push({ id: 'medkit', ...ITEM_DEFS.medkit, kind: 'supply' })
   saveStash(s)
   return { ok: true, msg: '已购买 ' + item.name }
 }
 
-// 背包容量：基础 10 + 每级 +4
+// 仓库中医疗包数量
+export function medkitCount(s) {
+  return s.items.filter(it => it.id === 'medkit').length
+}
+
+// 出击后从仓库移除已携带的医疗包
+export function consumeMedkits(s, n) {
+  let left = n
+  for (let i = s.items.length - 1; i >= 0 && left > 0; i--) {
+    if (s.items[i].id === 'medkit') { s.items.splice(i, 1); left-- }
+  }
+  saveStash(s)
+}
+
 export function bagCapacity(s) {
   return 10 + (s.bagLv || 0) * 4
 }
 
-// 护甲减伤系数
 export function armorMul(s) {
   if (s.armor === 'light') return 0.75
   if (s.armor === 'heavy') return 0.55

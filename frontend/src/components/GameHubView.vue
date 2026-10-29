@@ -348,7 +348,7 @@ const games = [
   },
   {
     id: 'duckov',
-    name: '逃离鹅科夫',
+    name: '撤离协议',
     desc: '搜打撤 · 封锁机房 · 撤离或掉落',
     icon: 'sword',
     badge: 'EXTRACTION',

@@ -65,6 +65,7 @@ export class DuckovGame {
     this.lootValue = 0
     this.hasKey = false
     this.armorMul = cfg.armorMul || 1
+    this.medkits = cfg.medkits || 0
     this.player = {
       x: this.map.playerSpawn.x, y: this.map.playerSpawn.y, r: 12,
       hp: 100, maxHp: 100,
@@ -431,6 +432,23 @@ export class DuckovGame {
     }
   }
 
+  useMedkit() {
+    const p = this.player
+    if (this.medkits <= 0) {
+      this.floats.push({ x: p.x, y: p.y - 30, txt: '没有医疗包！', t: 1, color: '#f87171' })
+      return
+    }
+    if (p.hp >= p.maxHp) {
+      this.floats.push({ x: p.x, y: p.y - 30, txt: '生命值已满', t: 1, color: '#94a3b8' })
+      return
+    }
+    this.medkits--
+    p.hp = Math.min(p.maxHp, p.hp + 50)
+    this.floats.push({ x: p.x, y: p.y - 40, txt: '+50 HP（剩 ' + this.medkits + ' 个）', t: 1.2, color: '#4ade80', big: true })
+    sound.play('levelup')
+    for (let i = 0; i < 8; i++) this.particles.push({ x: p.x, y: p.y, vx: rand(-40, 40), vy: rand(-60, -10), t: 0.5, color: '#4ade80', size: 2.5 })
+  }
+
   hurtPlayer(dmg) {
     const p = this.player
     if (p.invuln > 0 || p.dead) return
@@ -479,6 +497,7 @@ export class DuckovGame {
       exitT: Math.max(0, this.exitT),
       hasKey: this.hasKey,
       stamina: p.stamina,
+      medkits: this.medkits,
       alert: this.alert,
       blackout: this.blackout > 0
     }
