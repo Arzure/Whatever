@@ -2228,12 +2228,14 @@ export class SurvivorGame {
         ctx.stroke()
         ctx.restore()
       }
+      // 身体呼吸脉动
+      const br = 1 + 0.06 * Math.sin(this.time * 6 + e.x * 0.1)
       ctx.rotate(this.time * (e.boss ? 0.5 : 1.5))
       ctx.shadowColor = e.color
       ctx.shadowBlur = e.boss ? 24 : (e.elite ? 16 : 8)
       ctx.strokeStyle = e.color
       ctx.lineWidth = 2
-      drawShape(ctx, e.shape, e.r)
+      drawShape(ctx, e.shape, e.r * br)
       ctx.stroke()
       ctx.fillStyle = e.color + '33'
       ctx.fill()
@@ -2242,6 +2244,50 @@ export class SurvivorGame {
         ctx.shadowBlur = 0
         ctx.fillStyle = 'rgba(255,255,255,0.85)'
         ctx.fill()
+      }
+      ctx.restore()
+      // 怪物之眼：朝向玩家的双眼（不随身体旋转；Boss 独眼怒视）
+      ctx.save()
+      ctx.translate(e.x, e.y)
+      const ea = Math.atan2(p.y - e.y, p.x - e.x)
+      if (e.boss) {
+        ctx.shadowColor = '#fff'
+        ctx.shadowBlur = 10
+        ctx.fillStyle = '#fca5a5'
+        ctx.beginPath(); ctx.arc(0, 0, e.r * 0.3, 0, TAU); ctx.fill()
+        ctx.shadowBlur = 0
+        ctx.fillStyle = '#450a0a'
+        ctx.beginPath(); ctx.arc(Math.cos(ea) * e.r * 0.08, Math.sin(ea) * e.r * 0.08, e.r * 0.14, 0, TAU); ctx.fill()
+      } else {
+        const ex = Math.cos(ea), ey = Math.sin(ea)
+        for (let s = -1; s <= 1; s += 2) {
+          const ox = ex * 2 - ey * s * e.r * 0.34
+          const oy = ey * 2 + ex * s * e.r * 0.34
+          ctx.fillStyle = '#fff'
+          ctx.beginPath(); ctx.arc(ox, oy, e.r * 0.24, 0, TAU); ctx.fill()
+          ctx.fillStyle = '#111'
+          ctx.beginPath(); ctx.arc(ox + ex * e.r * 0.09, oy + ey * e.r * 0.09, e.r * 0.12, 0, TAU); ctx.fill()
+        }
+      }
+      // 类型特征细节
+      if (e.type === 'healer') {
+        ctx.strokeStyle = '#dcfce7'; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.moveTo(0, -4); ctx.lineTo(0, 4); ctx.stroke()
+      } else if (e.type === 'tank') {
+        ctx.fillStyle = '#cbd5e1'
+        for (let s = -1; s <= 1; s += 2) {
+          ctx.beginPath(); ctx.arc(s * e.r * 0.45, 0, 2, 0, TAU); ctx.fill()
+          ctx.beginPath(); ctx.arc(0, s * e.r * 0.45, 2, 0, TAU); ctx.fill()
+        }
+      } else if (e.type === 'bomber') {
+        ctx.fillStyle = '#fde047'
+        ctx.beginPath(); ctx.arc(0, -e.r - 3, 2 + Math.abs(Math.sin(this.time * 12)) * 2, 0, TAU); ctx.fill()
+      } else if (e.type === 'sniper' || e.type === 'kiter') {
+        ctx.strokeStyle = 'rgba(34,211,238,0.35)'
+        ctx.lineWidth = 1
+        ctx.setLineDash([4, 6])
+        ctx.beginPath(); ctx.moveTo(Math.cos(ea) * e.r, Math.sin(ea) * e.r); ctx.lineTo(Math.cos(ea) * 90, Math.sin(ea) * 90); ctx.stroke()
+        ctx.setLineDash([])
       }
       ctx.restore()
       if (e.hp < e.maxHp && !e.boss) {
@@ -2512,6 +2558,39 @@ export class SurvivorGame {
     ctx.arc(p.r + 8, 0, 1.8, 0, TAU)
     ctx.fill()
     ctx.restore()
+    // 护目镜面罩：朝瞄准方向的发光眼缝（不随炮身缩放）
+    ctx.save()
+    ctx.rotate(aimA)
+    ctx.shadowColor = '#67e8f9'
+    ctx.shadowBlur = 8
+    ctx.strokeStyle = '#a5f3fc'
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.arc(0, 0, p.r - 2, -0.5, 0.5)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+    ctx.fillStyle = '#f0fdfa'
+    ctx.beginPath()
+    ctx.arc(p.r * 0.45, 0, 1.6, 0, TAU)
+    ctx.fill()
+    ctx.restore()
+    // 推进器喷焰：移动时尾部喷射粒子尾焰
+    if (this.input.x || this.input.y) {
+      const ma = Math.atan2(this.input.y, this.input.x)
+      ctx.save()
+    ctx.rotate(ma)
+      const fl = 6 + Math.abs(Math.sin(this.time * 30)) * 5
+      ctx.shadowColor = '#22d3ee'
+      ctx.shadowBlur = 10
+      ctx.fillStyle = 'rgba(103,232,249,0.85)'
+      ctx.beginPath()
+      ctx.moveTo(-p.r + 2, -3)
+      ctx.lineTo(-p.r - fl, 0)
+      ctx.lineTo(-p.r + 2, 3)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
     // 副机枪：环绕玩家的自动炮塔
     const tLv = p.weapons.turret || 0
     if (tLv > 0) {
