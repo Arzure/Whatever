@@ -86,7 +86,14 @@ export class DuckovGame {
     let dt = (now - this.lastTs) / 1000
     this.lastTs = now
     if (dt > 0.05) dt = 0.05
-    if (this.state === 'playing') this.update(dt)
+    if (this.state === 'playing') {
+      try {
+        this.update(dt)
+      } catch (err) {
+        console.error('[duckov]', err)
+        this.endRun(false, '内部错误：' + (err && err.message ? err.message : '未知') + '（本局终止，不影响下一局）')
+      }
+    }
     this.render()
   }
 
@@ -319,7 +326,7 @@ export class DuckovGame {
     this.noiseRings = this.noiseRings.filter(n => n.t > 0)
     if (this.shakeT > 0) this.shakeT -= dt
 
-    this.fovPoly = computeFov(this, p.x, p.y, this.blackout > 0 ? 130 : 260)
+    this.fovPoly = computeFov(this, p.x, p.y, this.blackout > 0 ? 150 : 360)
     updateExplored(this)
 
     this.onHud(this.hudData())

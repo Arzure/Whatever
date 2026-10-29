@@ -1,6 +1,6 @@
 // Service Worker：静态资源离线缓存
 // 策略：网络优先 + 失败回退缓存——在线时始终拿最新资源，离线时用缓存打开页面
-const CACHE = 'wanxiang-v2';
+const CACHE = 'wanxiang-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 // 安装：预缓存应用外壳（页面本身 + 清单 + 图标）
