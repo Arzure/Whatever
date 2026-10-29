@@ -82,7 +82,7 @@ export function updateEnemy(game, e, dt) {
     }
     e.lastSeen = { x: p.x, y: p.y }
   } else if (e.state === 'combat' && e.stateT > 3) {
-    e.state = 'search'; e.stateT = 0
+    e.state = 'search'; e.stateT = 0; e.investT = 5
   }
 
   let mvx = 0, mvy = 0
@@ -108,18 +108,27 @@ export function updateEnemy(game, e, dt) {
       e.face = lerpAngle(e.face, Math.atan2(dy, dx), 5 * dt)
     }
     e.investT -= dt
-    if (e.investT <= 0 || dTo < 24) { e.state = 'search'; e.stateT = 0; e.investT = 4 }
+    if (e.investT <= 0 || dTo < 24) { e.state = 'search'; e.stateT = 0; e.investT = 5 }
   } else if (e.state === 'combat') {
-    // 交战：面向玩家，保持射程距离拉扯（远程怪）
+    // 交战：可见时面向玩家拉扯距离；不可见时追最后目击点（不穿墙追玩家本体）
     const aim = Math.atan2(p.y - e.y, p.x - e.x)
-    e.face = lerpAngle(e.face, aim, 8 * dt)
-    const ideal = e.d.range * 0.7
-    if (distP > ideal + 30) { mvx = Math.cos(aim); mvy = Math.sin(aim) }
-    else if (distP < ideal - 40) { mvx = -Math.cos(aim); mvy = -Math.sin(aim) }
-    else {
-      // 横向绕走（拉扯走位）
-      mvx = Math.cos(aim + Math.PI / 2) * (e.x % 2 < 1 ? 1 : -1)
-      mvy = Math.sin(aim + Math.PI / 2) * (e.x % 2 < 1 ? 1 : -1)
+    if (seen) {
+      e.face = lerpAngle(e.face, aim, 8 * dt)
+      const ideal = e.d.range * 0.7
+      if (distP > ideal + 30) { mvx = Math.cos(aim); mvy = Math.sin(aim) }
+      else if (distP < ideal - 40) { mvx = -Math.cos(aim); mvy = -Math.sin(aim) }
+      else {
+        // 横向绕走（拉扯走位）
+        mvx = Math.cos(aim + Math.PI / 2) * (e.x % 2 < 1 ? 1 : -1)
+        mvy = Math.sin(aim + Math.PI / 2) * (e.x % 2 < 1 ? 1 : -1)
+      }
+    } else if (e.lastSeen) {
+      // 丢失视野：前往最后目击点搜索
+      const dx = e.lastSeen.x - e.x, dy = e.lastSeen.y - e.y
+      const d = Math.hypot(dx, dy)
+      e.face = lerpAngle(e.face, Math.atan2(dy, dx), 6 * dt)
+      if (d > 24) { mvx = dx / d; mvy = dy / d; spd *= 1.15 }
+      else { e.state = 'search'; e.stateT = 0; e.investT = 5 }
     }
     // 领地约束：离领地中心太远则回防（Boss 死守）
     if (home && !e.d.boss) {
@@ -129,7 +138,7 @@ export function updateEnemy(game, e, dt) {
         mvx = Math.cos(back); mvy = Math.sin(back)
       }
     }
-    // 射击
+    // 射击（仅可见时）
     e.fireT -= dt
     if (e.fireT <= 0 && seen && distP < e.d.range) {
       e.fireT = e.d.fireCd

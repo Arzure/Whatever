@@ -13,9 +13,9 @@
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
         <div class="hud-bottom">
-          <span>体力</span>
+          <span>体力 {{ Math.round(hud.stamina) }}/100</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3 切枪 · Tab 背包</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3/4 切枪 · Tab 背包</span>
         </div>
       </div>
       <!-- 背包界面（Tab 开关） -->
@@ -43,6 +43,26 @@
           <p>· 随机断电事件：全图黑暗，敌人同样失明——逃跑窗口</p>
         </div>
         <button class="btn" @click="start">进入封锁区</button>
+        <button class="btn shop-btn" @click="shopOpen = !shopOpen">{{ shopOpen ? '关闭仓库' : '仓库 / 商店' }}</button>
+        <div v-if="shopOpen" class="shop-panel">
+          <p class="shop-coins">💰 金币 {{ stash.coins }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次 · 最佳撤离价值 {{ stash.bestValue }}</p>
+          <p class="shop-own">已拥有武器：{{ stash.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }}{{ stash.armor ? ' · 护甲：' + (stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '' }} · 背包容量 {{ 10 + stash.bagLv * 4 }}</p>
+          <div class="shop-grid">
+            <div v-for="it in SHOP.weapons" :key="it.id" class="shop-item">
+              <b>{{ it.name }}</b><em>{{ it.desc }}</em>
+              <button class="buy-btn" :disabled="stash.weapons.includes(it.id) || stash.coins < it.price" @click="doBuy('weapons', it.id)">{{ stash.weapons.includes(it.id) ? '已拥有' : it.price + ' 金币' }}</button>
+            </div>
+            <div v-for="it in SHOP.armors" :key="it.id" class="shop-item">
+              <b>{{ it.name }}</b><em>{{ it.desc }}</em>
+              <button class="buy-btn" :disabled="stash.armor === it.id || stash.coins < it.price" @click="doBuy('armors', it.id)">{{ stash.armor === it.id ? '已装备' : it.price + ' 金币' }}</button>
+            </div>
+            <div v-for="it in SHOP.upgrades" :key="it.id" class="shop-item">
+              <b>{{ it.name }}</b><em>{{ it.desc }}</em>
+              <button class="buy-btn" :disabled="stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 || stash.coins < it.price" @click="doBuy('upgrades', it.id)">{{ stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 ? '已购买' : it.price + ' 金币' }}</button>
+            </div>
+          </div>
+          <p v-if="shopMsg" class="shop-msg">{{ shopMsg }}</p>
+        </div>
       </div>
       <!-- 结算面板 -->
       <div v-else-if="panel === 'end'" class="panel">
@@ -64,6 +84,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
+import { loadStash, saveStash, bankStash, failStash, buy, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -72,6 +93,17 @@ const hud = ref(null);
 const result = ref({});
 const bagOpen = ref(false);
 let game = null;
+
+const stash = ref(loadStash());
+const shopOpen = ref(false);
+const shopMsg = ref('');
+
+function doBuy(kind, id) {
+  const r = buy(stash.value, kind, id);
+  shopMsg.value = r.msg;
+  if (r.ok) sound.play('levelup');
+  stash.value = { ...stash.value };
+}
 
 const bagItems = ref([]);
 
@@ -96,17 +128,26 @@ function fit() {
 function start() {
   panel.value = 'playing';
   hud.value = null;
+  bagOpen.value = false;
+  shopOpen.value = false;
   fit();
   if (game) game.stop();
   game = new DuckovGame(canvasRef.value, {
     onEnd: (r) => {
       result.value = r;
       panel.value = 'end';
+      if (r.win) bankStash(stash.value, r.value);
+      else failStash(stash.value);
+      stash.value = { ...stash.value };
     },
     onHud: (h) => { hud.value = h; }
   });
   game.renderer = render;
-  game.start();
+  game.start({
+    bagSize: bagCapacity(stash.value),
+    armorMul: armorMul(stash.value),
+    weapons: stash.value.weapons
+  });
 }
 
 onMounted(() => {
@@ -175,8 +216,9 @@ function onKeyDown(ev) {
     game.player.stamina -= 25;
   }
   if (k === '1') game.player.weapon = 'pistol';
-  if (k === '2') game.player.weapon = 'smg';
-  if (k === '3') game.player.weapon = 'shotgun';
+  if (k === '2' && game.ownedWeapons.includes('smg')) game.player.weapon = 'smg';
+  if (k === '3' && game.ownedWeapons.includes('shotgun')) game.player.weapon = 'shotgun';
+  if (k === '4' && game.ownedWeapons.includes('railgun')) game.player.weapon = 'railgun';
   if (k === ' ') ev.preventDefault();
 }
 
@@ -219,6 +261,17 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .bi-drop { background: transparent; border: 1px solid #7f1d1d; color: #f87171; font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-family: monospace; }
 .bi-drop:hover { background: #7f1d1d; }
 .bag-tip { margin: 10px 0 0; color: #475569; font-size: 11px; text-align: center; }
+.shop-btn { margin-top: 10px; background: #1e293b; border-color: #64748b; color: #cbd5e1; }
+.shop-panel { margin-top: 16px; max-width: 560px; text-align: left; }
+.shop-coins { color: #fde047; font-size: 13px; margin: 0 0 6px; }
+.shop-own { color: #94a3b8; font-size: 12px; margin: 0 0 12px; }
+.shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.shop-item { border: 1px solid #1e3a5f; border-radius: 8px; padding: 10px; background: rgba(15,23,42,0.6); display: flex; flex-direction: column; gap: 4px; }
+.shop-item b { color: #67e8f9; font-size: 13px; }
+.shop-item em { color: #64748b; font-size: 11px; font-style: normal; flex: 1; }
+.buy-btn { background: #164e63; color: #67e8f9; border: 1px solid #22d3ee; border-radius: 4px; padding: 4px 0; font-size: 12px; cursor: pointer; font-family: monospace; }
+.buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.shop-msg { color: #4ade80; font-size: 12px; margin: 10px 0 0; text-align: center; }
 .panel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(5,7,13,0.92); color: #e2e8f0; font-family: monospace; text-align: center; padding: 20px; }
 .panel h1 { font-size: 42px; margin: 0 0 6px; color: #67e8f9; text-shadow: 0 0 24px rgba(34,211,238,0.5); }
 .panel h1.win { color: #4ade80; }

@@ -196,12 +196,16 @@ export function render(ctx, game) {
       ctx.textAlign = 'center'
       ctx.fillText(e.alertMark, e.x, e.y - e.r - 10)
     }
-    // 血条
+    // 血条（带数值）
     if (e.hp < e.maxHp) {
       ctx.fillStyle = 'rgba(0,0,0,0.5)'
       ctx.fillRect(e.x - e.r, e.y - e.r - 7, e.r * 2, 3)
       ctx.fillStyle = '#f87171'
       ctx.fillRect(e.x - e.r, e.y - e.r - 7, e.r * 2 * (e.hp / e.maxHp), 3)
+      ctx.fillStyle = '#e2e8f0'
+      ctx.font = '9px monospace'
+      ctx.textAlign = 'center'
+      ctx.fillText(Math.ceil(e.hp) + '/' + e.maxHp, e.x, e.y - e.r - 10)
     }
   }
 

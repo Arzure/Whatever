@@ -13,9 +13,10 @@ const rand = (a, b) => a + Math.random() * (b - a)
 
 // 武器定义：手感差异化
 export const WEAPONS = {
-  pistol: { name: '运维手枪', dmg: 16, cd: 0.32, speed: 520, spread: 0.04, mag: Infinity, noise: 180, color: '#67e8f9' },
-  smg: { name: '散热冲锋枪', dmg: 9, cd: 0.11, speed: 560, spread: 0.12, mag: 30, reload: 1.4, noise: 260, color: '#fbbf24' },
-  shotgun: { name: '脉冲霰弹', dmg: 8, pellets: 6, cd: 0.85, speed: 460, spread: 0.34, mag: 6, reload: 1.8, noise: 340, color: '#f472b6' }
+  pistol: { name: '运维手枪', dmg: 24, cd: 0.32, speed: 520, spread: 0.04, mag: Infinity, noise: 180, color: '#67e8f9' },
+  smg: { name: '散热冲锋枪', dmg: 13, cd: 0.11, speed: 560, spread: 0.12, mag: 30, reload: 1.4, noise: 260, color: '#fbbf24' },
+  shotgun: { name: '脉冲霰弹', dmg: 12, pellets: 6, cd: 0.85, speed: 460, spread: 0.34, mag: 6, reload: 1.8, noise: 340, color: '#f472b6' },
+  railgun: { name: '轨道炮', dmg: 90, cd: 1.1, speed: 760, spread: 0, mag: 5, reload: 2.0, noise: 420, color: '#c084fc' }
 }
 
 // 物资定义：价值/体积
@@ -41,7 +42,7 @@ export class DuckovGame {
     this.onHud = cb.onHud || (() => {})
   }
 
-  start() {
+  start(cfg = {}) {
     this.map = generateMap({})
     this.enemies = this.map.spawns.map(s => createEnemy(s, this.map))
     this.bullets = []
@@ -63,17 +64,19 @@ export class DuckovGame {
     this.kills = 0
     this.lootValue = 0
     this.hasKey = false
+    this.armorMul = cfg.armorMul || 1
     this.player = {
       x: this.map.playerSpawn.x, y: this.map.playerSpawn.y, r: 12,
       hp: 100, maxHp: 100,
       speed: 175, face: 0,
       weapon: 'pistol', ammo: {}, reloadT: 0, fireT: 0,
       stamina: 100, dashT: 0, dashCd: 0,
-      bag: [], bagSize: 10,
+      bag: [], bagSize: cfg.bagSize || 10,
       invuln: 0, dead: false
     }
-    for (const id in WEAPONS) {
-      if (WEAPONS[id].mag !== Infinity) this.player.ammo[id] = WEAPONS[id].mag
+    this.ownedWeapons = cfg.weapons || ['pistol']
+    for (const id of this.ownedWeapons) {
+      if (WEAPONS[id] && WEAPONS[id].mag !== Infinity) this.player.ammo[id] = WEAPONS[id].mag
     }
     this.state = 'playing'
     this.lastTs = performance.now()
@@ -301,6 +304,15 @@ export class DuckovGame {
         b.dead = true
         continue
       }
+      // 掩体也阻挡敌方子弹
+      for (const pr of this.map.props) {
+        if (pr.hp <= 0) continue
+        if (b.x > pr.x && b.x < pr.x + pr.w && b.y > pr.y && b.y < pr.y + pr.h) {
+          b.dead = true
+          for (let i = 0; i < 3; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-40, 40), vy: rand(-40, 40), t: 0.15, color: b.color, size: 2 })
+          break
+        }
+      }
       if (!p.dead && Math.hypot(b.x - p.x, b.y - p.y) < p.r + b.r) {
         this.hurtPlayer(b.dmg)
         b.dead = true
@@ -422,12 +434,13 @@ export class DuckovGame {
   hurtPlayer(dmg) {
     const p = this.player
     if (p.invuln > 0 || p.dead) return
-    p.hp -= dmg
+    const real = Math.max(1, Math.round(dmg * (this.armorMul || 1)))
+    p.hp -= real
     p.invuln = 0.35
     this.flash = 0.3
     this.shakeT = 0.15
     sound.play('hurt')
-    this.floats.push({ x: p.x, y: p.y - 26, txt: '-' + dmg, t: 0.7, color: '#f87171' })
+    this.floats.push({ x: p.x, y: p.y - 26, txt: '-' + real, t: 0.7, color: '#f87171' })
     if (p.hp <= 0) {
       p.dead = true
       this.endRun(false, '任务失败——装备与物资掉落在封锁区')
