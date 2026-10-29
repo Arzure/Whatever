@@ -24,7 +24,7 @@
         <h3>背包 <span class="bag-sum">总价值 {{ hud.value }} · 负重 {{ hud.bag }}/{{ hud.bagSize }}</span></h3>
         <p v-if="!bagItems.length" class="bag-empty">空空如也——去搜刮机柜吧</p>
         <div v-for="(it, i) in bagItems" :key="i" class="bag-item">
-          <span class="item-icon" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+          <span class="svg-icon" v-html="iconSvg(it.id)"></span>
           <span class="bi-name">{{ it.name }}</span>
           <span class="bi-val">{{ it.value }}</span>
           <span class="bi-size">体积 {{ it.size }}</span>
@@ -70,7 +70,7 @@
           <p class="modal-sub">💰 {{ stash.coins }} 金币 · 存货 {{ stash.items.length }} 件</p>
           <div class="stash-grid">
             <div v-for="(it, i) in stash.items" :key="i" class="stash-card">
-              <span class="item-icon big" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+              <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b>
               <em>{{ it.value }} 金币</em>
               <button class="sell-btn" @click="doSell(i)">变卖</button>
@@ -88,22 +88,22 @@
           <p class="modal-sub">💰 {{ stash.coins }} 金币</p>
           <div class="shop-grid">
             <div v-for="it in SHOP.weapons" :key="it.id" class="shop-item">
-              <span class="item-icon big" :class="'icon-' + it.id"></span>
+              <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b><em>{{ it.desc }}</em>
               <button class="buy-btn" :disabled="stash.weapons.includes(it.id) || stash.coins < it.price" @click="doBuy('weapons', it.id)">{{ stash.weapons.includes(it.id) ? '已拥有' : it.price + ' 金币' }}</button>
             </div>
             <div v-for="it in SHOP.armors" :key="it.id" class="shop-item">
-              <span class="item-icon big" :class="'icon-' + it.id"></span>
+              <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b><em>{{ it.desc }}</em>
               <button class="buy-btn" :disabled="stash.armor === it.id || stash.coins < it.price" @click="doBuy('armors', it.id)">{{ stash.armor === it.id ? '已装备' : it.price + ' 金币' }}</button>
             </div>
             <div v-for="it in SHOP.upgrades" :key="it.id" class="shop-item">
-              <span class="item-icon big icon-bag"></span>
+              <span class="svg-icon" v-html="iconSvg('bag')"></span>
               <b>{{ it.name }}</b><em>{{ it.desc }}</em>
               <button class="buy-btn" :disabled="stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 || stash.coins < it.price" @click="doBuy('upgrades', it.id)">{{ stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 ? '已购买' : it.price + ' 金币' }}</button>
             </div>
             <div v-for="it in SHOP.supplies" :key="it.id" class="shop-item">
-              <span class="item-icon big icon-medkit"></span>
+              <span class="svg-icon" v-html="iconSvg('medkit')"></span>
               <b>{{ it.name }}</b><em>{{ it.desc }}</em>
               <button class="buy-btn" :disabled="stash.coins < it.price" @click="doBuy('supplies', it.id)">{{ it.price }} 金币</button>
             </div>
@@ -115,54 +115,48 @@
       <div v-if="modal === 'loadout'" class="modal-mask" @click.self="modal = null">
         <div class="modal modal-wide">
           <h2>出击配置 <button class="modal-x" @click="modal = null">✕</button></h2>
-          <p class="modal-sub">点击勾选武器/护甲 · 拖拽道具到出击栏 · 默认携带运维手枪</p>
           <div class="loadout-cols">
             <!-- 左：仓库 -->
             <div class="loadout-col">
-              <p class="loadout-sec">仓库物品（拖拽到右侧携带）</p>
+              <p class="loadout-sec">仓库</p>
               <div class="loadout-drop" @dragover.prevent @drop="onDropFromStash($event)">
                 <div v-for="(it, i) in stash.items" :key="'st' + i" class="loadout-card" :class="{ supply: it.kind === 'supply' || it.usable }" :draggable="it.kind === 'supply' || it.usable" @dragstart="onDragStash($event, i)">
-                  <span class="item-icon big" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+                  <span class="svg-icon" v-html="iconSvg(it.id)"></span>
                   <b>{{ it.name }}</b>
-                  <em>{{ (it.kind === 'supply' || it.usable) ? '可携带' : '战利品' }}</em>
                 </div>
                 <p v-if="!stash.items.length" class="bag-empty">仓库空空如也</p>
               </div>
             </div>
             <!-- 右：出击配置 -->
             <div class="loadout-col">
-              <p class="loadout-sec">武器（点击勾选）</p>
+              <p class="loadout-sec">武器</p>
               <div class="loadout-grid">
                 <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" @click="toggleLoadoutWeapon(w)">
-                  <span class="item-icon big" :class="'icon-' + w"></span>
+                  <span class="svg-icon" v-html="iconSvg(w)"></span>
                   <b>{{ WEAPONS[w] ? WEAPONS[w].name : w }}</b>
-                  <em>{{ w === 'pistol' ? '默认必带' : (stash.loadout.weapons.includes(w) ? '已携带' : '点击携带') }}</em>
                 </div>
               </div>
-              <p class="loadout-sec">护甲（点击穿戴）</p>
+              <p class="loadout-sec">护甲</p>
               <div class="loadout-grid">
                 <div class="loadout-card" :class="{ on: !stash.loadout.armor }" @click="stash.loadout.armor = null; saveStash(stash)">
-                  <span class="item-icon big icon-none"></span>
-                  <b>无护甲</b><em>{{ stash.loadout.armor ? '点击卸下' : '当前' }}</em>
+                  <span class="svg-icon" v-html="iconSvg('none')"></span>
+                  <b>无护甲</b>
                 </div>
                 <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
-                  <span class="item-icon big" :class="'icon-' + stash.armor"></span>
+                  <span class="svg-icon" v-html="iconSvg(stash.armor)"></span>
                   <b>{{ stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲' }}</b>
-                  <em>{{ stash.loadout.armor === stash.armor ? '已穿戴' : '点击穿戴' }}</em>
                 </div>
               </div>
-              <p class="loadout-sec">携带道具（拖入 / 拖回仓库）</p>
+              <p class="loadout-sec">携带道具</p>
               <div class="loadout-drop target" @dragover.prevent @drop="onDropToLoadout($event)">
                 <div v-for="(it, i) in stash.loadout.items" :key="'lo' + i" class="loadout-card on" draggable="true" @dragstart="onDragLoadout($event, i)">
-                  <span class="item-icon big" :class="'icon-' + it.id" :style="{ '--ic': it.color }"></span>
+                  <span class="svg-icon" v-html="iconSvg(it.id)"></span>
                   <b>{{ it.name }}</b>
-                  <em>拖回仓库</em>
                 </div>
-                <p v-if="!stash.loadout.items.length" class="bag-empty">拖拽道具到这里携带出击</p>
+                <p v-if="!stash.loadout.items.length" class="bag-empty">将道具拖到这里</p>
               </div>
             </div>
           </div>
-          <p class="modal-sub">背包容量 {{ 10 + stash.bagLv * 4 }} · 携带武器 {{ stash.loadout.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }} · 携带道具 {{ stash.loadout.items.length }} 件</p>
         </div>
       </div>
     </div>
@@ -235,6 +229,26 @@ function onDropFromStash(ev) {
   stash.value = { ...stash.value };
 }
 const bagItems = ref([]);
+
+// —— 手绘 SVG 物品图标（48x48 矢量绘制，禁用 emoji）——
+function iconSvg(id) {
+  const S = {
+    pistol: '<rect x="6" y="18" width="26" height="7" rx="1.5" fill="#67e8f9"/><rect x="10" y="25" width="8" height="12" rx="2" fill="#22d3ee"/><rect x="30" y="20" width="12" height="4" rx="1" fill="#a5f3fc"/><circle cx="9" cy="21.5" r="1.6" fill="#0e7490"/>',
+    smg: '<rect x="4" y="18" width="30" height="6" rx="1.5" fill="#fbbf24"/><rect x="12" y="24" width="6" height="14" rx="1.5" fill="#f59e0b"/><rect x="22" y="24" width="5" height="9" rx="1.5" fill="#d97706"/><rect x="34" y="19.5" width="10" height="3" rx="1" fill="#fde68a"/><rect x="8" y="15" width="10" height="3" rx="1" fill="#b45309"/>',
+    shotgun: '<rect x="4" y="20" width="40" height="5" rx="1.5" fill="#f472b6"/><rect x="14" y="25" width="14" height="5" rx="2" fill="#be185d"/><rect x="6" y="25" width="8" height="10" rx="2" fill="#9d174d"/><rect x="38" y="25" width="6" height="4" rx="1" fill="#fbcfe8"/>',
+    railgun: '<rect x="4" y="21" width="40" height="6" rx="2" fill="#c084fc"/><rect x="10" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="18" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="26" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="34" y="23" width="10" height="2.5" rx="1" fill="#f5f3ff"/><rect x="6" y="27" width="7" height="9" rx="2" fill="#7e22ce"/>',
+    light: '<path d="M24 6 L38 12 V26 C38 34 31 40 24 42 C17 40 10 34 10 26 V12 Z" fill="#334155" stroke="#94a3b8" stroke-width="2"/><path d="M24 14 L30 17 V26 C30 31 27 34 24 36 C21 34 18 31 18 26 V17 Z" fill="#cbd5e1"/>',
+    heavy: '<path d="M24 4 L40 11 V27 C40 37 32 42 24 44 C16 42 8 37 8 27 V11 Z" fill="#1e293b" stroke="#e2e8f0" stroke-width="2.5"/><rect x="18" y="16" width="12" height="16" rx="2" fill="#e2e8f0"/><rect x="21" y="20" width="6" height="8" rx="1" fill="#0f172a"/>',
+    bag: '<rect x="10" y="14" width="28" height="28" rx="5" fill="#422006" stroke="#fbbf24" stroke-width="2"/><rect x="18" y="7" width="12" height="9" rx="4" fill="none" stroke="#fbbf24" stroke-width="2"/><rect x="19" y="24" width="10" height="10" rx="2" fill="#fbbf24"/>',
+    ram: '<rect x="8" y="12" width="32" height="20" rx="2" fill="#14532d" stroke="#22c55e" stroke-width="2"/><rect x="13" y="17" width="7" height="5" fill="#22c55e"/><rect x="23" y="17" width="7" height="5" fill="#22c55e"/><rect x="13" y="25" width="7" height="3" fill="#86efac"/><rect x="23" y="25" width="7" height="3" fill="#86efac"/><rect x="10" y="32" width="28" height="4" fill="#fde047"/>',
+    disk: '<circle cx="24" cy="24" r="17" fill="#94a3b8" stroke="#e2e8f0" stroke-width="2"/><circle cx="24" cy="24" r="10" fill="#cbd5e1"/><circle cx="24" cy="24" r="4" fill="#0f172a"/><rect x="23" y="6" width="2" height="9" fill="#64748b"/>',
+    gpu: '<rect x="4" y="12" width="40" height="22" rx="3" fill="#052e16" stroke="#22c55e" stroke-width="2"/><circle cx="16" cy="23" r="7" fill="#166534" stroke="#4ade80" stroke-width="2"/><circle cx="32" cy="23" r="7" fill="#166534" stroke="#4ade80" stroke-width="2"/><rect x="8" y="34" width="32" height="4" fill="#fde047"/><rect x="38" y="16" width="4" height="14" fill="#86efac"/>',
+    core: '<path d="M24 4 L40 18 L34 42 L14 42 L8 18 Z" fill="#fde047" stroke="#facc15" stroke-width="2"/><path d="M24 12 L33 21 L29 36 L19 36 L15 21 Z" fill="#fef9c3"/><circle cx="24" cy="24" r="4" fill="#fffbeb"/>',
+    medkit: '<rect x="6" y="12" width="36" height="28" rx="4" fill="#1c0a0a" stroke="#f87171" stroke-width="2"/><rect x="20" y="8" width="8" height="6" rx="2" fill="#f87171"/><rect x="21.5" y="18" width="5" height="16" fill="#f87171"/><rect x="16" y="23.5" width="16" height="5" fill="#f87171"/>',
+    none: '<path d="M24 6 L38 12 V26 C38 34 31 40 24 42 C17 40 10 34 10 26 V12 Z" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="4 3"/>'
+  };
+  return '<svg viewBox="0 0 48 48" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">' + (S[id] || S.ram) + '</svg>';
+}
 
 function doBuy(kind, id) {
   const r = buy(stash.value, kind, id);
@@ -445,6 +459,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 /* 出击配置 */
 .loadout-cols { display: flex; gap: 14px; }
 .loadout-col { flex: 1; min-width: 0; }
+.loadout-card .svg-icon { width: 44px; height: 44px; display: block; filter: drop-shadow(0 0 6px rgba(34,211,238,0.25)); }
 .loadout-drop { min-height: 90px; border: 1.5px dashed #1e3a5f; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
 .loadout-drop.target { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
 .loadout-card.supply { cursor: grab; }
