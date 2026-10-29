@@ -124,10 +124,7 @@ export function generateMap(opts = {}) {
     addWall(r.x + r.w, r.y, T, r.h)
   }
   for (const c of map.corridors) {
-    addWall(c.x - T, c.y - T, c.w + T * 2, T)
-    addWall(c.x - T, c.y + c.h, c.w + T * 2, T)
-    addWall(c.x - T, c.y, T, c.h)
-    addWall(c.x + c.w, c.y, T, c.h)
+    // 走廊不生成自身墙体：开放通道（避免走廊墙横穿房间困死出生点）
   }
   // 门洞挖空：在墙上开 100 宽的口（相交墙切分为残段）
   const carve = (dx, dy, dw, dh) => {
