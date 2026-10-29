@@ -43,10 +43,12 @@ export function loadStash() {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null')
     if (s) {
       if (!Array.isArray(s.items)) s.items = []
+      if (!s.loadout) s.loadout = { weapons: ['pistol'], armor: null, medkits: 0 }
+      if (!Array.isArray(s.loadout.weapons) || !s.loadout.weapons.length) s.loadout.weapons = ['pistol']
       return s
     }
   } catch (e) { /* 忽略 */ }
-  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0 }
+  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0, loadout: { weapons: ['pistol'], armor: null, medkits: 0 } }
 }
 
 export function saveStash(s) {
@@ -74,21 +76,22 @@ export function failStash(s) {
   saveStash(s)
 }
 
-// 变卖单件物资
+// 变卖单件物资（仅战利品类；武器/防具/道具等可用物品不可变卖）
 export function sellItem(s, idx) {
   const it = s.items[idx]
   if (!it) return { ok: false, msg: '无效物资' }
+  if (it.kind === 'supply' || it.usable) return { ok: false, msg: it.name + '是可用道具，不可变卖' }
   s.coins += it.value
   s.items.splice(idx, 1)
   saveStash(s)
   return { ok: true, msg: '出售 ' + it.name + ' +' + it.value + ' 金币' }
 }
 
-// 一键变卖全部战利品（保留医疗包）
+// 一键变卖全部战利品（保留可用道具）
 export function sellAllLoot(s) {
   let total = 0
   s.items = s.items.filter(it => {
-    if (it.id === 'medkit') return true
+    if (it.kind === 'supply' || it.usable) return true
     total += it.value
     return false
   })

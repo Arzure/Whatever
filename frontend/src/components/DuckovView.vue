@@ -48,7 +48,7 @@
           <button class="btn btn2" @click="modal = 'shop'">商店</button>
           <button class="btn btn2" @click="modal = 'loadout'">出击配置</button>
         </div>
-        <p class="ready-info">💰 {{ stash.coins }} 金币 · 仓库 {{ stash.items.length }} 件 · 携带医疗包 {{ loadoutMedkits }}/{{ medkitCount(stash) }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次</p>
+        <p class="ready-info">💰 {{ stash.coins }} 金币 · 仓库 {{ stash.items.length }} 件 · 携带医疗包 {{ stash.loadout.medkits }}/{{ medkitCount(stash) }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次</p>
       </div>
       <!-- 结算面板 -->
       <div v-else-if="panel === 'end'" class="panel">
@@ -115,7 +115,28 @@
       <div v-if="modal === 'loadout'" class="modal-mask" @click.self="modal = null">
         <div class="modal">
           <h2>出击配置 <button class="modal-x" @click="modal = null">✕</button></h2>
-          <p class="modal-sub">从仓库携带消耗品进入封锁区</p>
+          <p class="modal-sub">选择带入封锁区的装备（默认携带运维手枪）</p>
+          <p class="loadout-sec">武器（可多选）</p>
+          <div class="loadout-grid">
+            <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" @click="toggleLoadoutWeapon(w)">
+              <span class="item-icon big" :class="'icon-' + w"></span>
+              <b>{{ WEAPONS[w] ? WEAPONS[w].name : w }}</b>
+              <em>{{ w === 'pistol' ? '默认必带' : (stash.loadout.weapons.includes(w) ? '已携带' : '点击携带') }}</em>
+            </div>
+          </div>
+          <p class="loadout-sec">护甲（单选）</p>
+          <div class="loadout-grid">
+            <div class="loadout-card" :class="{ on: !stash.loadout.armor }" @click="stash.loadout.armor = null; saveStash(stash)">
+              <span class="item-icon big icon-none"></span>
+              <b>无护甲</b><em>{{ stash.loadout.armor ? '点击卸下' : '当前' }}</em>
+            </div>
+            <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
+              <span class="item-icon big" :class="'icon-' + stash.armor"></span>
+              <b>{{ stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲' }}</b>
+              <em>{{ stash.loadout.armor === stash.armor ? '已穿戴' : '点击穿戴' }}</em>
+            </div>
+          </div>
+          <p class="loadout-sec">道具</p>
           <div class="loadout-row">
             <span class="item-icon big icon-medkit"></span>
             <div class="loadout-info">
@@ -123,12 +144,12 @@
               <em>局内按 H 恢复 50 HP · 仓库存量 {{ medkitCount(stash) }}</em>
             </div>
             <div class="loadout-ctrl">
-              <button class="buy-btn" @click="loadoutMedkits = Math.max(0, loadoutMedkits - 1)">−</button>
-              <span class="loadout-num">{{ loadoutMedkits }}</span>
-              <button class="buy-btn" @click="loadoutMedkits = Math.min(medkitCount(stash), loadoutMedkits + 1)">＋</button>
+              <button class="buy-btn" @click="setLoadoutMedkits(stash.loadout.medkits - 1)">−</button>
+              <span class="loadout-num">{{ stash.loadout.medkits }}</span>
+              <button class="buy-btn" @click="setLoadoutMedkits(stash.loadout.medkits + 1)">＋</button>
             </div>
           </div>
-          <p class="modal-sub">已购武器（全部随身携带）：{{ stash.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }}{{ stash.armor ? ' · 护甲：' + (stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '' }} · 背包容量 {{ 10 + stash.bagLv * 4 }}</p>
+          <p class="modal-sub">背包容量 {{ 10 + stash.bagLv * 4 }} · 携带武器 {{ stash.loadout.weapons.map(w => WEAPONS[w] ? WEAPONS[w].name : w).join(' / ') }}</p>
         </div>
       </div>
     </div>
@@ -140,7 +161,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
-import { loadStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -153,7 +174,22 @@ let game = null;
 const stash = ref(loadStash());
 const modal = ref(null);
 const msg = ref('');
-const loadoutMedkits = ref(0);
+
+function toggleLoadoutWeapon(w) {
+  if (w === 'pistol') return; // 默认武器必带
+  const arr = stash.value.loadout.weapons;
+  const i = arr.indexOf(w);
+  if (i >= 0) arr.splice(i, 1);
+  else arr.push(w);
+  saveStash(stash.value);
+  stash.value = { ...stash.value };
+}
+
+function setLoadoutMedkits(n) {
+  stash.value.loadout.medkits = Math.max(0, Math.min(medkitCount(stash.value), n));
+  saveStash(stash.value);
+  stash.value = { ...stash.value };
+}
 const bagItems = ref([]);
 
 function doBuy(kind, id) {
@@ -196,7 +232,8 @@ function fit() {
 }
 
 function start() {
-  const takeMedkits = Math.min(loadoutMedkits.value, medkitCount(stash.value));
+  const lo = stash.value.loadout;
+  const takeMedkits = Math.min(lo.medkits || 0, medkitCount(stash.value));
   consumeMedkits(stash.value, takeMedkits);
   stash.value = { ...stash.value };
   panel.value = 'playing';
@@ -218,8 +255,8 @@ function start() {
   game.renderer = render;
   game.start({
     bagSize: bagCapacity(stash.value),
-    armorMul: armorMul(stash.value),
-    weapons: stash.value.weapons,
+    armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
+    weapons: lo.weapons.length ? lo.weapons : ['pistol'],
     medkits: takeMedkits
   });
 }
