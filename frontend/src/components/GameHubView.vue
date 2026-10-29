@@ -170,6 +170,22 @@
               <span class="gp-svplayer"></span>
             </span>
           </template>
+          <!-- 逃离鹅科夫：封锁机房平面图 + 撤离光柱 + 巡逻视野锥 + 潜行玩家 -->
+          <template v-else-if="g.id === 'duckov'">
+            <span class="gp-dkfloor"></span>
+            <span class="gp-dkroom gp-dkr1"></span>
+            <span class="gp-dkroom gp-dkr2"></span>
+            <span class="gp-dkroom gp-dkr3"></span>
+            <span class="gp-dkexit"></span>
+            <span class="gp-dkcone gp-dkc1"></span>
+            <span class="gp-dkcone gp-dkc2"></span>
+            <span class="gp-dkfoe gp-dkf1"></span>
+            <span class="gp-dkfoe gp-dkf2"></span>
+            <span class="gp-dkloot gp-dkl1"></span>
+            <span class="gp-dkloot gp-dkl2"></span>
+            <span class="gp-dkplayer"></span>
+            <span class="gp-dkscan"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -1606,6 +1622,119 @@ function onCardLeave(e) {
   border-left: 7px solid #e0f2fe;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
+}
+/* —— 逃离鹅科夫预览：封锁机房平面图 + 撤离光柱 + 视野锥 + 巡逻敌人 + 物资 + 潜行玩家 —— */
+.gp-dkfloor {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(rgba(34,211,238,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-color: #060a12;
+}
+.gp-dkroom {
+  position: absolute;
+  border: 1.5px solid rgba(103,232,249,0.4);
+  background: rgba(15,40,60,0.35);
+  box-shadow: inset 0 0 18px rgba(34,211,238,0.08);
+}
+.gp-dkr1 { left: 8%; top: 10%; width: 34%; height: 38%; }
+.gp-dkr2 { right: 10%; top: 8%; width: 38%; height: 30%; }
+.gp-dkr3 { left: 16%; bottom: 10%; width: 40%; height: 34%; }
+.gp-dkexit {
+  position: absolute;
+  right: 8%; bottom: 12%;
+  width: 26px; height: 26px;
+  border: 2px dashed #4ade80;
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(74,222,128,0.6);
+  animation: gp-dk-pulse 1.6s ease-in-out infinite;
+}
+.gp-dkexit::after {
+  content: 'EXIT';
+  position: absolute;
+  top: -16px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #4ade80;
+  font-family: monospace;
+}
+@keyframes gp-dk-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(74,222,128,0.4); }
+  50% { box-shadow: 0 0 22px rgba(74,222,128,0.9); }
+}
+.gp-dkcone {
+  position: absolute;
+  width: 0; height: 0;
+  border-left: 22px solid transparent;
+  border-right: 22px solid transparent;
+  border-bottom: 40px solid rgba(245,158,11,0.16);
+  transform-origin: 50% 100%;
+  z-index: 1;
+}
+.gp-dkc1 { left: 30%; top: 34%; animation: gp-dk-sweep 4s ease-in-out infinite; }
+.gp-dkc2 { left: 62%; top: 60%; animation: gp-dk-sweep 4s ease-in-out infinite reverse; animation-delay: -2s; }
+@keyframes gp-dk-sweep {
+  0%, 100% { transform: rotate(-30deg); }
+  50% { transform: rotate(30deg); }
+}
+.gp-dkfoe {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245,158,11,0.8);
+  z-index: 2;
+}
+.gp-dkf1 { left: 30%; top: 34%; animation: gp-dk-patrol1 5s ease-in-out infinite; }
+.gp-dkf2 { left: 62%; top: 60%; animation: gp-dk-patrol2 6s ease-in-out infinite; }
+@keyframes gp-dk-patrol1 {
+  0%, 100% { left: 30%; top: 34%; }
+  50% { left: 44%; top: 22%; }
+}
+@keyframes gp-dk-patrol2 {
+  0%, 100% { left: 62%; top: 60%; }
+  50% { left: 50%; top: 72%; }
+}
+.gp-dkloot {
+  position: absolute;
+  width: 8px; height: 6px;
+  background: #fde047;
+  box-shadow: 0 0 10px rgba(253,224,71,0.9);
+  z-index: 2;
+  animation: gp-dk-glint 2s ease-in-out infinite;
+}
+.gp-dkl1 { left: 20%; top: 24%; }
+.gp-dkl2 { left: 70%; top: 40%; animation-delay: -1s; }
+@keyframes gp-dk-glint {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.gp-dkplayer {
+  position: absolute;
+  left: 46%; top: 52%;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 12px #22d3ee, 0 0 24px rgba(34,211,238,0.5);
+  z-index: 3;
+  animation: gp-dk-sneak 6s ease-in-out infinite;
+}
+@keyframes gp-dk-sneak {
+  0%, 100% { left: 46%; top: 52%; }
+  30% { left: 38%; top: 44%; }
+  60% { left: 56%; top: 38%; }
+  80% { left: 70%; top: 50%; }
+}
+.gp-dkscan {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(103,232,249,0.07) 48%, rgba(103,232,249,0.16) 50%, transparent 52%);
+  animation: gp-dk-scan 3.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes gp-dk-scan {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100%); }
 }
 .gp-svorb {
   position: absolute;

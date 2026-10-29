@@ -100,14 +100,15 @@ export function updateEnemy(game, e, dt) {
     }
   } else if (e.state === 'alert') {
     // 前往噪音点调查
+    let dTo = Infinity
     if (e.lastSeen) {
       const dx = e.lastSeen.x - e.x, dy = e.lastSeen.y - e.y
-      const d = Math.hypot(dx, dy)
-      if (d > 20) { mvx = dx / d; mvy = dy / d; spd *= 1.3 }
+      dTo = Math.hypot(dx, dy)
+      if (dTo > 20) { mvx = dx / dTo; mvy = dy / dTo; spd *= 1.3 }
       e.face = lerpAngle(e.face, Math.atan2(dy, dx), 5 * dt)
     }
     e.investT -= dt
-    if (e.investT <= 0 || (d < 24)) { e.state = 'search'; e.stateT = 0; e.investT = 4 }
+    if (e.investT <= 0 || dTo < 24) { e.state = 'search'; e.stateT = 0; e.investT = 4 }
   } else if (e.state === 'combat') {
     // 交战：面向玩家，保持射程距离拉扯（远程怪）
     const aim = Math.atan2(p.y - e.y, p.x - e.x)
