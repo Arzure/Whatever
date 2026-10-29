@@ -22,6 +22,7 @@ const GorescriptView = defineAsyncComponent(() => import('./components/Gorescrip
 const ServersurvivalView = defineAsyncComponent(() => import('./components/ServersurvivalView.vue'));
 const CrossyroadView = defineAsyncComponent(() => import('./components/CrossyroadView.vue'));
 const SurvivorView = defineAsyncComponent(() => import('./components/SurvivorView.vue'));
+const DuckovView = defineAsyncComponent(() => import('./components/DuckovView.vue'));
 const BilliardsView = defineAsyncComponent(() => import('./components/BilliardsView.vue'));
 const JumpView = defineAsyncComponent(() => import('./components/JumpView.vue'));
 const BloodwaveView = defineAsyncComponent(() => import('./components/BloodwaveView.vue'));
@@ -182,6 +183,7 @@ function backUp() {
           <ServersurvivalView v-else-if="game.state.view === 'serversurvival'" />
           <CrossyroadView v-else-if="game.state.view === 'crossyroad'" />
           <SurvivorView v-else-if="game.state.view === 'survivor'" />
+          <DuckovView v-else-if="game.state.view === 'duckov'" />
           <BilliardsView v-else-if="game.state.view === 'billiards'" />
           <JumpView v-else-if="game.state.view === 'jump'" />
           <BloodwaveView v-else-if="game.state.view === 'bloodwave'" />

@@ -27,6 +27,7 @@ const routes = [
   { path: '/serversurvival', name: 'serversurvival' },
   { path: '/crossyroad', name: 'crossyroad' },
   { path: '/survivor', name: 'survivor' },
+  { path: '/duckov', name: 'duckov' },
   { path: '/billiards', name: 'billiards' },
   { path: '/jump', name: 'jump' },
   { path: '/bloodwave', name: 'bloodwave' },

@@ -330,6 +330,13 @@ const games = [
     icon: 'sword',
     badge: 'ROGUELITE',
   },
+  {
+    id: 'duckov',
+    name: '逃离鹅科夫',
+    desc: '搜打撤 · 封锁机房 · 撤离或掉落',
+    icon: 'sword',
+    badge: 'EXTRACTION',
+  },
 ];
 
 // —— 魔方预览：3x3x3 立方体，三层各自独立旋转，周期性展开/收拢 ——
