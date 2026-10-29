@@ -15,8 +15,21 @@
         <div class="hud-bottom">
           <span>体力</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3 切枪</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3 切枪 · Tab 背包</span>
         </div>
+      </div>
+      <!-- 背包界面（Tab 开关） -->
+      <div v-if="panel === 'playing' && bagOpen && hud" class="bag-panel">
+        <h3>背包 <span class="bag-sum">总价值 {{ hud.value }} · 负重 {{ hud.bag }}/{{ hud.bagSize }}</span></h3>
+        <p v-if="!bagItems.length" class="bag-empty">空空如也——去搜刮机柜吧</p>
+        <div v-for="(it, i) in bagItems" :key="i" class="bag-item">
+          <span class="bi-dot" :style="{ background: it.color }"></span>
+          <span class="bi-name">{{ it.name }}</span>
+          <span class="bi-val">价值 {{ it.value }}</span>
+          <span class="bi-size">体积 {{ it.size }}</span>
+          <button class="bi-drop" @click="dropItem(i)">丢弃</button>
+        </div>
+        <p class="bag-tip">Tab 关闭 · 丢弃低价值物品可提升移速</p>
       </div>
       <!-- 开始面板 -->
       <div v-if="panel === 'ready'" class="panel">
@@ -57,7 +70,20 @@ const stageRef = ref(null);
 const panel = ref('ready');
 const hud = ref(null);
 const result = ref({});
+const bagOpen = ref(false);
 let game = null;
+
+const bagItems = ref([]);
+
+function dropItem(i) {
+  if (!game || !game.player) return;
+  const it = game.player.bag[i];
+  if (!it) return;
+  game.player.bag.splice(i, 1);
+  game.lootValue -= it.value;
+  game.floats.push({ x: game.player.x, y: game.player.y - 40, txt: '丢弃 ' + it.name, t: 1, color: '#94a3b8' });
+  bagItems.value = [...game.player.bag];
+}
 
 function fit() {
   const c = canvasRef.value;
@@ -133,6 +159,14 @@ function onCtx(ev) { ev.preventDefault(); }
 
 function onKeyDown(ev) {
   const k = ev.key.toLowerCase();
+  if (k === 'tab') {
+    ev.preventDefault();
+    if (panel.value === 'playing') {
+      bagOpen.value = !bagOpen.value;
+      if (bagOpen.value && game) bagItems.value = [...game.player.bag];
+    }
+    return;
+  }
   if (!game || game.state !== 'playing') return;
   game.keys[k] = true;
   if (k === 'shift' && game.player.stamina > 25 && game.player.dashCd <= 0) {
@@ -173,6 +207,18 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .stamina-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .stamina-fill { height: 100%; background: #22d3ee; transition: width 0.1s; }
 .tip { margin-left: auto; color: #475569; }
+.bag-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 380px; max-height: 70vh; overflow-y: auto; background: rgba(8,12,20,0.96); border: 1px solid #1e3a5f; border-radius: 10px; padding: 16px 18px; font-family: monospace; color: #e2e8f0; pointer-events: auto; box-shadow: 0 0 30px rgba(34,211,238,0.15); }
+.bag-panel h3 { margin: 0 0 12px; color: #67e8f9; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+.bag-sum { font-size: 12px; color: #fde047; font-weight: normal; }
+.bag-empty { color: #64748b; font-size: 13px; text-align: center; padding: 20px 0; }
+.bag-item { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid rgba(30,58,95,0.5); font-size: 13px; }
+.bi-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
+.bi-name { flex: 1; }
+.bi-val { color: #fde047; font-size: 12px; }
+.bi-size { color: #94a3b8; font-size: 12px; }
+.bi-drop { background: transparent; border: 1px solid #7f1d1d; color: #f87171; font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-family: monospace; }
+.bi-drop:hover { background: #7f1d1d; }
+.bag-tip { margin: 10px 0 0; color: #475569; font-size: 11px; text-align: center; }
 .panel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(5,7,13,0.92); color: #e2e8f0; font-family: monospace; text-align: center; padding: 20px; }
 .panel h1 { font-size: 42px; margin: 0 0 6px; color: #67e8f9; text-shadow: 0 0 24px rgba(34,211,238,0.5); }
 .panel h1.win { color: #4ade80; }

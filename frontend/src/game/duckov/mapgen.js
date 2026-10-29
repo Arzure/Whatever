@@ -139,10 +139,25 @@ export function generateMap(opts = {}) {
       }
     }
   }
-  for (const r of map.rooms) {
-    for (const d of r.doors) {
-      if (d.dir === 'h') carve(d.x - 50, d.y - 55, 100, 110)
-      else carve(d.x - 55, d.y - 50, 110, 100)
+  // 门洞挖空：走廊矩形与每面房间墙条的相交处开门（修复原门位计算错误导致房间被封死）
+  for (const c of map.corridors) {
+    for (const r of map.rooms) {
+      const strips = [
+        { x: r.x - T, y: r.y - T, w: r.w + T * 2, h: T, horiz: true },
+        { x: r.x - T, y: r.y + r.h, w: r.w + T * 2, h: T, horiz: true },
+        { x: r.x - T, y: r.y, w: T, h: r.h, horiz: false },
+        { x: r.x + r.w, y: r.y, w: T, h: r.h, horiz: false }
+      ]
+      for (const s of strips) {
+        const ox = Math.max(c.x, s.x), oy = Math.max(c.y, s.y)
+        const ox2 = Math.min(c.x + c.w, s.x + s.w), oy2 = Math.min(c.y + c.h, s.y + s.h)
+        if (ox2 - ox <= 6 || oy2 - oy <= 6) continue
+        // 平行擦边保护：切向长度超 120 时截断为中心 120 段，避免整面墙被掀开
+        let cx0 = ox, cy0 = oy, cw = ox2 - ox, ch = oy2 - oy
+        if (s.horiz && cw > 120) { cx0 = (ox + ox2) / 2 - 60; cw = 120 }
+        if (!s.horiz && ch > 120) { cy0 = (oy + oy2) / 2 - 60; ch = 120 }
+        carve(cx0, cy0, cw, ch)
+      }
     }
   }
   map.walls = wallRects

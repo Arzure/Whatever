@@ -138,20 +138,19 @@ export function render(ctx, game) {
   // ---- 敌人 ----
   for (const e of game.enemies) {
     if (e.dead) continue
-    // 视野锥（半透明扇形）
-    ctx.save()
-    ctx.translate(e.x, e.y)
-    const seen = game.fovPoly && inFov(game, e.x, e.y)
-    if (seen) {
-      ctx.globalAlpha = 0.1
+    // 仅当敌人本身在玩家视野内才绘制（视野锥不穿墙显示）
+    if (game.fovPoly && inFov(game, e.x, e.y)) {
+      ctx.save()
+      ctx.translate(e.x, e.y)
+      ctx.globalAlpha = 0.08
+      ctx.fillStyle = e.state === 'combat' ? '#ef4444' : (e.state === 'patrol' ? '#f59e0b' : '#fbbf24')
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.arc(0, 0, e.d.sight, e.face - e.d.fov, e.face + e.d.fov)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
     }
-    ctx.fillStyle = e.state === 'combat' ? '#ef4444' : (e.state === 'patrol' ? '#f59e0b' : '#fbbf24')
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.arc(0, 0, e.d.sight, e.face - e.d.fov, e.face + e.d.fov)
-    ctx.closePath()
-    ctx.fill()
-    ctx.restore()
     // 身体
     ctx.save()
     ctx.translate(e.x, e.y)
