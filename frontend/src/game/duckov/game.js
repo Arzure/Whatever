@@ -320,9 +320,16 @@ export class DuckovGame {
           break
         }
       }
-      if (!p.dead && Math.hypot(b.x - p.x, b.y - p.y) < p.r + b.r) {
-        this.hurtPlayer(b.dmg)
-        b.dead = true
+      if (!p.dead) {
+        // 扫掠碰撞（线段-圆）：防止低帧率下高速子弹隧穿玩家导致不扣血
+        const bx0 = b.x - b.vx * dt, by0 = b.y - b.vy * dt
+        const sx = b.x - bx0, sy = b.y - by0
+        const tt = Math.max(0, Math.min(1, ((p.x - bx0) * sx + (p.y - by0) * sy) / (sx * sx + sy * sy || 1)))
+        const cx = bx0 + sx * tt, cy = by0 + sy * tt
+        if (Math.hypot(cx - p.x, cy - p.y) < p.r + b.r) {
+          this.hurtPlayer(b.dmg)
+          b.dead = true
+        }
       }
     }
     this.ebullets = this.ebullets.filter(b => !b.dead)
@@ -373,20 +380,21 @@ export class DuckovGame {
       this.openT += dt
       if (this.openT >= 1.2) {
         this.openT = 0
-        near.opened = true
         const keys = Object.keys(LOOTS).filter(k => LOOTS[k].tier <= near.tier)
         const id = keys[Math.min(keys.length - 1, near.tier >= 3 ? 3 : (Math.random() * keys.length) | 0)]
         const l = LOOTS[id]
         const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
         if (load + l.size > p.bagSize) {
-          this.floats.push({ x: p.x, y: p.y - 40, txt: '背包已满！', t: 1.2, color: '#f87171', big: true })
+          // 背包满：不消耗搜刮点，物资保留原地
+          this.floats.push({ x: p.x, y: p.y - 40, txt: '背包已满！先丢弃低价值物品', t: 1.2, color: '#f87171', big: true })
         } else {
+          near.opened = true
           p.bag.push({ id, name: l.name, value: l.value, size: l.size, color: l.color })
           this.lootValue += l.value
           this.floats.push({ x: p.x, y: p.y - 40, txt: '获得 ' + l.name + '（价值 ' + l.value + '）', t: 1.2, color: l.color, big: true })
           sound.play('pickup')
+          makeNoise(this, p.x, p.y, 150)
         }
-        makeNoise(this, p.x, p.y, 150)
       }
     } else {
       this.openT = 0
