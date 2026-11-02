@@ -135,12 +135,22 @@
           <!-- 整机合成台（紧凑版：进度条 + 悬浮明细） -->
           <div class="synth-sec">
             <p class="loadout-sec">🖥️ 整机合成台 <i class="sb-note">同档 8 件 · CPU/主板平台一致 · 合成价 = 散件总价 × 档位倍率</i></p>
-            <div v-for="row in synthRows" :key="row.tier" class="synth-row" :class="{ ready: row.ready }" :title="synthTip(row)">
-              <b class="synth-tier">{{ row.name }}</b>
-              <span class="synth-bar"><i :style="{ width: (row.got / 8 * 100) + '%' }"></i></span>
-              <span class="synth-num" :class="{ full: row.ready }">{{ row.got }}/8</span>
-              <em v-if="row.have.mb > 0 && !row.mbOk" class="synth-warn">平台不符</em>
-              <button class="buy-btn" :disabled="!row.ready" @click="doSynth">{{ row.ready ? '合成 ×' + PC_MULT[row.tier] : '缺件' }}</button>
+            <div v-for="row in synthRows" :key="row.tier" class="synth-block">
+              <div class="synth-row" :class="{ ready: row.ready, open: synthOpen === row.tier }" @click="toggleSynth(row.tier)">
+                <b class="synth-tier">{{ row.name }}</b>
+                <span class="synth-bar"><i :style="{ width: (row.got / 8 * 100) + '%' }"></i></span>
+                <span class="synth-num" :class="{ full: row.ready }">{{ row.got }}/8</span>
+                <em v-if="row.have.mb > 0 && !row.mbOk" class="synth-warn">平台不符</em>
+                <button v-if="row.ready" class="buy-btn" @click.stop="doSynth">合成 ×{{ PC_MULT[row.tier] }}</button>
+                <button v-else class="buy-btn synth-detail-btn" @click.stop="toggleSynth(row.tier)">缺件 ▾</button>
+              </div>
+              <div v-if="synthOpen === row.tier" class="synth-detail">
+                <span v-for="(n, c) in row.have" :key="c" class="synth-cell" :class="{ ok: n > 0 }">
+                  <i>{{ n > 0 ? '✓' : '✗' }}</i>{{ PART_CATS[c] }}<em v-if="n > 0">×{{ n }}</em><em v-else>缺</em>
+                </span>
+                <p v-if="row.have.mb > 0 && !row.mbOk" class="synth-detail-warn">⚠ CPU 与主板平台不一致：AMD CPU 需配 AMD 主板，Intel CPU 需配 Intel 主板</p>
+                <p class="synth-detail-tip">至尊件仅 Boss 掉落 · 搜刮点按档位加权掉落</p>
+              </div>
             </div>
           </div>
           <button class="btn btn2" @click="doSellAll">一键变卖全部战利品</button>
@@ -595,8 +605,10 @@ function doSellAll() {
 
 const synthRows = computed(() => synthPreview(stash.value));
 
-function synthTip(row) {
-  return Object.keys(PART_CATS).map(c => PART_CATS[c] + '×' + (row.have[c] || 0)).join(' · ') + (row.have.mb > 0 && !row.mbOk ? ' · ⚠ CPU 与主板平台不一致' : '');
+const synthOpen = ref(-1);
+
+function toggleSynth(tier) {
+  synthOpen.value = synthOpen.value === tier ? -1 : tier;
 }
 
 function doSynth() {
@@ -937,6 +949,16 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .synth-num.full { color: #4ade80; font-weight: 600; }
 .synth-warn { color: #f59e0b; font-size: 11px; font-style: normal; }
 .synth-row .buy-btn { padding: 3px 10px; font-size: 11px; flex-shrink: 0; }
+.synth-row { cursor: pointer; }
+.synth-row.open { border-color: #22d3ee; }
+.synth-detail-btn { background: #1e293b; color: #94a3b8; border-color: #475569; }
+.synth-detail { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 8px; margin: -1px 0 5px; border: 1px dashed #1e3a5f; border-top: none; border-radius: 0 0 6px 6px; background: rgba(8,12,20,0.6); }
+.synth-cell { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #64748b; border: 1px solid #334155; border-radius: 4px; padding: 2px 7px; }
+.synth-cell.ok { color: #4ade80; border-color: rgba(74,222,128,0.4); }
+.synth-cell i { font-style: normal; font-size: 10px; }
+.synth-cell em { font-style: normal; font-size: 10px; color: #94a3b8; }
+.synth-detail-warn { width: 100%; margin: 2px 0 0; color: #f59e0b; font-size: 11px; }
+.synth-detail-tip { width: 100%; margin: 2px 0 0; color: #475569; font-size: 10px; }
 /* 局内背包格子化 */
 .bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
 .bag-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; background: rgba(15,23,42,0.9); border: 1px solid rgba(103,232,249,0.25); border-radius: 6px; }
