@@ -25,17 +25,17 @@ export const SHOP = {
     { id: 'smg', name: '散热冲锋枪', desc: '高射速 · 30 发弹匣', price: 300 },
     { id: 'laser', name: '相位激光枪', desc: '高精度速射 · 24 发能量匣', price: 650 },
     { id: 'shotgun', name: '脉冲霰弹', desc: '近距离爆发 · 6 发弹匣', price: 500 },
-    { id: 'rocket', name: '火箭发射器', desc: '范围爆炸 80 伤害 · 3 发弹匣', price: 1200 },
-    { id: 'railgun', name: '轨道炮', desc: '单发 90 伤害 · 慢速重炮', price: 1500 }
+    { id: 'rocket', name: '火箭发射器', desc: '范围爆炸 80 伤害 · 3 发弹匣', price: 1400 },
+    { id: 'railgun', name: '轨道炮', desc: '单发 90 伤害 · 慢速重炮', price: 1800 }
   ],
   armors: [
     { id: 'light', name: '轻量防火板', desc: '受到伤害 -25%', price: 250 },
-    { id: 'heavy', name: '重型机柜装甲', desc: '受到伤害 -45%', price: 700 }
+    { id: 'heavy', name: '重型机柜装甲', desc: '受到伤害 -45%', price: 850 }
   ],
   upgrades: [
     { id: 'bag1', name: '扩容背包 I', desc: '背包容量 +4', price: 200 },
     { id: 'bag2', name: '扩容背包 II', desc: '背包容量 +4', price: 450 },
-    { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 800 }
+    { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 950 }
   ],
   supplies: [
     { id: 'medkit', name: '纳米医疗包', desc: '局内按 H 恢复 50 HP', price: 80 },

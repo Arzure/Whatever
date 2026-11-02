@@ -9,7 +9,9 @@ export const ENEMY_KINDS = {
   elite: { name: '精英守卫', hp: 220, dmg: 18, speed: 62, r: 17, color: '#a855f7', range: 240, fireCd: 0.9, bullet: 320, melee: false, sight: 320, fov: 1.4, elite: true },
   boss: { name: '防火墙核心', hp: 1400, dmg: 26, speed: 46, r: 30, color: '#dc2626', range: 300, fireCd: 1.1, bullet: 300, melee: false, sight: 400, fov: Math.PI, boss: true },
   drone: { name: '侦察无人机', hp: 26, dmg: 6, speed: 105, r: 9, color: '#38bdf8', range: 170, fireCd: 0.7, bullet: 210, melee: false, sight: 340, fov: 1.6, drone: true },
-  sniper: { name: '狙击进程', hp: 55, dmg: 34, speed: 48, r: 12, color: '#f43f5e', range: 420, fireCd: 2.4, bullet: 520, melee: false, sight: 460, fov: 0.7, sniper: true }
+  sniper: { name: '狙击进程', hp: 55, dmg: 34, speed: 48, r: 12, color: '#f43f5e', range: 420, fireCd: 2.4, bullet: 520, melee: false, sight: 460, fov: 0.7, sniper: true },
+  rusher: { name: '狂暴进程', hp: 60, dmg: 16, speed: 128, r: 11, color: '#fb7185', range: 30, fireCd: 0.8, bullet: 0, melee: true, sight: 320, fov: 1.5, rusher: true },
+  bomber: { name: '自爆程序', hp: 34, dmg: 45, speed: 92, r: 12, color: '#f97316', range: 34, fireCd: 1, bullet: 0, melee: false, sight: 300, fov: 1.6, bomber: true }
 }
 
 const TAU = Math.PI * 2
@@ -120,7 +122,41 @@ export function updateEnemy(game, e, dt) {
   } else if (e.state === 'combat') {
     // 交战：可见时面向玩家拉扯距离；不可见时追最后目击点（不穿墙追玩家本体）
     const aim = Math.atan2(p.y - e.y, p.x - e.x)
-    if (seen) {
+    if (e.d.rusher) {
+      // 狂暴进程：直线扑向玩家近战撕咬
+      if (seen) {
+        e.face = lerpAngle(e.face, aim, 10 * dt)
+        if (distP > e.r + p.r + 2) { mvx = Math.cos(aim); mvy = Math.sin(aim); spd *= 1.25 }
+        else {
+          e.fireT -= dt
+          if (e.fireT <= 0) {
+            e.fireT = e.d.fireCd
+            game.hurtPlayer(e.d.dmg)
+          }
+        }
+      } else if (e.lastSeen) {
+        const dx = e.lastSeen.x - e.x, dy = e.lastSeen.y - e.y
+        const d = Math.hypot(dx, dy)
+        if (d > 24) { mvx = dx / d; mvy = dy / d; spd *= 1.15 }
+        else { e.state = 'search'; e.stateT = 0; e.investT = 5 }
+      }
+    } else if (e.d.bomber) {
+      // 自爆程序：加速冲向玩家，贴近自爆
+      if (seen) {
+        e.face = lerpAngle(e.face, aim, 10 * dt)
+        mvx = Math.cos(aim); mvy = Math.sin(aim)
+        spd *= 1.3
+        if (distP < e.d.range + p.r) {
+          game.bomberExplode(e)
+          return
+        }
+      } else if (e.lastSeen) {
+        const dx = e.lastSeen.x - e.x, dy = e.lastSeen.y - e.y
+        const d = Math.hypot(dx, dy)
+        if (d > 24) { mvx = dx / d; mvy = dy / d; spd *= 1.15 }
+        else { e.state = 'search'; e.stateT = 0; e.investT = 5 }
+      }
+    } else if (seen) {
       e.face = lerpAngle(e.face, aim, 8 * dt)
       const ideal = e.d.range * 0.7
       if (distP > ideal + 30) { mvx = Math.cos(aim); mvy = Math.sin(aim) }

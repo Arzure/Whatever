@@ -24,7 +24,12 @@ export const WEAPONS = {
 // 物资定义：价值/体积
 export const LOOTS = {
   ram: { name: '内存条', value: 40, size: 1, color: '#22d3ee', tier: 0 },
+  fan: { name: '散热风扇', value: 25, size: 1, color: '#94a3b8', tier: 0 },
   disk: { name: '机械硬盘', value: 80, size: 2, color: '#94a3b8', tier: 1 },
+  chip: { name: '超频芯片', value: 130, size: 1, color: '#f472b6', tier: 1 },
+  battery: { name: '过载电池', value: 160, size: 2, color: '#a3e635', tier: 1, effect: 'stim' },
+  psu: { name: '钛金电源', value: 260, size: 3, color: '#fb923c', tier: 2 },
+  encrypted: { name: '加密硬盘', value: 380, size: 2, color: '#60a5fa', tier: 2 },
   gpu: { name: 'GPU 显卡', value: 220, size: 3, color: '#4ade80', tier: 2 },
   core: { name: '量子核心', value: 500, size: 4, color: '#fde047', tier: 3 }
 }
@@ -207,6 +212,20 @@ export class DuckovGame {
     const loadMul = 1 - Math.min(0.3, load / p.bagSize * 0.3)
     const room = roomAt(this.map, p.x, p.y)
     const coolMul = room && room.type === 'cooling' ? 0.7 : 1
+    // 辐射室：持续掉血，高价值物资的风险代价
+    if (room && room.type === 'radiation') {
+      p.hp -= 2.5 * dt
+      this.radWarnT = (this.radWarnT || 0) - dt
+      if (this.radWarnT <= 0) {
+        this.radWarnT = 1.5
+        this.floats.push({ x: p.x, y: p.y - 30, txt: '辐射伤害中！尽快离开', t: 1, color: '#fb923c' })
+      }
+      if (p.hp <= 0 && !p.dead) {
+        p.dead = true
+        this.endRun(false, '倒在辐射室——装备与物资掉落在封锁区')
+        return
+      }
+    }
     let spd = p.speed * loadMul * coolMul
     if (p.stimT > 0) {
       p.stimT -= dt
@@ -406,6 +425,18 @@ export class DuckovGame {
     }
   }
 
+  bomberExplode(e) {
+    e.hp = 0
+    this.killEnemy(e)
+    this.shakeT = 0.25
+    this.floats.push({ x: e.x, y: e.y - 20, txt: '自爆！', t: 1, color: '#f97316', big: true })
+    for (let i = 0; i < 20; i++) this.particles.push({ x: e.x, y: e.y, vx: rand(-160, 160), vy: rand(-160, 160), t: 0.5, color: '#f97316', size: 3.5 })
+    makeNoise(this, e.x, e.y, 300)
+    const p = this.player
+    const d = Math.hypot(p.x - e.x, p.y - e.y)
+    if (d < 90) this.hurtPlayer(Math.max(10, Math.round(e.d.dmg * (1 - 0.5 * d / 90))))
+  }
+
   updateInteract(dt) {
     const p = this.player
     let near = null
@@ -421,8 +452,8 @@ export class DuckovGame {
       this.openT += dt
       if (this.openT >= 1.2) {
         this.openT = 0
-        const keys = Object.keys(LOOTS).filter(k => LOOTS[k].tier <= near.tier)
-        const id = keys[Math.min(keys.length - 1, near.tier >= 3 ? 3 : (Math.random() * keys.length) | 0)]
+        const pool = Object.keys(LOOTS).filter(k => LOOTS[k].tier <= near.tier && LOOTS[k].tier >= near.tier - 1)
+        const id = pool[(Math.random() * pool.length) | 0]
         const l = LOOTS[id]
         const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
         if (load + l.size > p.bagSize) {
@@ -433,6 +464,10 @@ export class DuckovGame {
           p.bag.push({ id, name: l.name, value: l.value, size: l.size, color: l.color })
           this.lootValue += l.value
           this.floats.push({ x: p.x, y: p.y - 40, txt: '获得 ' + l.name + '（价值 ' + l.value + '）', t: 1.2, color: l.color, big: true })
+          if (l.effect === 'stim') {
+            p.stimT = Math.max(p.stimT, 3)
+            this.floats.push({ x: p.x, y: p.y - 60, txt: '过载电池生效：移速提升 3 秒！', t: 1.2, color: '#a3e635', big: true })
+          }
           sound.play('pickup')
           makeNoise(this, p.x, p.y, 150)
         }

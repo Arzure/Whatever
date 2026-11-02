@@ -10,6 +10,8 @@ export const ROOM_TYPES = {
   power: { name: '配电室', value: 2, enemies: 3, color: '#713f12' },
   cooling: { name: '冷却室', value: 2, enemies: 2, color: '#155e75', slow: 0.7 },
   archive: { name: '档案室', value: 1, enemies: 1, color: '#3f3f46' },
+  radiation: { name: '辐射室', value: 3, enemies: 2, color: '#7c2d12', radiation: true },
+  armory: { name: '军械库', value: 2, enemies: 3, color: '#1e3a5f', armory: true },
   vault: { name: '金库', value: 3, enemies: 4, color: '#4c1d95', vault: true },
   exit: { name: '撤离室', value: 0, enemies: 0, color: '#14532d', exit: true }
 }
@@ -41,12 +43,18 @@ export function generateMap(opts = {}) {
     if (used.has(key)) continue
     if (placed > 0 && ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(d => used.has((s.gx + d[0]) + ',' + (s.gy + d[1])))) continue
     used.add(key)
-    const w = rand(300, 440), h = rand(260, 380)
+    // 房间形状多样化：普通/大房间/小房间/圆形房间
+    const shapeRoll = Math.random()
+    let w, h, shape = 'rect'
+    if (shapeRoll < 0.18) { w = rand(380, 460); h = rand(360, 440); shape = 'big' }
+    else if (shapeRoll < 0.36) { w = rand(220, 280); h = rand(200, 260); shape = 'small' }
+    else if (shapeRoll < 0.5) { w = rand(320, 400); h = rand(320, 400); shape = 'round' }
+    else { w = rand(300, 440); h = rand(260, 380) }
     map.rooms.push({
       id: placed, gx: s.gx, gy: s.gy,
       x: s.gx * CELL + PAD, y: s.gy * CELL + PAD, w, h,
       cx: s.gx * CELL + PAD + w / 2, cy: s.gy * CELL + PAD + h / 2,
-      doors: [], type: 'server'
+      doors: [], type: 'server', shape
     })
     placed++
   }
@@ -63,7 +71,7 @@ export function generateMap(opts = {}) {
   vaultRoom.type = 'vault'
   for (const r of map.rooms) {
     if (r.type !== 'archive' && r.type !== 'exit' && r.type !== 'vault') {
-      r.type = ['server', 'server', 'power', 'cooling'][randi(0, 3)]
+      r.type = ['server', 'server', 'power', 'cooling', 'radiation', 'armory'][randi(0, 5)]
     }
   }
 
@@ -165,14 +173,30 @@ export function generateMap(opts = {}) {
   // ---- 5. 房间内掩体 + 物资点 + 敌人 ----
   for (const r of map.rooms) {
     const t = ROOM_TYPES[r.type]
-    const nCover = randi(2, 4)
+    // 内部陈设按房间类型差异化
+    let nCover = randi(2, 4)
+    let coverKind = 'mixed'
+    if (r.type === 'armory') { nCover = randi(4, 6); coverKind = 'crate' }
+    else if (r.type === 'radiation') { nCover = randi(1, 2); coverKind = 'barrel' }
+    else if (r.type === 'vault') { nCover = randi(3, 5); coverKind = 'metal' }
+    else if (r.type === 'archive') { nCover = randi(3, 5); coverKind = 'wood' }
+    else if (r.type === 'server') { nCover = randi(3, 5); coverKind = 'rack' }
     for (let i = 0; i < nCover; i++) {
       const horiz = Math.random() < 0.5
-      const kind = Math.random() < 0.65 ? 'metal' : 'wood'
+      let kind
+      if (coverKind === 'mixed') kind = Math.random() < 0.65 ? 'metal' : 'wood'
+      else if (coverKind === 'crate') kind = 'crate'
+      else if (coverKind === 'barrel') kind = 'barrel'
+      else if (coverKind === 'rack') kind = 'rack'
+      else kind = coverKind
+      const isBarrel = kind === 'barrel'
+      const isCrate = kind === 'crate'
+      const isRack = kind === 'rack'
       map.props.push({
         x: rand(r.x + 50, r.x + r.w - 50), y: rand(r.y + 50, r.y + r.h - 50),
-        w: horiz ? rand(60, 110) : rand(28, 40), h: horiz ? rand(28, 40) : rand(60, 110),
-        kind, hp: kind === 'wood' ? 60 : Infinity, room: r.id
+        w: isBarrel ? rand(26, 34) : (isCrate ? rand(44, 60) : (isRack ? (horiz ? rand(70, 120) : rand(30, 42)) : (horiz ? rand(60, 110) : rand(28, 40)))),
+        h: isBarrel ? rand(26, 34) : (isCrate ? rand(44, 60) : (isRack ? (horiz ? rand(30, 42) : rand(70, 120)) : (horiz ? rand(28, 40) : rand(60, 110)))),
+        kind, hp: (kind === 'wood' || kind === 'crate' || kind === 'barrel') ? 60 : Infinity, room: r.id
       })
     }
     if (!t.exit) {
@@ -187,7 +211,7 @@ export function generateMap(opts = {}) {
     }
     if (t.enemies > 0) {
       for (let i = 0; i < t.enemies; i++) {
-        const kinds = r.type === 'vault' ? ['guard', 'guard', 'elite', 'sniper'] : r.type === 'power' ? ['guard', 'patrol', 'sniper'] : r.type === 'cooling' ? ['patrol', 'drone'] : ['patrol', 'patrol', 'guard', 'drone']
+        const kinds = r.type === 'vault' ? ['guard', 'guard', 'elite', 'sniper'] : r.type === 'power' ? ['guard', 'patrol', 'sniper'] : r.type === 'cooling' ? ['patrol', 'drone'] : r.type === 'radiation' ? ['bomber', 'bomber', 'rusher'] : r.type === 'armory' ? ['guard', 'rusher', 'sniper'] : ['patrol', 'patrol', 'guard', 'drone', 'rusher', 'bomber']
         map.spawns.push({
           x: rand(r.x + 40, r.x + r.w - 40), y: rand(r.y + 40, r.y + r.h - 40),
           room: r.id, kind: kinds[i % kinds.length]

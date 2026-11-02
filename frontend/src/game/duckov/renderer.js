@@ -49,6 +49,23 @@ export function render(ctx, game) {
       ctx.fillStyle = 'rgba(34,211,238,0.06)'
       ctx.fillRect(r.x, r.y, r.w, r.h)
     }
+    // 辐射室：橙色警示脉冲
+    if (r.type === 'radiation') {
+      const pulse = 0.5 + 0.5 * Math.sin(game.time * 2)
+      ctx.fillStyle = 'rgba(234,88,12,' + (0.05 + pulse * 0.06).toFixed(3) + ')'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.strokeStyle = 'rgba(251,146,60,0.5)'
+      ctx.lineWidth = 2
+      ctx.setLineDash([10, 8])
+      ctx.strokeRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8)
+      ctx.setLineDash([])
+    }
+    // 军械库：蓝色描边
+    if (r.type === 'armory') {
+      ctx.strokeStyle = 'rgba(96,165,250,0.35)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6)
+    }
     // 房间名（已探索才显示）
     if (r.explored) {
       ctx.fillStyle = 'rgba(103,232,249,0.35)'
@@ -105,12 +122,27 @@ export function render(ctx, game) {
     ctx.restore()
   }
 
-  // ---- 掩体 ----
+  // ---- 掩体（按类型差异化：金属/木箱/弹药箱/油桶/机架）----
   for (const pr of game.map.props) {
     if (pr.hp <= 0) continue
-    ctx.fillStyle = pr.kind === 'metal' ? '#334155' : '#78350f'
+    if (pr.kind === 'barrel') {
+      // 辐射油桶：圆形+警示纹
+      const cx = pr.x + pr.w / 2, cy = pr.y + pr.h / 2, rr = Math.min(pr.w, pr.h) / 2
+      ctx.fillStyle = '#431407'
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.fill()
+      ctx.strokeStyle = '#ea580c'
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(251,146,60,0.7)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.arc(cx, cy, rr * 0.55, 0, TAU); ctx.stroke()
+      continue
+    }
+    const fills = { metal: '#334155', wood: '#78350f', crate: '#1e3a5f', rack: '#0f172a' }
+    const strokes = { metal: '#64748b', wood: '#b45309', crate: '#60a5fa', rack: '#22d3ee' }
+    ctx.fillStyle = fills[pr.kind] || '#334155'
     ctx.fillRect(pr.x, pr.y, pr.w, pr.h)
-    ctx.strokeStyle = pr.kind === 'metal' ? '#64748b' : '#b45309'
+    ctx.strokeStyle = strokes[pr.kind] || '#64748b'
     ctx.lineWidth = 1.5
     ctx.strokeRect(pr.x, pr.y, pr.w, pr.h)
     if (pr.kind === 'metal') {
@@ -118,6 +150,20 @@ export function render(ctx, game) {
       for (let i = 1; i < 3; i++) {
         const fx = pr.x + pr.w * i / 3
         ctx.fillRect(fx - 1, pr.y + 3, 2, pr.h - 6)
+      }
+    } else if (pr.kind === 'crate') {
+      // 弹药箱：对角加固条
+      ctx.strokeStyle = 'rgba(96,165,250,0.5)'
+      ctx.beginPath()
+      ctx.moveTo(pr.x + 3, pr.y + 3); ctx.lineTo(pr.x + pr.w - 3, pr.y + pr.h - 3)
+      ctx.moveTo(pr.x + pr.w - 3, pr.y + 3); ctx.lineTo(pr.x + 3, pr.y + pr.h - 3)
+      ctx.stroke()
+    } else if (pr.kind === 'rack') {
+      // 服务器机架：发光指示灯
+      ctx.fillStyle = 'rgba(34,211,238,0.5)'
+      for (let i = 0; i < 4; i++) {
+        const on = ((game.time * 3 + i + pr.x) | 0) % 2 === 0
+        if (on) ctx.fillRect(pr.x + 4, pr.y + 4 + i * (pr.h - 8) / 4, 3, 3)
       }
     }
   }
@@ -169,7 +215,21 @@ export function render(ctx, game) {
     ctx.lineWidth = 2
     ctx.fillStyle = e.d.color + '33'
     ctx.beginPath()
-    if (e.d.boss) {
+    if (e.d.rusher) {
+      // 狂暴进程：尖锐三角刺造型
+      for (let i = 0; i < 3; i++) {
+        const a = i / 3 * TAU + e.face
+        const a1 = a + 0.5, a2 = a - 0.5
+        ctx.moveTo(Math.cos(a) * e.r * 1.4, Math.sin(a) * e.r * 1.4)
+        ctx.lineTo(Math.cos(a1) * e.r * 0.5, Math.sin(a1) * e.r * 0.5)
+        ctx.lineTo(Math.cos(a2) * e.r * 0.5, Math.sin(a2) * e.r * 0.5)
+        ctx.closePath()
+      }
+    } else if (e.d.bomber) {
+      // 自爆程序：闪烁的圆形炸弹体
+      const pulse = 0.5 + 0.5 * Math.sin(game.time * 8)
+      ctx.arc(0, 0, e.r * (1 + pulse * 0.15), 0, TAU)
+    } else if (e.d.boss) {
       for (let i = 0; i < 8; i++) {
         const a = i / 8 * TAU + game.time * 0.5
         const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r
