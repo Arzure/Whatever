@@ -58,18 +58,66 @@ class SoundKit {
   play(name) {
     if (!this.sfxOn) return
     const now = performance.now()
-    const min = THROTTLE[name] || 0
+    const base = name.split('_')[0].replace(/[0-9]+$/, '')
+    const min = THROTTLE[name] || THROTTLE[base] || 0
     if (min && now - (this.lastT[name] || 0) < min) return
     this.lastT[name] = now
     switch (name) {
       case 'shoot':
         this.beep(880, 0.06, 'square', 0.025, 440)
         break
+      // 武器差异化射击音
+      case 'shoot_pistol':
+        this.beep(760, 0.05, 'square', 0.03, 380)
+        break
+      case 'shoot_smg':
+        this.beep(980, 0.04, 'square', 0.022, 520)
+        break
+      case 'shoot_shotgun':
+        this.beep(240, 0.12, 'sawtooth', 0.05, 70)
+        break
+      case 'shoot_railgun':
+        this.beep(1400, 0.16, 'sawtooth', 0.045, 180)
+        break
+      case 'shoot_laser':
+        this.beep(1600, 0.05, 'sine', 0.03, 1200)
+        break
+      case 'shoot_rocket':
+        this.beep(180, 0.2, 'sawtooth', 0.055, 60)
+        break
       case 'hit':
         this.beep(220, 0.05, 'sawtooth', 0.035, 110)
         break
       case 'pickup':
         this.beep(1320, 0.07, 'square', 0.045, 1760)
+        break
+      // 配件拾取音：档位越高越华丽
+      case 'pickup0':
+        this.beep(880, 0.06, 'square', 0.035, 990)
+        break
+      case 'pickup1':
+        this.beep(990, 0.06, 'square', 0.04, 1100)
+        setTimeout(() => this.beep(1320, 0.07, 'square', 0.04), 70)
+        break
+      case 'pickup2':
+        this.beep(880, 0.07, 'square', 0.045, 1100)
+        setTimeout(() => this.beep(1320, 0.07, 'square', 0.045), 80)
+        setTimeout(() => this.beep(1760, 0.1, 'square', 0.045), 170)
+        break
+      case 'pickup3':
+        // 至尊件：华丽琶音
+        this.beep(660, 0.09, 'square', 0.05)
+        setTimeout(() => this.beep(880, 0.09, 'square', 0.05), 90)
+        setTimeout(() => this.beep(1100, 0.09, 'square', 0.05), 180)
+        setTimeout(() => this.beep(1320, 0.09, 'square', 0.05), 270)
+        setTimeout(() => this.beep(1760, 0.22, 'square', 0.05), 360)
+        break
+      case 'bossrage':
+        // Boss 狂暴警报：双音警报循环
+        this.beep(880, 0.16, 'sawtooth', 0.07, 660)
+        setTimeout(() => this.beep(660, 0.16, 'sawtooth', 0.07, 880), 180)
+        setTimeout(() => this.beep(880, 0.16, 'sawtooth', 0.07, 660), 380)
+        setTimeout(() => this.beep(660, 0.24, 'sawtooth', 0.07, 440), 560)
         break
       case 'levelup':
         this.beep(660, 0.1, 'square', 0.06)

@@ -114,6 +114,7 @@ export class DuckovGame {
     this.openTarget = null
     this.shakeT = 0
     this.flash = 0
+    this.flashGold = 0
     this.blackout = 0
     this.blackoutT = rand(50, 80)
     this.alert = 0
@@ -240,6 +241,7 @@ export class DuckovGame {
     this.time += dt
     this.exitT -= dt
     if (this.flash > 0) this.flash -= dt
+    if (this.flashGold > 0) this.flashGold -= dt
     if (p.invuln > 0) p.invuln -= dt
 
     this.blackoutT -= dt
@@ -328,7 +330,7 @@ export class DuckovGame {
           const a = p.face + rand(-w.spread, w.spread)
           this.bullets.push({ x: p.x + Math.cos(p.face) * 16, y: p.y + Math.sin(p.face) * 16, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, r: 3, dmg: w.dmg, life: 1.2, color: w.color, aoe: w.aoe || 0 })
         }
-        sound.play('shoot')
+        sound.play('shoot_' + p.weapon)
         makeNoise(this, p.x, p.y, w.noise)
         this.shakeT = 0.08
       }
@@ -562,7 +564,15 @@ export class DuckovGame {
           p.bag.push({ id: l.id, name: l.name, value: l.value, size: l.size, color: l.color, cat: l.cat, tier: l.tier, platform: l.platform || null })
           this.lootValue += l.value
           this.floats.push({ x: p.x, y: p.y - 40, txt: '获得 ' + l.name + '（价值 ' + l.value + '）', t: 1.2, color: l.color, big: true })
-          sound.play('pickup')
+          // 档位差异化拾取音：高端/至尊件触发全屏金光特效
+          sound.play('pickup' + l.tier)
+          if (l.tier >= 2) {
+            this.flashGold = l.tier === 3 ? 1.0 : 0.6
+            for (let i = 0; i < (l.tier === 3 ? 26 : 14); i++) {
+              this.particles.push({ x: p.x, y: p.y, vx: rand(-120, 120), vy: rand(-160, -30), t: rand(0.5, 0.9), color: l.tier === 3 ? '#fde047' : '#fbbf24', size: rand(2, 4) })
+            }
+            if (l.tier === 3) this.floats.push({ x: p.x, y: p.y - 62, txt: '✦ 至尊配件！✦', t: 1.8, color: '#fde047', big: true })
+          }
           makeNoise(this, p.x, p.y, 150)
         }
       }

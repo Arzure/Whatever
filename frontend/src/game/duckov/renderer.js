@@ -504,6 +504,18 @@ export function render(ctx, game) {
     ctx.fillRect(0, 0, W, H)
   }
 
+  // ---- 高端/至尊配件拾取：全屏金光特效 ----
+  if (game.flashGold > 0) {
+    const k = Math.min(1, game.flashGold)
+    const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.7)
+    grad.addColorStop(0, 'rgba(253,224,71,0)')
+    grad.addColorStop(1, 'rgba(253,224,71,' + (0.35 * k).toFixed(3) + ')')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = 'rgba(253,224,71,' + (0.1 * k).toFixed(3) + ')'
+    ctx.fillRect(0, 0, W, H)
+  }
+
   // ---- 受击红闪 ----
   if (game.flash > 0) {
     ctx.fillStyle = 'rgba(239,68,68,' + (Math.min(0.5, game.flash) * 0.6).toFixed(3) + ')'

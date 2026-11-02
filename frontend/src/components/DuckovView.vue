@@ -52,7 +52,12 @@
       </div>
       <!-- 局内背包 -->
       <div v-if="panel === 'playing' && bagOpen && hud" class="bag-panel">
-        <h3>背包 <span class="bag-sum">总价值 {{ hud.value }} · 负重 {{ hud.bag }}/{{ hud.bagSize }}</span></h3>
+        <h3>背包 <span class="bag-sum">总价值 {{ hud.value }} · 负重 {{ hud.bag }}/{{ hud.bagSize }}</span>
+          <span class="bag-ops">
+            <button class="bi-drop" @click="sortBag">按价值排序</button>
+            <button class="bi-drop" @click="dropCheap">丢弃低端件</button>
+          </span>
+        </h3>
         <p v-if="!bagItems.length" class="bag-empty">空空如也——去搜刮机柜吧</p>
         <div class="bag-grid">
           <div v-for="(it, i) in bagItems" :key="i" class="bag-cell">
@@ -453,13 +458,34 @@ function drawMinimap() {
     ctx.lineWidth = 1;
     ctx.strokeRect(tx(co.x), ty(co.y), co.w * scale, co.h * scale);
   }
-  // 房间
+  // 房间（已探索显示类型图标，未探索保持暗色）
+  const ROOM_ICON = { vault: '⚠', radiation: '☢', armory: '✚', server: '▣', power: '⚡', cooling: '❄', archive: '▤', exit: '→' }
+  const bossAlive = m.rooms.some(r => r.type === 'vault') && game.enemies.some(e => e.d.boss && !e.dead)
   for (const r of m.rooms) {
-    ctx.fillStyle = 'rgba(34,211,238,0.10)';
-    ctx.fillRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale);
-    ctx.strokeStyle = 'rgba(103,232,249,0.45)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale);
+    const seen = r.explored
+    ctx.fillStyle = seen ? 'rgba(34,211,238,0.10)' : 'rgba(34,211,238,0.04)'
+    ctx.fillRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale)
+    ctx.strokeStyle = seen ? 'rgba(103,232,249,0.45)' : 'rgba(103,232,249,0.15)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale)
+    if (seen && r.w * scale > 18) {
+      const icon = ROOM_ICON[r.type] || ''
+      if (icon) {
+        if (r.type === 'vault' && bossAlive) {
+          const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 250)
+          ctx.fillStyle = 'rgba(239,68,68,' + (0.5 + pulse * 0.5).toFixed(2) + ')'
+        } else if (r.type === 'vault') {
+          ctx.fillStyle = '#f87171'
+        } else if (r.type === 'radiation') {
+          ctx.fillStyle = '#fb923c'
+        } else {
+          ctx.fillStyle = 'rgba(103,232,249,0.8)'
+        }
+        ctx.font = Math.max(9, r.w * scale * 0.3) + 'px monospace'
+        ctx.textAlign = 'center'
+        ctx.fillText(icon, tx(r.cx), ty(r.cy) + 4)
+      }
+    }
   }
   // 撤离点（区分类型：钥匙门=橙/绿随钥匙状态，快速通道=青色）
   for (const e of m.exits) {
@@ -661,6 +687,28 @@ function dropItem(i) {
   game.lootValue -= it.value;
   game.floats.push({ x: game.player.x, y: game.player.y - 40, txt: '丢弃 ' + it.name, t: 1, color: '#94a3b8' });
   bagItems.value = [...game.player.bag];
+}
+
+// 背包按价值降序排序
+function sortBag() {
+  if (!game || !game.player) return;
+  game.player.bag.sort((a, b) => b.value - a.value);
+  bagItems.value = [...game.player.bag];
+  sound.play('pickup');
+}
+
+// 一键丢弃低端件（价值 ≤ 60 的低档配件）
+function dropCheap() {
+  if (!game || !game.player) return;
+  const bag = game.player.bag;
+  const cheap = bag.filter(it => it.value <= 60);
+  if (!cheap.length) { msg.value = '没有低端件可丢弃'; return; }
+  const total = cheap.reduce((s, it) => s + it.value, 0);
+  game.player.bag = bag.filter(it => it.value > 60);
+  game.lootValue -= total;
+  game.floats.push({ x: game.player.x, y: game.player.y - 40, txt: '丢弃 ' + cheap.length + ' 件低端件（-' + total + '）', t: 1.4, color: '#94a3b8', big: true });
+  bagItems.value = [...game.player.bag];
+  sound.play('hit');
 }
 
 function fit() {
@@ -922,6 +970,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .bi-drop { background: transparent; border: 1px solid #7f1d1d; color: #f87171; font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-family: monospace; }
 .bi-drop:hover { background: #7f1d1d; }
 .bag-tip { margin: 10px 0 0; color: #475569; font-size: 11px; text-align: center; }
+.bag-ops { display: inline-flex; gap: 6px; margin-left: auto; }
 /* —— CSS 绘制物品图标（无素材依赖） —— */
 .item-icon { width: 22px; height: 22px; flex-shrink: 0; position: relative; display: inline-block; }
 .item-icon.big { width: 44px; height: 44px; }

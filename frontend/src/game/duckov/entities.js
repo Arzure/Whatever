@@ -2,6 +2,7 @@
  * 逃离鹅科夫 · 敌人实体与行为状态机
  * 巡逻 → 警戒(?) → 交战(!) → 搜索 → 回巡逻；领地约束不跨房追击
  * ============================================================ */
+import { sound } from '../audio.js'
 
 export const ENEMY_KINDS = {
   patrol: { name: '巡逻进程', hp: 40, dmg: 8, speed: 70, r: 11, color: '#f59e0b', range: 260, fireCd: 1.2, bullet: 240, melee: false, sight: 300, fov: 1.1 },
@@ -95,6 +96,7 @@ export function updateEnemy(game, e, dt) {
   if (e.d.boss && !e.raged && e.hp < e.maxHp * 0.5) {
     e.raged = true
     e.alertMark = '!!'; e.alertMarkT = 2
+    sound.play('bossrage')
     if (game.floats) game.floats.push({ x: e.x, y: e.y - 46, txt: '⚠ 防火墙核心狂暴！', t: 2, color: '#fde047', big: true })
   }
   if (seen) {
