@@ -488,6 +488,27 @@ export function render(ctx, game) {
 
   ctx.restore() // 相机
 
+  // ---- 屏幕边缘声波方向指示：视野外的噪音在屏幕边缘显示扩散波纹 ----
+  for (const n of game.noiseRings) {
+    const sx = n.x - cx, sy = n.y - cy
+    if (sx > -40 && sx < W + 40 && sy > -40 && sy < H + 40) continue
+    const ang = Math.atan2(sy - H / 2, sx - W / 2)
+    const ex = W / 2 + Math.cos(ang) * (W / 2 - 26)
+    const ey = H / 2 + Math.sin(ang) * (H / 2 - 26)
+    const k = Math.max(0, n.t / 0.6)
+    ctx.save()
+    ctx.globalAlpha = 0.25 + 0.45 * k
+    ctx.strokeStyle = '#fbbf24'
+    ctx.lineWidth = 2
+    for (let i = 0; i < 2; i++) {
+      const rr = 6 + i * 7 + (1 - k) * 8
+      ctx.beginPath()
+      ctx.arc(ex, ey, rr, ang - 1.1, ang + 1.1)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
   // ---- 战争迷雾：视野多边形外遮暗 ----
   if (game.fovPoly) {
     ctx.save()

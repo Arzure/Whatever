@@ -289,7 +289,7 @@ export class DuckovGame {
 
   enemyShoot(e, aim) {
     const k = e.d
-    this.ebullets.push({ x: e.x + Math.cos(aim) * (e.r + 4), y: e.y + Math.sin(aim) * (e.r + 4), vx: Math.cos(aim) * k.bullet, vy: Math.sin(aim) * k.bullet, r: 4, dmg: k.dmg, life: 2.2, color: k.color })
+    this.ebullets.push({ x: e.x + Math.cos(aim) * (e.r + 4), y: e.y + Math.sin(aim) * (e.r + 4), vx: Math.cos(aim) * k.bullet, vy: Math.sin(aim) * k.bullet, r: 4, dmg: k.dmg, life: 2.2, color: k.color, owner: e })
     makeNoise(this, e.x, e.y, 120)
   }
 
@@ -484,6 +484,7 @@ export class DuckovGame {
         const cx = bx0 + sx * tt, cy = by0 + sy * tt
         if (Math.hypot(cx - p.x, cy - p.y) < p.r + b.r) {
           this.lastHitAng = Math.atan2(b.vy, b.vx)
+          if (b.owner) this.lastKiller = { name: b.owner.d.name, hp: Math.max(0, Math.round(b.owner.hp)) }
           this.hurtPlayer(b.dmg)
           b.dead = true
         }
@@ -838,6 +839,18 @@ export class DuckovGame {
     }
   }
 
+  // 死亡击杀信息：击杀者名称/剩余血量/受击方向（供结算面板展示）
+  killerInfo() {
+    if (!this.lastKiller) return null
+    const dirNames = ['右方', '右下方', '下方', '左下方', '左方', '左上方', '上方', '右上方']
+    let dir = ''
+    if (this.hitDir !== undefined) {
+      const a = (this.hitDir + Math.PI) / Math.PI * 4
+      dir = dirNames[((Math.round(a) % 8) + 8) % 8]
+    }
+    return { name: this.lastKiller.name, hp: this.lastKiller.hp, dir }
+  }
+
   endRun(win, msg) {
     if (this.state !== 'playing') return
     this.state = win ? 'win' : 'dead'
@@ -866,7 +879,7 @@ export class DuckovGame {
         }
       }
     }
-    this.onEnd({ win, msg, value: this.lootValue, kills: this.kills, time: this.time, contractBonus, contractsDone, modifier: this.modifier })
+    this.onEnd({ win, msg, value: this.lootValue, kills: this.kills, time: this.time, contractBonus, contractsDone, modifier: this.modifier, killer: win ? null : this.killerInfo() })
   }
 
   hudData() {

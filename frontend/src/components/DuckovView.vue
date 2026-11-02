@@ -111,6 +111,11 @@
           <span>带出 {{ result.value }}</span>
         </div>
         <div v-if="result.modifier" class="end-modifier">本局变异：{{ result.modifier.name }} — {{ result.modifier.desc }}</div>
+        <div v-if="!result.win && result.killer" class="end-killer">
+          <p class="ek-title">☠ 击杀者：{{ result.killer.name }}（剩 {{ result.killer.hp }} HP）</p>
+          <p v-if="result.killer.dir" class="ek-sub">致命一击来自：{{ result.killer.dir }} · 下次注意该方向的视野盲区</p>
+          <p v-if="result.killer.hp <= 15" class="ek-sub gold">⚡ 差一点就反杀了——它只剩 {{ result.killer.hp }} HP！</p>
+        </div>
         <div v-if="result.contractsDone && result.contractsDone.length" class="end-contracts">
           <p class="ec-title">✅ 契约完成（+{{ result.contractBonus }} 金币）</p>
           <p v-for="c in result.contractsDone" :key="c" class="ec-item">· {{ c }}</p>
@@ -1090,6 +1095,10 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hud-contract.done { color: #4ade80; border-color: rgba(74,222,128,0.5); }
 .hud-contract b { color: #fde047; margin-left: 2px; }
 .end-modifier { color: #fbbf24; font-size: 13px; margin: 6px 0; }
+.end-killer { margin: 8px 0; padding: 8px 12px; border: 1px solid rgba(248,113,113,0.4); border-radius: 8px; background: rgba(127,29,29,0.2); }
+.ek-title { color: #f87171; font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+.ek-sub { color: #fca5a5; font-size: 12px; margin: 2px 0; }
+.ek-sub.gold { color: #fde047; }
 .end-contracts { margin: 8px 0; padding: 8px 12px; border: 1px solid rgba(74,222,128,0.4); border-radius: 8px; background: rgba(20,83,45,0.2); }
 .ec-title { color: #4ade80; font-size: 13px; font-weight: 600; margin: 0 0 4px; }
 .ec-item { color: #a7f3d0; font-size: 12px; margin: 2px 0; }
