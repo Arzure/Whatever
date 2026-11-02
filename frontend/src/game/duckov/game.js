@@ -101,6 +101,21 @@ export class DuckovGame {
   start(cfg = {}) {
     this.map = generateMap({})
     this.enemies = this.map.spawns.map(s => createEnemy(s, this.map))
+    // 上一局遗体：死亡时记录的携带物资在出生点附近生成尸体（可长按 E 搜回）
+    try {
+      const corpse = JSON.parse(localStorage.getItem('duckov_corpse') || 'null')
+      if (corpse && corpse.bag && corpse.bag.length) {
+        const offs = [[46, 0], [0, 46], [-46, 0], [0, -46], [72, 0], [0, 72], [-72, 0], [0, -72]]
+        for (const [dx, dy] of offs) {
+          const x = this.map.playerSpawn.x + dx
+          const y = this.map.playerSpawn.y + dy
+          if (!this.pointInWall(x, y)) {
+            this.map.lootSpots.push({ x, y, room: -1, tier: 0, opened: false, corpse: true, bag: corpse.bag, value: corpse.value || 0 })
+            break
+          }
+        }
+      }
+    } catch (e) { /* localStorage 不可用时忽略 */ }
     this.bullets = []
     this.ebullets = []
     this.particles = []
@@ -556,6 +571,32 @@ export class DuckovGame {
       this.openT += dt
       if (this.openT >= 1.2) {
         this.openT = 0
+        if (near.corpse) {
+          // 上一局遗体：搜回死亡时携带的物资（背包满则保留剩余，不消耗尸体）
+          const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
+          let got = 0
+          let gotVal = 0
+          for (const it of near.bag) {
+            if (load + it.size > p.bagSize) break
+            p.bag.push(it)
+            this.lootValue += it.value
+            load += it.size
+            got++
+            gotVal += it.value
+          }
+          if (got > 0) {
+            this.floats.push({ x: p.x, y: p.y - 40, txt: '搜回遗体物资 x' + got + '（价值 ' + gotVal + '）', t: 1.6, color: '#4ade80', big: true })
+            sound.play('pickup2')
+            for (let i = 0; i < 10; i++) this.particles.push({ x: near.x, y: near.y, vx: rand(-60, 60), vy: rand(-80, -10), t: 0.6, color: '#a3a3a3', size: 2.5 })
+          }
+          if (got >= near.bag.length) {
+            near.opened = true
+            try { localStorage.removeItem('duckov_corpse') } catch (e2) { /* 忽略 */ }
+          } else {
+            this.floats.push({ x: p.x, y: p.y - 62, txt: '背包空间不足，仅搜回部分物资', t: 1.4, color: '#f87171', big: true })
+          }
+          makeNoise(this, p.x, p.y, 150)
+        } else {
         // 按物资点档位加权掉落配件；至尊件（tier 3）仅 Boss 掉落，普通物资点不出
         const pool = PARTS.filter(pt => pt.tier <= near.tier && pt.tier >= near.tier - 1 && pt.tier < 3)
         const l = pool[(Math.random() * pool.length) | 0]
@@ -578,6 +619,7 @@ export class DuckovGame {
             if (l.tier === 3) this.floats.push({ x: p.x, y: p.y - 62, txt: '✦ 至尊配件！✦', t: 1.8, color: '#fde047', big: true })
           }
           makeNoise(this, p.x, p.y, 150)
+        }
         }
       }
     } else {

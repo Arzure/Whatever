@@ -142,6 +142,24 @@ export function render(ctx, game) {
   // ---- 物资点：发光分级（白微光→金强光柱） ----
   for (const s of game.map.lootSpots) {
     if (s.opened) continue
+    if (s.corpse) {
+      // 上一局遗体：灰色尸体 + 红色 ☠ 标记
+      ctx.save()
+      ctx.shadowColor = '#f87171'
+      ctx.shadowBlur = 8
+      ctx.fillStyle = '#1c1917'
+      ctx.fillRect(s.x - 11, s.y - 8, 22, 16)
+      ctx.strokeStyle = '#78716c'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(s.x - 11, s.y - 8, 22, 16)
+      ctx.shadowBlur = 0
+      ctx.fillStyle = '#f87171'
+      ctx.font = 'bold 11px monospace'
+      ctx.textAlign = 'center'
+      ctx.fillText('☠', s.x, s.y + 4)
+      ctx.restore()
+      continue
+    }
     const tierCols = ['#e2e8f0', '#4ade80', '#60a5fa', '#fde047']
     const col = tierCols[s.tier] || '#e2e8f0'
     ctx.save()
