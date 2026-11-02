@@ -196,11 +196,11 @@
             <div class="loadout-col">
               <p class="loadout-sec">仓库</p>
               <div class="loadout-drop" @dragover.prevent @drop="onDropFromStash($event)">
-                <div v-for="(it, i) in stash.items" :key="'st' + i" class="loadout-card" :class="{ supply: it.kind === 'supply' || it.usable }" :draggable="it.kind === 'supply' || it.usable" @dragstart="onDragStash($event, i)">
-                  <span class="svg-icon" v-html="iconSvg(it.id)"></span>
-                  <b>{{ it.name }}</b>
+                <div v-for="x in loadoutStashItems" :key="'st' + x.i" class="loadout-card" :class="{ supply: true }" :draggable="true" @dragstart="onDragStash($event, x.i)">
+                  <span class="svg-icon" v-html="iconSvg(x.it.id)"></span>
+                  <b>{{ x.it.name }}</b>
                 </div>
-                <p v-if="!stash.items.length" class="bag-empty">仓库空空如也</p>
+                <p v-if="!loadoutStashItems.length" class="bag-empty">没有可携带的道具——去商店购买医疗包等补给</p>
               </div>
             </div>
             <!-- 右：出击配置 -->
@@ -604,6 +604,9 @@ function doSellAll() {
 }
 
 const synthRows = computed(() => synthPreview(stash.value));
+
+// 出击配置仓库栏：只显示可携带的道具（消耗品），不罗列配件战利品
+const loadoutStashItems = computed(() => stash.value.items.map((it, i) => ({ it, i })).filter(x => x.it.kind === 'supply' || x.it.usable));
 
 const synthOpen = ref(-1);
 
