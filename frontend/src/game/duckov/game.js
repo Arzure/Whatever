@@ -573,7 +573,7 @@ export class DuckovGame {
         this.openT = 0
         if (near.corpse) {
           // 上一局遗体：搜回死亡时携带的物资（背包满则保留剩余，不消耗尸体）
-          const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
+          let load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
           let got = 0
           let gotVal = 0
           for (const it of near.bag) {
