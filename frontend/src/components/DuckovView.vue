@@ -17,13 +17,14 @@
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
         <!-- 小地图（点击展开大图） -->
-        <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @click="mapBig = !mapBig"></canvas>
+        <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @mousedown="onMmDown" @mousemove="onMmMove" @mouseup="onMmUp" @mouseleave="onMmUp" @click="onMmClick"></canvas>
         <div class="hud-bottom">
           <span class="hp-label">HP {{ Math.round(hud.hp) }}/{{ hud.maxHp }}</span>
           <div class="hp-bar"><div class="hp-fill" :class="{ low: hud.hp < 30 }" :style="{ width: Math.max(0, hud.hp / hud.maxHp * 100) + '%' }"></div></div>
           <span>体力 {{ Math.round(hud.stamina) }}/100</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3/4 切枪 · H 医疗包 · Tab 背包 · Esc 暂停</span>
+          <span class="loot-val">物资价值 {{ hud.value }}</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1-6 切枪 · H 医疗包 · G 肾上腺素 · Q EMP · Tab 背包 · Esc 暂停 · 点小地图放大/拖动</span>
         </div>
       </div>
       <!-- 暂停遮罩 -->
@@ -280,7 +281,38 @@ function fmtTime(t) {
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 
-// 小地图：房间轮廓 + 玩家位置 + 撤离点标记（点击展开大图）
+// 小地图：小图以玩家为中心；大图全图可拖动查看；玩家为呼吸灯特效
+const mapDrag = ref({ x: 0, y: 0 });
+let mmDown = false, mmMoved = false, mmLast = null;
+function clampMapDrag() {
+  const m = game && game.map;
+  if (!m) return;
+  const size = 420;
+  const scale = size / Math.max(m.W, m.H);
+  const mw = m.W * scale, mh = m.H * scale;
+  mapDrag.value.x = Math.min(0, Math.max(size - mw, mapDrag.value.x));
+  mapDrag.value.y = Math.min(0, Math.max(size - mh, mapDrag.value.y));
+}
+function onMmDown(ev) {
+  if (!mapBig.value) return;
+  mmDown = true; mmMoved = false; mmLast = { x: ev.clientX, y: ev.clientY };
+}
+function onMmMove(ev) {
+  if (!mmDown || !mmLast) return;
+  const dx = ev.clientX - mmLast.x, dy = ev.clientY - mmLast.y;
+  if (Math.abs(dx) + Math.abs(dy) > 3) mmMoved = true;
+  mapDrag.value.x += dx;
+  mapDrag.value.y += dy;
+  mmLast = { x: ev.clientX, y: ev.clientY };
+  clampMapDrag();
+  drawMinimap();
+}
+function onMmUp() { mmDown = false; mmLast = null; }
+function onMmClick() {
+  if (mapBig.value && mmMoved) return;
+  mapBig.value = !mapBig.value;
+  if (!mapBig.value) mapDrag.value = { x: 0, y: 0 };
+}
 function drawMinimap() {
   const c = minimapRef.value;
   if (!c || !game || !game.map) return;
@@ -289,25 +321,37 @@ function drawMinimap() {
   if (c.width !== size) { c.width = size; c.height = size; }
   const ctx = c.getContext('2d');
   const m = game.map;
-  const scale = size / Math.max(m.W, m.H);
+  const p = game.player;
   ctx.clearRect(0, 0, size, size);
   ctx.fillStyle = 'rgba(5,10,18,0.88)';
   ctx.fillRect(0, 0, size, size);
+  let scale, ox, oy;
+  if (big) {
+    scale = size / Math.max(m.W, m.H);
+    ox = mapDrag.value.x; oy = mapDrag.value.y;
+  } else {
+    const view = 900;
+    scale = size / view;
+    ox = size / 2 - p.x * scale;
+    oy = size / 2 - p.y * scale;
+  }
+  const tx = v => v * scale + ox;
+  const ty = v => v * scale + oy;
   // 走廊通道（先画，垫在房间下方）
   for (const co of m.corridors) {
     ctx.fillStyle = 'rgba(103,232,249,0.18)';
-    ctx.fillRect(co.x * scale, co.y * scale, co.w * scale, co.h * scale);
+    ctx.fillRect(tx(co.x), ty(co.y), co.w * scale, co.h * scale);
     ctx.strokeStyle = 'rgba(103,232,249,0.30)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(co.x * scale, co.y * scale, co.w * scale, co.h * scale);
+    ctx.strokeRect(tx(co.x), ty(co.y), co.w * scale, co.h * scale);
   }
   // 房间
   for (const r of m.rooms) {
     ctx.fillStyle = 'rgba(34,211,238,0.10)';
-    ctx.fillRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+    ctx.fillRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale);
     ctx.strokeStyle = 'rgba(103,232,249,0.45)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+    ctx.strokeRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale);
   }
   // 撤离点（区分类型：钥匙门=橙/绿随钥匙状态，快速通道=青色）
   for (const e of m.exits) {
@@ -316,24 +360,25 @@ function drawMinimap() {
     const col = express ? '#22d3ee' : (locked ? '#f59e0b' : '#4ade80');
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(e.x * scale, e.y * scale, big ? 6 : 4, 0, Math.PI * 2);
+    ctx.arc(tx(e.x), ty(e.y), big ? 6 : 4, 0, Math.PI * 2);
     ctx.fill();
     if (big) {
       ctx.fillStyle = col;
       ctx.font = '10px monospace';
-      ctx.fillText(express ? 'FAST' : (locked ? 'EXIT🔒' : 'EXIT'), e.x * scale + 8, e.y * scale + 3);
+      ctx.fillText(express ? 'FAST' : (locked ? 'EXIT🔒' : 'EXIT'), tx(e.x) + 8, ty(e.y) + 3);
     }
   }
-  // 玩家（青色脉冲点）
-  const p = game.player;
+  // 玩家：呼吸灯特效（脉冲光环）
+  const t = performance.now() / 1000;
+  const breath = 0.5 + 0.5 * Math.sin(t * 2.4);
   ctx.fillStyle = '#22d3ee';
   ctx.beginPath();
-  ctx.arc(p.x * scale, p.y * scale, big ? 6 : 4, 0, Math.PI * 2);
+  ctx.arc(tx(p.x), ty(p.y), big ? 5 : 4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(34,211,238,0.5)';
+  ctx.strokeStyle = 'rgba(34,211,238,' + (0.2 + 0.6 * breath).toFixed(2) + ')';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(p.x * scale, p.y * scale, big ? 10 : 7, 0, Math.PI * 2);
+  ctx.arc(tx(p.x), ty(p.y), (big ? 8 : 6) + breath * (big ? 7 : 5), 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -545,6 +590,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hud-top .blackout { color: #f87171; animation: blink 0.4s infinite; }
 .hud-bottom { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 10px; padding: 10px 16px; background: linear-gradient(transparent, rgba(5,7,13,0.85)); color: #94a3b8; font-size: 12px; align-items: center; }
 .hp-label { color: #f87171; font-weight: bold; }
+.loot-val { color: #fde047; font-weight: bold; }
 .hp-bar { width: 150px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; border: 1px solid rgba(248,113,113,0.35); }
 .hp-fill { height: 100%; background: linear-gradient(90deg, #ef4444, #f87171); transition: width 0.15s; }
 .hp-fill.low { animation: blink 0.5s infinite; }
@@ -556,7 +602,8 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .exit-countdown.danger { color: #f87171; animation: blink 0.6s infinite; }
 /* 小地图（右上角，点击展开大图） */
 .minimap { position: absolute; top: 10px; right: 12px; width: 150px; height: 150px; border: 1px solid #1e3a5f; border-radius: 8px; cursor: pointer; pointer-events: auto; z-index: 5; transition: width 0.2s, height 0.2s; }
-.minimap.big { width: 420px; height: 420px; }
+.minimap.big { width: 420px; height: 420px; cursor: grab; }
+.minimap.big:active { cursor: grabbing; }
 /* 暂停遮罩 */
 .pause-mask { position: absolute; inset: 0; background: rgba(2,4,10,0.72); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #e2e8f0; font-family: monospace; z-index: 8; }
 .pause-mask h2 { font-size: 34px; color: #67e8f9; margin: 0 0 8px; text-shadow: 0 0 20px rgba(34,211,238,0.5); }
