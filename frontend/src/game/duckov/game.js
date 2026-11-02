@@ -441,14 +441,22 @@ export class DuckovGame {
       this.openT = 0
     }
     let ex = null
+    let lockedNear = null
     for (const e of this.map.exits) {
-      if (e.needKey && !this.hasKey) continue
       if (Math.hypot(e.x - p.x, e.y - p.y) < 46) {
+        if (e.needKey && !this.hasKey) { lockedNear = e; continue }
         ex = e
         break
       }
     }
     this.exitTarget = ex
+    if (lockedNear && !ex) {
+      this.lockedHintT = (this.lockedHintT || 0) - dt
+      if (this.lockedHintT <= 0) {
+        this.lockedHintT = 2.5
+        this.floats.push({ x: p.x, y: p.y - 40, txt: '此出口需钥匙卡！搜刮高级物资点或击杀精英守卫获取，或找青色 FAST EXIT', t: 1.8, color: '#f59e0b', big: true })
+      }
+    }
     if (ex) {
       this.exitProgress += dt
       const need = ex.mode === 'express' ? 1.5 : 3
