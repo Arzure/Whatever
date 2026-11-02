@@ -6,6 +6,8 @@
  * localStorage 持久化
  * ============================================================ */
 
+import { PARTS, PART_CATS, TIER_NAMES } from './game.js'
+
 const KEY = 'duckov_stash'
 
 // 物资图鉴（icon 决定 CSS 绘制的图标样式）
@@ -46,12 +48,34 @@ export const SHOP = {
   ]
 }
 
+// 旧战利品 → 新配件体系迁移映射
+const LEGACY_MAP = {
+  ram: 'ram-0',
+  disk: 'ssd-1',
+  gpu: 'gpu-4060',
+  core: 'cpu-a2'
+}
+
+// 将旧版战利品条目迁移为新配件字段
+function migrateLegacy(items) {
+  if (!Array.isArray(items)) return
+  for (const it of items) {
+    const nid = LEGACY_MAP[it.id]
+    if (!nid) continue
+    const p = PARTS.find(pt => pt.id === nid)
+    if (!p) continue
+    Object.assign(it, { id: p.id, name: p.name, value: p.value, color: p.color, size: p.size, cat: p.cat, tier: p.tier, platform: p.platform || null })
+  }
+}
+
 export function loadStash() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null')
     if (s) {
       if (!Array.isArray(s.items)) s.items = []
       if (!Array.isArray(s.safebox)) s.safebox = []
+      migrateLegacy(s.items)
+      migrateLegacy(s.safebox)
       if (!s.loadout) s.loadout = { weapons: ['pistol'], armor: null, items: [] }
       if (!Array.isArray(s.loadout.weapons) || !s.loadout.weapons.length) s.loadout.weapons = ['pistol']
       if (!Array.isArray(s.loadout.items)) s.loadout.items = []
@@ -89,7 +113,7 @@ export function saveStash(s) {
 // 撤离成功：背包物资实体化入仓 + 未用医疗包回收
 export function bankStash(s, bag, leftoverMedkits) {
   for (const it of bag) {
-    s.items.push({ id: it.id, name: it.name, value: it.value, color: it.color, size: it.size, kind: it.kind || 'loot' })
+    s.items.push({ id: it.id, name: it.name, value: it.value, color: it.color, size: it.size, kind: it.kind || 'loot', cat: it.cat, tier: it.tier, platform: it.platform || null })
   }
   for (let i = 0; i < (leftoverMedkits || 0); i++) {
     s.items.push({ id: 'medkit', ...ITEM_DEFS.medkit, kind: 'supply' })
@@ -218,4 +242,55 @@ export function armorMul(s) {
   if (s.armor === 'light') return 0.75
   if (s.armor === 'heavy') return 0.55
   return 1
+}
+
+// ============================================================
+// 合成整机系统：仓库凑齐同档 8 大部件且 CPU 与主板平台一致
+// 合成价 = 散件总价 × 档位倍率（低端/中端 1.3、高端 1.5、至尊 2.0）
+// ============================================================
+export const PC_MULT = [1.3, 1.3, 1.5, 2.0]
+
+// 合成预览：各档位配件持有情况与缺口（供 UI 展示）
+export function synthPreview(s) {
+  const result = []
+  for (let tier = 0; tier < 4; tier++) {
+    const cats = Object.keys(PART_CATS)
+    const have = {}
+    for (const cat of cats) have[cat] = s.items.filter(it => it.cat === cat && it.tier === tier).length
+    const cpu = s.items.find(it => it.cat === 'cpu' && it.tier === tier)
+    const mbOk = cpu ? s.items.some(it => it.cat === 'mb' && it.tier === tier && (!it.platform || !cpu.platform || it.platform === cpu.platform)) : false
+    const missing = cats.filter(c => !have[c] || (c === 'mb' && !mbOk))
+    result.push({ tier, name: TIER_NAMES[tier], have: { ...have }, mbOk, ready: missing.length === 0, missing })
+  }
+  return result
+}
+
+// 合成整机：优先合成可用的最高档位；成功返回整机物品
+export function synthesizePC(s) {
+  for (let tier = 3; tier >= 0; tier--) {
+    const cpuIdx = s.items.findIndex(it => it.cat === 'cpu' && it.tier === tier)
+    if (cpuIdx < 0) continue
+    const cpu = s.items[cpuIdx]
+    const mbIdx = s.items.findIndex(it => it.cat === 'mb' && it.tier === tier && (!it.platform || !cpu.platform || it.platform === cpu.platform))
+    if (mbIdx < 0) continue
+    const picked = [cpuIdx, mbIdx]
+    let ok = true
+    for (const cat of ['gpu', 'ram', 'ssd', 'psu', 'case', 'cooler']) {
+      const idx = s.items.findIndex((it, i) => it.cat === cat && it.tier === tier && !picked.includes(i))
+      if (idx < 0) { ok = false; break }
+      picked.push(idx)
+    }
+    if (!ok) continue
+    const parts = picked.map(i => s.items[i])
+    const total = parts.reduce((a, b) => a + b.value, 0)
+    const value = Math.round(total * PC_MULT[tier])
+    const platform = cpu.platform || 'amd'
+    const name = TIER_NAMES[tier] + '整机（' + (platform === 'amd' ? 'AMD 平台' : 'Intel 平台') + '）'
+    picked.sort((a, b) => b - a).forEach(i => s.items.splice(i, 1))
+    const pc = { id: 'pc-' + tier + '-' + platform, name, value, color: tier === 3 ? '#fde047' : '#4ade80', size: 1, kind: 'pc', tier, platform }
+    s.items.push(pc)
+    saveStash(s)
+    return { ok: true, msg: '合成成功：' + name + '（价值 ' + value + ' 金币）', pc }
+  }
+  return { ok: false, msg: '缺少可合成的同档 8 件套配件（CPU 与主板平台需一致）' }
 }

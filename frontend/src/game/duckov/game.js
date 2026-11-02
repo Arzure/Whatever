@@ -21,18 +21,67 @@ export const WEAPONS = {
   rocket: { name: '火箭发射器', dmg: 80, cd: 1.4, speed: 380, spread: 0.03, mag: 3, reload: 2.4, noise: 400, color: '#fb923c', aoe: 70 }
 }
 
-// 物资定义：价值/体积
-export const LOOTS = {
-  ram: { name: '内存条', value: 40, size: 1, color: '#22d3ee', tier: 0 },
-  fan: { name: '散热风扇', value: 25, size: 1, color: '#94a3b8', tier: 0 },
-  disk: { name: '机械硬盘', value: 80, size: 2, color: '#94a3b8', tier: 1 },
-  chip: { name: '超频芯片', value: 130, size: 1, color: '#f472b6', tier: 1 },
-  battery: { name: '过载电池', value: 160, size: 2, color: '#a3e635', tier: 1, effect: 'stim' },
-  psu: { name: '钛金电源', value: 260, size: 3, color: '#fb923c', tier: 2 },
-  encrypted: { name: '加密硬盘', value: 380, size: 2, color: '#60a5fa', tier: 2 },
-  gpu: { name: 'GPU 显卡', value: 220, size: 3, color: '#4ade80', tier: 2 },
-  core: { name: '量子核心', value: 500, size: 4, color: '#fde047', tier: 3 }
+// 配件定义：8 大部件 × 4 档（低端/中端/高端/至尊），价值按真实行情缩放（¥100≈10 金币）
+// CPU 与主板分 AMD/Intel 平台，合成整机时平台必须一致
+export const PART_CATS = {
+  cpu: '处理器', mb: '主板', gpu: '显卡', ram: '内存',
+  ssd: '固态硬盘', psu: '电源', case: '机箱', cooler: '散热器'
 }
+export const TIER_NAMES = ['低端', '中端', '高端', '至尊']
+
+export const PARTS = [
+  // 处理器（AMD / Intel）
+  { id: 'cpu-a0', name: '锐龙5 5600GT', cat: 'cpu', tier: 0, platform: 'amd', value: 105, size: 1, color: '#fb923c' },
+  { id: 'cpu-i0', name: '酷睿 i5-12490F', cat: 'cpu', tier: 0, platform: 'intel', value: 128, size: 1, color: '#60a5fa' },
+  { id: 'cpu-a1', name: '锐龙5 9600X', cat: 'cpu', tier: 1, platform: 'amd', value: 150, size: 1, color: '#fb923c' },
+  { id: 'cpu-i1', name: '酷睿 i5-14600KF', cat: 'cpu', tier: 1, platform: 'intel', value: 250, size: 1, color: '#60a5fa' },
+  { id: 'cpu-a2', name: '锐龙7 9800X3D', cat: 'cpu', tier: 2, platform: 'amd', value: 380, size: 1, color: '#fb923c' },
+  { id: 'cpu-i2', name: '酷睿 i9-14900K', cat: 'cpu', tier: 2, platform: 'intel', value: 500, size: 1, color: '#60a5fa' },
+  { id: 'cpu-a3', name: '锐龙9 9950X3D', cat: 'cpu', tier: 3, platform: 'amd', value: 600, size: 1, color: '#f97316' },
+  { id: 'cpu-i3', name: '酷睿 Ultra 9 285K', cat: 'cpu', tier: 3, platform: 'intel', value: 480, size: 1, color: '#93c5fd' },
+  // 主板（AMD / Intel）
+  { id: 'mb-a0', name: '微星 A520M', cat: 'mb', tier: 0, platform: 'amd', value: 50, size: 2, color: '#fb923c' },
+  { id: 'mb-i0', name: '华硕 H610M-K', cat: 'mb', tier: 0, platform: 'intel', value: 78, size: 2, color: '#60a5fa' },
+  { id: 'mb-a1', name: '技嘉 B650M', cat: 'mb', tier: 1, platform: 'amd', value: 75, size: 2, color: '#fb923c' },
+  { id: 'mb-i1', name: '华硕 TUF B760M', cat: 'mb', tier: 1, platform: 'intel', value: 125, size: 2, color: '#60a5fa' },
+  { id: 'mb-a2', name: '七彩虹 X870E', cat: 'mb', tier: 2, platform: 'amd', value: 400, size: 2, color: '#fb923c' },
+  { id: 'mb-i2', name: 'ROG STRIX Z890-A', cat: 'mb', tier: 2, platform: 'intel', value: 360, size: 2, color: '#60a5fa' },
+  { id: 'mb-a3', name: 'ROG X870E Godlike', cat: 'mb', tier: 3, platform: 'amd', value: 800, size: 2, color: '#f97316' },
+  { id: 'mb-i3', name: 'ROG MAXIMUS Z890', cat: 'mb', tier: 3, platform: 'intel', value: 700, size: 2, color: '#93c5fd' },
+  // 显卡（NVIDIA / AMD）
+  { id: 'gpu-r7600', name: 'Radeon RX 7600 8G', cat: 'gpu', tier: 0, platform: null, value: 180, size: 3, color: '#4ade80' },
+  { id: 'gpu-4060', name: 'RTX 4060 8G', cat: 'gpu', tier: 0, platform: null, value: 250, size: 3, color: '#4ade80' },
+  { id: 'gpu-5060ti', name: 'RTX 5060 Ti 16G', cat: 'gpu', tier: 1, platform: null, value: 410, size: 3, color: '#4ade80' },
+  { id: 'gpu-9070xt', name: 'Radeon RX 9070 XT 16G', cat: 'gpu', tier: 1, platform: null, value: 540, size: 3, color: '#4ade80' },
+  { id: 'gpu-5070ti', name: 'RTX 5070 Ti 16G', cat: 'gpu', tier: 2, platform: null, value: 850, size: 3, color: '#22d3ee' },
+  { id: 'gpu-5080', name: 'RTX 5080 16G', cat: 'gpu', tier: 2, platform: null, value: 1600, size: 3, color: '#22d3ee' },
+  { id: 'gpu-5090', name: 'RTX 5090 32G', cat: 'gpu', tier: 3, platform: null, value: 2440, size: 4, color: '#fde047' },
+  // 内存
+  { id: 'ram-0', name: '金百达 16G DDR4 3200', cat: 'ram', tier: 0, platform: null, value: 36, size: 1, color: '#22d3ee' },
+  { id: 'ram-1', name: '芝奇 32G DDR5 6000', cat: 'ram', tier: 1, platform: null, value: 90, size: 1, color: '#22d3ee' },
+  { id: 'ram-2', name: '金士顿 64G DDR5 6000', cat: 'ram', tier: 2, platform: null, value: 150, size: 1, color: '#22d3ee' },
+  { id: 'ram-3', name: '芝奇 64G DDR5 7200', cat: 'ram', tier: 3, platform: null, value: 250, size: 1, color: '#fde047' },
+  // 固态硬盘
+  { id: 'ssd-0', name: '致态 TiPlus5000 1TB', cat: 'ssd', tier: 0, platform: null, value: 45, size: 1, color: '#94a3b8' },
+  { id: 'ssd-1', name: '三星 990 EVO 1TB', cat: 'ssd', tier: 1, platform: null, value: 60, size: 1, color: '#94a3b8' },
+  { id: 'ssd-2', name: '三星 990 Pro 2TB', cat: 'ssd', tier: 2, platform: null, value: 130, size: 1, color: '#94a3b8' },
+  { id: 'ssd-3', name: '致态 TiPro9000 2TB', cat: 'ssd', tier: 3, platform: null, value: 150, size: 1, color: '#fde047' },
+  // 电源
+  { id: 'psu-0', name: '长城 HOPE-6000DS', cat: 'psu', tier: 0, platform: null, value: 26, size: 2, color: '#fb923c' },
+  { id: 'psu-1', name: '振华 LEADEX 750W 金牌', cat: 'psu', tier: 1, platform: null, value: 70, size: 2, color: '#fb923c' },
+  { id: 'psu-2', name: '海韵 FOCUS GX-850', cat: 'psu', tier: 2, platform: null, value: 108, size: 2, color: '#fb923c' },
+  { id: 'psu-3', name: '海盗船 AX1600i 钛金', cat: 'psu', tier: 3, platform: null, value: 345, size: 2, color: '#fde047' },
+  // 机箱
+  { id: 'case-0', name: '先马 光之神', cat: 'case', tier: 0, platform: null, value: 12, size: 3, color: '#a78bfa' },
+  { id: 'case-1', name: '爱国者 星璨岚', cat: 'case', tier: 1, platform: null, value: 36, size: 3, color: '#a78bfa' },
+  { id: 'case-2', name: '华硕 TUF GT502', cat: 'case', tier: 2, platform: null, value: 105, size: 3, color: '#a78bfa' },
+  { id: 'case-3', name: '联力 包豪斯 O11D', cat: 'case', tier: 3, platform: null, value: 150, size: 3, color: '#fde047' },
+  // 散热器
+  { id: 'cool-0', name: '利民 AX120 R SE', cat: 'cooler', tier: 0, platform: null, value: 6, size: 1, color: '#67e8f9' },
+  { id: 'cool-1', name: '利民 PA120 SE', cat: 'cooler', tier: 1, platform: null, value: 15, size: 1, color: '#67e8f9' },
+  { id: 'cool-2', name: '猫头鹰 NH-D15', cat: 'cooler', tier: 2, platform: null, value: 70, size: 1, color: '#67e8f9' },
+  { id: 'cool-3', name: 'ROG 龙神 III 360 水冷', cat: 'cooler', tier: 3, platform: null, value: 250, size: 2, color: '#fde047' }
+]
 
 export class DuckovGame {
   constructor(canvas, cb) {
@@ -501,22 +550,18 @@ export class DuckovGame {
       this.openT += dt
       if (this.openT >= 1.2) {
         this.openT = 0
-        const pool = Object.keys(LOOTS).filter(k => LOOTS[k].tier <= near.tier && LOOTS[k].tier >= near.tier - 1)
-        const id = pool[(Math.random() * pool.length) | 0]
-        const l = LOOTS[id]
+        // 按物资点档位加权掉落配件；至尊件（tier 3）仅 Boss 掉落，普通物资点不出
+        const pool = PARTS.filter(pt => pt.tier <= near.tier && pt.tier >= near.tier - 1 && pt.tier < 3)
+        const l = pool[(Math.random() * pool.length) | 0]
         const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
         if (load + l.size > p.bagSize) {
           // 背包满：不消耗搜刮点，物资保留原地
           this.floats.push({ x: p.x, y: p.y - 40, txt: '背包已满！先丢弃低价值物品', t: 1.2, color: '#f87171', big: true })
         } else {
           near.opened = true
-          p.bag.push({ id, name: l.name, value: l.value, size: l.size, color: l.color })
+          p.bag.push({ id: l.id, name: l.name, value: l.value, size: l.size, color: l.color, cat: l.cat, tier: l.tier, platform: l.platform || null })
           this.lootValue += l.value
           this.floats.push({ x: p.x, y: p.y - 40, txt: '获得 ' + l.name + '（价值 ' + l.value + '）', t: 1.2, color: l.color, big: true })
-          if (l.effect === 'stim') {
-            p.stimT = Math.max(p.stimT, 3)
-            this.floats.push({ x: p.x, y: p.y - 60, txt: '过载电池生效：移速提升 3 秒！', t: 1.2, color: '#a3e635', big: true })
-          }
           sound.play('pickup')
           makeNoise(this, p.x, p.y, 150)
         }
@@ -589,6 +634,18 @@ export class DuckovGame {
       this.flash = 0.4
       this.floats.push({ x: e.x, y: e.y - 30, txt: '防火墙核心瓦解！', t: 2, color: '#fde047', big: true })
       sound.play('bosskill')
+      // Boss 必掉一件至尊配件（tier 3）
+      const top = PARTS.filter(pt => pt.tier === 3)
+      const l = top[(Math.random() * top.length) | 0]
+      const p = this.player
+      const load = p.bag.reduce((s2, l2) => s2 + l2.size, 0)
+      if (load + l.size <= p.bagSize) {
+        p.bag.push({ id: l.id, name: l.name, value: l.value, size: l.size, color: l.color, cat: l.cat, tier: l.tier, platform: l.platform || null })
+        this.lootValue += l.value
+        this.floats.push({ x: e.x, y: e.y - 55, txt: '拾取至尊配件：' + l.name + '（价值 ' + l.value + '）', t: 2.2, color: '#fde047', big: true })
+      } else {
+        this.floats.push({ x: e.x, y: e.y - 55, txt: '背包已满，至尊配件 ' + l.name + ' 无法拾取！', t: 2.2, color: '#f87171', big: true })
+      }
     }
     if (e.d.elite && !this.hasKey) {
       this.hasKey = true

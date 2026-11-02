@@ -132,6 +132,16 @@
             </div>
             <p v-if="!stash.items.length" class="bag-empty">仓库空空如也——去封锁区搜刮吧</p>
           </div>
+          <!-- 整机合成台 -->
+          <div class="synth-sec">
+            <p class="loadout-sec">🖥️ 整机合成台 <i class="sb-note">凑齐同档 8 大部件且 CPU 与主板平台一致 · 合成价 = 散件总价 × 档位倍率</i></p>
+            <div v-for="row in synthRows" :key="row.tier" class="synth-row" :class="{ ready: row.ready }">
+              <b class="synth-tier">{{ row.name }}</b>
+              <span v-for="(n, c) in row.have" :key="c" class="synth-cat" :class="{ ok: n > 0 }">{{ PART_CATS[c] }}×{{ n }}</span>
+              <em v-if="row.have.mb > 0 && !row.mbOk" class="synth-warn">平台不符</em>
+              <button class="buy-btn" :disabled="!row.ready" @click="doSynth">{{ row.ready ? '合成（×' + PC_MULT[row.tier] + '）' : '缺 ' + row.missing.length + ' 件' }}</button>
+            </div>
+          </div>
           <button class="btn btn2" @click="doSellAll">一键变卖全部战利品</button>
           <p v-if="msg" class="shop-msg">{{ msg }}</p>
         </div>
@@ -220,11 +230,11 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
+import { DuckovGame, WEAPONS, PART_CATS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
 import { getAuthToken } from '../api.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS, safeboxCapacity, moveToSafebox, moveFromSafebox } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS, safeboxCapacity, moveToSafebox, moveFromSafebox, synthPreview, synthesizePC, PC_MULT } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -455,6 +465,9 @@ function iconSvg(id) {
     disk: '<circle cx="24" cy="24" r="17" fill="#94a3b8" stroke="#e2e8f0" stroke-width="2"/><circle cx="24" cy="24" r="10" fill="#cbd5e1"/><circle cx="24" cy="24" r="4" fill="#0f172a"/><rect x="23" y="6" width="2" height="9" fill="#64748b"/>',
     gpu: '<rect x="4" y="12" width="40" height="22" rx="3" fill="#052e16" stroke="#22c55e" stroke-width="2"/><circle cx="16" cy="23" r="7" fill="#166534" stroke="#4ade80" stroke-width="2"/><circle cx="32" cy="23" r="7" fill="#166534" stroke="#4ade80" stroke-width="2"/><rect x="8" y="34" width="32" height="4" fill="#fde047"/><rect x="38" y="16" width="4" height="14" fill="#86efac"/>',
     core: '<path d="M24 4 L40 18 L34 42 L14 42 L8 18 Z" fill="#fde047" stroke="#facc15" stroke-width="2"/><path d="M24 12 L33 21 L29 36 L19 36 L15 21 Z" fill="#fef9c3"/><circle cx="24" cy="24" r="4" fill="#fffbeb"/>',
+    mb: '<rect x="6" y="10" width="36" height="28" rx="3" fill="#14532d" stroke="#22c55e" stroke-width="2"/><rect x="12" y="16" width="14" height="14" rx="1" fill="#166534"/><rect x="30" y="16" width="8" height="4" rx="1" fill="#86efac"/><rect x="30" y="23" width="8" height="4" rx="1" fill="#86efac"/><rect x="30" y="30" width="8" height="4" rx="1" fill="#86efac"/>',
+    case: '<rect x="10" y="6" width="28" height="36" rx="3" fill="#1e1b4b" stroke="#a78bfa" stroke-width="2"/><rect x="15" y="11" width="18" height="10" rx="1" fill="#312e81"/><rect x="15" y="25" width="18" height="12" rx="1" fill="#4338ca"/>',
+    pc: '<rect x="6" y="10" width="36" height="24" rx="3" fill="#052e16" stroke="#4ade80" stroke-width="2"/><rect x="12" y="16" width="24" height="12" rx="1" fill="#166534"/><rect x="14" y="36" width="20" height="4" rx="1" fill="#86efac"/>',
     fan: '<circle cx="24" cy="24" r="17" fill="#1e293b" stroke="#94a3b8" stroke-width="2"/><circle cx="24" cy="24" r="4" fill="#cbd5e1"/><path d="M24 20 Q14 14 17 8 Q26 10 26 19 Z" fill="#94a3b8"/><path d="M28 24 Q34 14 40 17 Q38 26 29 26 Z" fill="#94a3b8"/><path d="M24 28 Q34 34 31 40 Q22 38 22 29 Z" fill="#94a3b8"/><path d="M20 24 Q14 34 8 31 Q10 22 19 22 Z" fill="#94a3b8"/>',
     chip: '<rect x="12" y="12" width="24" height="24" rx="2" fill="#831843" stroke="#f472b6" stroke-width="2"/><rect x="18" y="18" width="12" height="12" fill="#f472b6"/><rect x="15" y="6" width="3" height="6" fill="#f9a8d4"/><rect x="22" y="6" width="3" height="6" fill="#f9a8d4"/><rect x="29" y="6" width="3" height="6" fill="#f9a8d4"/><rect x="15" y="36" width="3" height="6" fill="#f9a8d4"/><rect x="22" y="36" width="3" height="6" fill="#f9a8d4"/><rect x="29" y="36" width="3" height="6" fill="#f9a8d4"/>',
     battery: '<rect x="14" y="10" width="20" height="32" rx="3" fill="#1a2e05" stroke="#a3e635" stroke-width="2"/><rect x="20" y="6" width="8" height="4" rx="1" fill="#a3e635"/><path d="M26 18 L20 27 L24 27 L22 36 L29 25 L25 25 Z" fill="#a3e635"/>',
@@ -463,7 +476,9 @@ function iconSvg(id) {
     medkit: '<rect x="6" y="12" width="36" height="28" rx="4" fill="#1c0a0a" stroke="#f87171" stroke-width="2"/><rect x="20" y="8" width="8" height="6" rx="2" fill="#f87171"/><rect x="21.5" y="18" width="5" height="16" fill="#f87171"/><rect x="16" y="23.5" width="16" height="5" fill="#f87171"/>',
     none: '<path d="M24 6 L38 12 V26 C38 34 31 40 24 42 C17 40 10 34 10 26 V12 Z" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="4 3"/>'
   };
-  return '<svg viewBox="0 0 48 48" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">' + (S[id] || S.ram) + '</svg>';
+  const PREFIX = { cpu: 'chip', mb: 'mb', gpu: 'gpu', ram: 'ram', ssd: 'disk', psu: 'psu', case: 'case', cool: 'fan', pc: 'pc' };
+  const key = S[id] ? id : (PREFIX[String(id || '').split('-')[0]] || 'ram');
+  return '<svg viewBox="0 0 48 48" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">' + S[key] + '</svg>';
 }
 
 function doBuy(kind, id) {
@@ -502,6 +517,15 @@ function doSell(i) {
 
 function doSellAll() {
   const r = sellAllLoot(stash.value);
+  msg.value = r.msg;
+  if (r.ok) sound.play('levelup');
+  stash.value = { ...stash.value };
+}
+
+const synthRows = computed(() => synthPreview(stash.value));
+
+function doSynth() {
+  const r = synthesizePC(stash.value);
   msg.value = r.msg;
   if (r.ok) sound.play('levelup');
   stash.value = { ...stash.value };
