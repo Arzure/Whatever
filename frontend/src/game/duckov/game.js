@@ -122,7 +122,7 @@ export class DuckovGame {
     this.floats = []
     this.noiseRings = []
     this.time = 0
-    this.exitT = 150
+    this.exitT = 210
     this.exitProgress = 0
     this.exitTarget = null
     this.openT = 0

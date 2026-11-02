@@ -281,6 +281,63 @@ export function generateMap(opts = {}) {
       room: r.id, taken: false
     })
   }
+  // ---- 7. 可达性校验：撤离点/物资点必须能从出生点走到（BFS 网格泛洪）----
+  const CS = 24
+  const MW = GRID * CELL + PAD * 2
+  const mcols = Math.ceil(MW / CS), mrows = Math.ceil(MW / CS)
+  const solidAt = (x, y) => {
+    for (const w of map.walls) if (x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h) return true
+    for (const pr of map.props) if (x > pr.x && x < pr.x + pr.w && y > pr.y && y < pr.y + pr.h) return true
+    return false
+  }
+  const cellBlocked = (i, j) => i < 0 || j < 0 || i >= mcols || j >= mrows || solidAt(i * CS + CS / 2, j * CS + CS / 2)
+  // BFS 起点：出生点所在格（被掩体占住时向外螺旋找最近空格）
+  let s0 = null
+  outerSpawn: for (let rr = 0; rr <= 6; rr++) {
+    for (let di = -rr; di <= rr; di++) for (let dj = -rr; dj <= rr; dj++) {
+      const i = Math.floor(map.playerSpawn.x / CS) + di
+      const j = Math.floor(map.playerSpawn.y / CS) + dj
+      if (!cellBlocked(i, j)) { s0 = [i, j]; break outerSpawn }
+    }
+  }
+  if (s0) {
+    const reach = new Uint8Array(mcols * mrows)
+    reach[s0[1] * mcols + s0[0]] = 1
+    const qq = [s0]
+    while (qq.length) {
+      const [ci, cj] = qq.shift()
+      for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = ci + d[0], nj = cj + d[1]
+        if (cellBlocked(ni, nj) || reach[nj * mcols + ni]) continue
+        reach[nj * mcols + ni] = 1
+        qq.push([ni, nj])
+      }
+    }
+    const reachable = (x, y) => {
+      const i = Math.floor(x / CS), j = Math.floor(y / CS)
+      return i >= 0 && j >= 0 && i < mcols && j < mrows && reach[j * mcols + i] === 1
+    }
+    // 不可达的点在所属房间内螺旋采样换位；房间整体不可达则清掉中心掩体兜底
+    const fixSpot = (s) => {
+      if (reachable(s.x, s.y)) return
+      const r = map.rooms.find(rr2 => rr2.id === s.room) || map.rooms[0]
+      for (let m = 30; m <= 150; m += 18) {
+        for (let t = 0; t < 24; t++) {
+          const x = r.cx + Math.cos(t / 24 * Math.PI * 2) * m
+          const y = r.cy + Math.sin(t / 24 * Math.PI * 2) * m
+          if (x > r.x + 20 && x < r.x + r.w - 20 && y > r.y + 20 && y < r.y + r.h - 20 && reachable(x, y)) {
+            s.x = x; s.y = y
+            return
+          }
+        }
+      }
+      s.x = r.cx; s.y = r.cy
+      map.props = map.props.filter(pr => !(pr.x < r.cx + 30 && pr.x + pr.w > r.cx - 30 && pr.y < r.cy + 30 && pr.y + pr.h > r.cy - 30))
+    }
+    for (const e of map.exits) fixSpot(e)
+    for (const s of map.lootSpots) fixSpot(s)
+  }
+
   map.W = GRID * CELL + PAD * 2
   map.H = GRID * CELL + PAD * 2
   return map
