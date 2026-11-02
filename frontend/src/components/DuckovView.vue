@@ -840,6 +840,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 /* 出击配置 */
 .loadout-cols { display: flex; gap: 14px; }
 .loadout-col { flex: 1; min-width: 0; }
+.svg-icon { width: 34px; height: 34px; display: block; flex-shrink: 0; }
 .loadout-card .svg-icon { width: 44px; height: 44px; display: block; filter: drop-shadow(0 0 6px rgba(34,211,238,0.25)); }
 .loadout-drop { min-height: 90px; border: 1.5px dashed #1e3a5f; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
 .loadout-drop.target { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
