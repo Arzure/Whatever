@@ -88,6 +88,11 @@ class SoundKit {
       case 'hit':
         this.beep(220, 0.05, 'sawtooth', 0.035, 110)
         break
+      case 'kill':
+        // 击杀确认音：短促上扬双音
+        this.beep(660, 0.07, 'square', 0.05, 990)
+        setTimeout(() => this.beep(1320, 0.1, 'square', 0.045), 60)
+        break
       case 'pickup':
         this.beep(1320, 0.07, 'square', 0.045, 1760)
         break
@@ -159,6 +164,17 @@ class SoundKit {
         setTimeout(() => this.beep(147, 0.4, 'sawtooth', 0.08, 73), 380)
         break
     }
+  }
+
+  // 命中音调随敌人剩余血量变化：ratio = 剩余HP/最大HP，血越少音调越高（200→700Hz）
+  hitPitch(ratio) {
+    if (!this.sfxOn) return
+    const now = performance.now()
+    if (now - (this.lastT['hitPitch'] || 0) < 60) return
+    this.lastT['hitPitch'] = now
+    const r = Math.max(0, Math.min(1, ratio))
+    const f = 200 + (1 - r) * 500
+    this.beep(f, 0.05, 'sawtooth', 0.03, f * 0.55)
   }
 
   // 动态音乐分层：0 平静 / 1 战斗 / 3 高潮（Boss/狂暴），叠加伴奏层

@@ -159,9 +159,11 @@ export class DuckovGame {
     let dt = (now - this.lastTs) / 1000
     this.lastTs = now
     if (dt > 0.05) dt = 0.05
+    // 击杀 hitstop：减速期间用真实 dt 递减计时，游戏世界 dt 缩放至 15%
+    if (this.hitstopT > 0) this.hitstopT -= dt
     if (this.state === 'playing' && !this.paused) {
       try {
-        this.update(dt)
+        this.update(this.hitstopT > 0 ? dt * 0.15 : dt)
       } catch (err) {
         console.error('[duckov]', err)
         this.endRun(false, '内部错误：' + (err && err.message ? err.message : '未知') + '（本局终止，不影响下一局）')
@@ -383,6 +385,7 @@ export class DuckovGame {
           }
           e.hp -= b.dmg
           e.flashT = 0.08
+          sound.hitPitch(e.hp / e.maxHp)
           this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(b.dmg), t: 0.6, color: '#fde047' })
           for (let i = 0; i < 4; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-60, 60), vy: rand(-60, 60), t: 0.25, color: e.d.color, size: 2.5 })
           if (e.state !== 'combat') {
@@ -498,6 +501,7 @@ export class DuckovGame {
         const real = Math.max(5, Math.round(dmg * (1 - 0.5 * d / (radius + e.r))))
         e.hp -= real
         e.flashT = 0.08
+        sound.hitPitch(e.hp / e.maxHp)
         this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(real), t: 0.6, color: '#fde047' })
         if (e.state !== 'combat') {
           e.state = 'combat'
@@ -637,9 +641,13 @@ export class DuckovGame {
   killEnemy(e) {
     e.dead = true
     this.kills++
+    // 击杀 hitstop：0.1s 时间减速
+    this.hitstopT = 0.1
     this.shakeT = 0.12
-    for (let i = 0; i < 10; i++) this.particles.push({ x: e.x, y: e.y, vx: rand(-90, 90), vy: rand(-90, 90), t: 0.4, color: e.d.color, size: 3 })
-    sound.play('hit')
+    for (let i = 0; i < 14; i++) this.particles.push({ x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-120, 120), t: 0.45, color: e.d.color, size: 3.5 })
+    // 击杀数字弹出
+    this.floats.push({ x: e.x, y: e.y - 24, txt: '击杀 x' + this.kills, t: 0.9, color: '#fde047', big: true })
+    sound.play('kill')
     if (e.d.boss) {
       this.flash = 0.4
       this.floats.push({ x: e.x, y: e.y - 30, txt: '防火墙核心瓦解！', t: 2, color: '#fde047', big: true })
