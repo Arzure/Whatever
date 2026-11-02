@@ -270,6 +270,21 @@ export function generateMap(opts = {}) {
       })
     }
   }
+  // ---- 5.5 敌人密度归一化：总数收敛到 12~16，避免 5~23 的极端方差 ----
+  const targetEnemies = randi(12, 16)
+  const spawnableRooms = map.rooms.filter(r => r.type !== 'exit' && r.type !== 'archive')
+  const poolKinds = ['patrol', 'guard', 'drone', 'rusher', 'sniper']
+  while (map.spawns.length < targetEnemies && spawnableRooms.length) {
+    const r = spawnableRooms[(Math.random() * spawnableRooms.length) | 0]
+    const sp = randInRoom(r, 40)
+    map.spawns.push({ x: sp.x, y: sp.y, room: r.id, kind: poolKinds[(Math.random() * poolKinds.length) | 0] })
+  }
+  if (map.spawns.length > targetEnemies + 2) {
+    const bosses = map.spawns.filter(s => s.kind === 'boss')
+    const others = map.spawns.filter(s => s.kind !== 'boss').slice(0, Math.max(0, targetEnemies + 2 - bosses.length))
+    map.spawns = [...others, ...bosses]
+  }
+
   // ---- 6. 急救站：少量回血道具点（路过自动拾取 +30 HP，满血不消耗）----
   const healRooms = map.rooms.filter(r => r.type !== 'exit' && r.type !== 'archive')
   const nHeal = Math.min(healRooms.length, randi(3, 4))
