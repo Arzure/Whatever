@@ -293,6 +293,14 @@ function drawMinimap() {
   ctx.clearRect(0, 0, size, size);
   ctx.fillStyle = 'rgba(5,10,18,0.88)';
   ctx.fillRect(0, 0, size, size);
+  // 走廊通道（先画，垫在房间下方）
+  for (const co of m.corridors) {
+    ctx.fillStyle = 'rgba(103,232,249,0.18)';
+    ctx.fillRect(co.x * scale, co.y * scale, co.w * scale, co.h * scale);
+    ctx.strokeStyle = 'rgba(103,232,249,0.30)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(co.x * scale, co.y * scale, co.w * scale, co.h * scale);
+  }
   // 房间
   for (const r of m.rooms) {
     ctx.fillStyle = 'rgba(34,211,238,0.10)';
