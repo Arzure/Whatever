@@ -476,6 +476,19 @@ export function render(ctx, game) {
     ctx.globalAlpha = 1
   }
 
+  // ---- 撤离演出：玩家位置金色上升光柱 ----
+  if (game.extracting > 0) {
+    const k = Math.min(1, (1.5 - game.extracting) / 1.2)
+    ctx.save()
+    ctx.globalAlpha = 0.25 + 0.45 * k
+    const grad = ctx.createLinearGradient(p.x, p.y, p.x, p.y - 260)
+    grad.addColorStop(0, '#fde047')
+    grad.addColorStop(1, 'rgba(253,224,71,0)')
+    ctx.fillStyle = grad
+    ctx.fillRect(p.x - 22 - 10 * k, p.y - 260, 44 + 20 * k, 260)
+    ctx.restore()
+  }
+
   // ---- 飘字 ----
   ctx.textAlign = 'center'
   for (const f of game.floats) {

@@ -93,6 +93,14 @@ class SoundKit {
         this.beep(660, 0.07, 'square', 0.05, 990)
         setTimeout(() => this.beep(1320, 0.1, 'square', 0.045), 60)
         break
+      case 'extract':
+        // 撤离演出：上升音阶琶音（情绪奖励）
+        this.beep(523, 0.12, 'square', 0.06)
+        setTimeout(() => this.beep(659, 0.12, 'square', 0.06), 130)
+        setTimeout(() => this.beep(784, 0.12, 'square', 0.06), 260)
+        setTimeout(() => this.beep(1047, 0.16, 'square', 0.06), 390)
+        setTimeout(() => this.beep(1319, 0.3, 'square', 0.06), 540)
+        break
       case 'pickup':
         this.beep(1320, 0.07, 'square', 0.045, 1760)
         break

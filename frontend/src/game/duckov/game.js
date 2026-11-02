@@ -143,6 +143,7 @@ export class DuckovGame {
     this.hitCount = 0
     this.gpuGot = 0
     this.visitedVault = false
+    this.extracting = 0
     this.map = generateMap({})
     this.enemies = this.map.spawns.map(s => createEnemy(s, this.map))
     // 变异：敌人狂暴（伤害+25% 血量-20%）/ 静默行动（视野-30%），拷贝 d 避免污染全局 KINDS
@@ -310,6 +311,19 @@ export class DuckovGame {
   }
 
   update(dt) {
+    // 撤离演出：金光上升 1.5s（无敌），演出结束才结算
+    if (this.extracting > 0) {
+      this.extracting -= dt
+      this.time += dt
+      const p = this.player
+      p.invuln = 1
+      this.flashGold = Math.min(1.2, this.flashGold + dt * 1.2)
+      if (Math.random() < 0.6) this.particles.push({ x: p.x + rand(-34, 34), y: p.y + rand(-8, 22), vx: rand(-12, 12), vy: rand(-130, -60), t: rand(0.4, 0.8), color: '#fde047', size: rand(2, 4) })
+      if (this.extracting <= 0) {
+        this.endRun(true, '撤离成功！带走物资价值 ' + this.lootValue)
+      }
+      return
+    }
     const p = this.player
     this.time += dt
     this.exitT -= dt
@@ -708,7 +722,10 @@ export class DuckovGame {
       this.exitProgress += dt
       const need = ex.mode === 'express' ? 1.5 : 3
       if (this.exitProgress >= need) {
-        this.endRun(true, '撤离成功！带走物资价值 ' + this.lootValue)
+        // 撤离演出：金光上升 1.5s 后结算
+        this.extracting = 1.5
+        this.exitProgress = 0
+        sound.play('extract')
         return
       }
     } else {
