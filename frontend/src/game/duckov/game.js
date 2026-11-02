@@ -32,6 +32,22 @@ export const MODIFIERS = [
   { id: 'rad', name: '辐射蔓延', desc: '辐射伤害×1.5' },
   { id: 'stealth', name: '静默行动', desc: '敌人视野-30%' }
 ]
+// 前人遗言：上一局遗体携带的随机留言（环境叙事）
+export const CORPSE_QUOTES = [
+  '别去金库……防火墙会狂暴',
+  '显卡才是硬通货，别的都是垃圾',
+  '我死在换弹的路上，记得按 R',
+  '安全箱太小，装不下我的梦想',
+  '听到警报就跑，别回头',
+  '辐射室的高价件，是用命换的',
+  '狙击进程在暗处，走位别走直线',
+  '背包满了就撤吧，贪心的人走不远',
+  '断电的时候，敌人也看不见你',
+  'Boss 掉至尊件，但先活下来再说',
+  '钥匙卡在精英身上，别硬闯出口',
+  '今天显卡行情不错，替我多捡几张'
+]
+
 // 局内契约：撤离成功时结算奖励金币
 export const CONTRACTS = [
   { id: 'kill5', name: '清剿协议：击杀 5 个敌人', reward: 120, check: g => g.kills >= 5 },
@@ -147,7 +163,7 @@ export class DuckovGame {
           const x = this.map.playerSpawn.x + dx
           const y = this.map.playerSpawn.y + dy
           if (!this.pointInWall(x, y)) {
-            this.map.lootSpots.push({ x, y, room: -1, tier: 0, opened: false, corpse: true, bag: corpse.bag, value: corpse.value || 0 })
+            this.map.lootSpots.push({ x, y, room: -1, tier: 0, opened: false, corpse: true, bag: corpse.bag, value: corpse.value || 0, quote: CORPSE_QUOTES[(Math.random() * CORPSE_QUOTES.length) | 0] })
             break
           }
         }
@@ -628,6 +644,7 @@ export class DuckovGame {
           }
           if (got > 0) {
             this.floats.push({ x: p.x, y: p.y - 40, txt: '搜回遗体物资 x' + got + '（价值 ' + gotVal + '）', t: 1.6, color: '#4ade80', big: true })
+            if (near.quote) this.floats.push({ x: near.x, y: near.y - 26, txt: '『' + near.quote + '』', t: 2.6, color: '#94a3b8' })
             sound.play('pickup2')
             for (let i = 0; i < 10; i++) this.particles.push({ x: near.x, y: near.y, vx: rand(-60, 60), vy: rand(-80, -10), t: 0.6, color: '#a3a3a3', size: 2.5 })
           }
