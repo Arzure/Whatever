@@ -195,7 +195,7 @@
             <!-- 左：仓库 -->
             <div class="loadout-col">
               <p class="loadout-sec">仓库</p>
-              <div class="loadout-drop" @dragover.prevent @drop="onDropFromStash($event)">
+              <div class="loadout-drop" :class="{ dragover: dz.stash }" @dragover.prevent @dragenter="dz.stash = true" @dragleave="dz.stash = false" @drop="onDropFromStash($event)">
                 <div v-for="x in loadoutStashItems" :key="'st' + x.i" class="loadout-card" :class="{ supply: true }" :draggable="true" @dragstart="onDragStash($event, x.i)">
                   <span class="svg-icon" v-html="iconSvg(x.it.id)"></span>
                   <b>{{ x.it.name }}</b>
@@ -205,26 +205,26 @@
             </div>
             <!-- 右：出击配置 -->
             <div class="loadout-col">
-              <p class="loadout-sec">武器</p>
-              <div class="loadout-grid">
-                <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" @click="toggleLoadoutWeapon(w)">
+              <p class="loadout-sec">武器 <i class="sb-note">点击或拖拽携带</i></p>
+              <div class="loadout-grid" :class="{ dragover: dz.weapon }" @dragover.prevent @dragenter="dz.weapon = true" @dragleave="dz.weapon = false" @drop="onDropWeapon($event)">
+                <div v-for="w in stash.weapons" :key="w" class="loadout-card" :class="{ on: stash.loadout.weapons.includes(w) }" draggable="true" @dragstart="onDragWeapon($event, w)" @click="toggleLoadoutWeapon(w)">
                   <span class="svg-icon" v-html="iconSvg(w)"></span>
                   <b>{{ WEAPONS[w] ? WEAPONS[w].name : w }}</b>
                 </div>
               </div>
-              <p class="loadout-sec">护甲</p>
-              <div class="loadout-grid">
+              <p class="loadout-sec">护甲 <i class="sb-note">点击或拖拽装备</i></p>
+              <div class="loadout-grid" :class="{ dragover: dz.armor }" @dragover.prevent @dragenter="dz.armor = true" @dragleave="dz.armor = false" @drop="onDropArmor($event)">
                 <div class="loadout-card" :class="{ on: !stash.loadout.armor }" @click="stash.loadout.armor = null; saveStash(stash)">
                   <span class="svg-icon" v-html="iconSvg('none')"></span>
                   <b>无护甲</b>
                 </div>
-                <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
+                <div v-if="stash.armor" class="loadout-card" :class="{ on: stash.loadout.armor === stash.armor }" draggable="true" @dragstart="onDragArmor($event, stash.armor)" @click="stash.loadout.armor = stash.armor; saveStash(stash)">
                   <span class="svg-icon" v-html="iconSvg(stash.armor)"></span>
                   <b>{{ stash.armor === 'light' ? '轻量防火板' : '重型机柜装甲' }}</b>
                 </div>
               </div>
               <p class="loadout-sec">携带道具</p>
-              <div class="loadout-drop target" @dragover.prevent @drop="onDropToLoadout($event)">
+              <div class="loadout-drop target" :class="{ dragover: dz.item }" @dragover.prevent @dragenter="dz.item = true" @dragleave="dz.item = false" @drop="onDropToLoadout($event)">
                 <div v-for="(it, i) in stash.loadout.items" :key="'lo' + i" class="loadout-card on" draggable="true" @dragstart="onDragLoadout($event, i)">
                   <span class="svg-icon" v-html="iconSvg(it.id)"></span>
                   <b>{{ it.name }}</b>
@@ -328,7 +328,38 @@ function onDragLoadout(ev, idx) {
   ev.dataTransfer.effectAllowed = 'move';
 }
 
+// 拖放区高亮状态
+const dz = ref({ stash: false, item: false, weapon: false, armor: false });
+
+function onDragWeapon(ev, w) {
+  ev.dataTransfer.setData('text/plain', 'weapon:' + w);
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragArmor(ev, a) {
+  ev.dataTransfer.setData('text/plain', 'armor:' + a);
+  ev.dataTransfer.effectAllowed = 'move';
+}
+
+function onDropWeapon(ev) {
+  dz.value.weapon = false;
+  const data = ev.dataTransfer.getData('text/plain');
+  if (!data.startsWith('weapon:')) return;
+  toggleLoadoutWeapon(data.slice(7));
+}
+
+function onDropArmor(ev) {
+  dz.value.armor = false;
+  const data = ev.dataTransfer.getData('text/plain');
+  if (!data.startsWith('armor:')) return;
+  const a = data.slice(6);
+  stash.value.loadout.armor = stash.value.loadout.armor === a ? null : a;
+  saveStash(stash.value);
+  stash.value = { ...stash.value };
+}
+
 function onDropToLoadout(ev) {
+  dz.value.item = false;
   const data = ev.dataTransfer.getData('text/plain');
   if (!data.startsWith('stash:')) return;
   const idx = parseInt(data.slice(6), 10);
@@ -339,6 +370,7 @@ function onDropToLoadout(ev) {
 }
 
 function onDropFromStash(ev) {
+  dz.value.stash = false;
   const data = ev.dataTransfer.getData('text/plain');
   if (!data.startsWith('loadout:')) return;
   const idx = parseInt(data.slice(8), 10);
@@ -864,6 +896,11 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .loadout-card .svg-icon { width: 44px; height: 44px; display: block; filter: drop-shadow(0 0 6px rgba(34,211,238,0.25)); }
 .loadout-drop { min-height: 90px; border: 1.5px dashed #1e3a5f; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
 .loadout-drop.target { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
+/* 拖放区悬停高亮 + 卡片拖拽手感 */
+.loadout-drop.dragover, .loadout-grid.dragover { border-color: #4ade80 !important; background: rgba(74,222,128,0.08) !important; box-shadow: inset 0 0 14px rgba(74,222,128,0.22); }
+.loadout-card[draggable="true"] { cursor: grab; transition: transform 0.1s ease, box-shadow 0.15s ease; }
+.loadout-card[draggable="true"]:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.45); }
+.loadout-card[draggable="true"]:active { cursor: grabbing; transform: scale(0.94); }
 .loadout-card.supply { cursor: grab; }
 .loadout-card.supply:active { cursor: grabbing; }
 .loadout-row { display: flex; align-items: center; gap: 14px; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px 16px; background: rgba(15,23,42,0.6); margin-bottom: 14px; }
