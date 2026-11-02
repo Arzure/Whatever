@@ -187,7 +187,7 @@ export function generateMap(opts = {}) {
     }
     if (t.enemies > 0) {
       for (let i = 0; i < t.enemies; i++) {
-        const kinds = r.type === 'vault' ? ['guard', 'guard', 'elite'] : r.type === 'power' ? ['guard', 'patrol'] : ['patrol', 'patrol', 'guard']
+        const kinds = r.type === 'vault' ? ['guard', 'guard', 'elite', 'sniper'] : r.type === 'power' ? ['guard', 'patrol', 'sniper'] : r.type === 'cooling' ? ['patrol', 'drone'] : ['patrol', 'patrol', 'guard', 'drone']
         map.spawns.push({
           x: rand(r.x + 40, r.x + r.w - 40), y: rand(r.y + 40, r.y + r.h - 40),
           room: r.id, kind: kinds[i % kinds.length]
@@ -196,7 +196,16 @@ export function generateMap(opts = {}) {
       if (r.type === 'vault') map.spawns.push({ x: r.cx, y: r.cy, room: r.id, kind: 'boss' })
     }
     if (t.exit) {
-      map.exits.push({ x: r.cx, y: r.cy, room: r.id, needKey: map.exits.length === 1, progress: 0 })
+      // 撤离点多样化：第一个为钥匙门（安全但需钥匙），第二个为快速通道（无需钥匙但撤离读条仅 1.5s，位置更深入）
+      const first = map.exits.length === 0
+      map.exits.push({
+        x: first ? r.cx : rand(r.x + 60, r.x + r.w - 60),
+        y: first ? r.cy : rand(r.y + 60, r.y + r.h - 60),
+        room: r.id,
+        needKey: first,
+        mode: first ? 'normal' : 'express',
+        progress: 0
+      })
     }
   }
   map.W = GRID * CELL + PAD * 2

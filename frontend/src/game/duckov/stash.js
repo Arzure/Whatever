@@ -14,14 +14,18 @@ export const ITEM_DEFS = {
   disk: { name: '机械硬盘', value: 80, color: '#94a3b8', icon: 'disk' },
   gpu: { name: 'GPU 显卡', value: 220, color: '#4ade80', icon: 'gpu' },
   core: { name: '量子核心', value: 500, color: '#fde047', icon: 'core' },
-  medkit: { name: '纳米医疗包', value: 60, color: '#f87171', icon: 'medkit', consumable: true }
+  medkit: { name: '纳米医疗包', value: 60, color: '#f87171', icon: 'medkit', consumable: true },
+  stim: { name: '肾上腺素注射器', value: 90, color: '#a3e635', icon: 'stim', consumable: true },
+  emp: { name: 'EMP 手雷', value: 120, color: '#22d3ee', icon: 'emp', consumable: true }
 }
 
 // 商店目录
 export const SHOP = {
   weapons: [
     { id: 'smg', name: '散热冲锋枪', desc: '高射速 · 30 发弹匣', price: 300 },
+    { id: 'laser', name: '相位激光枪', desc: '高精度速射 · 24 发能量匣', price: 650 },
     { id: 'shotgun', name: '脉冲霰弹', desc: '近距离爆发 · 6 发弹匣', price: 500 },
+    { id: 'rocket', name: '火箭发射器', desc: '范围爆炸 80 伤害 · 3 发弹匣', price: 1200 },
     { id: 'railgun', name: '轨道炮', desc: '单发 90 伤害 · 慢速重炮', price: 1500 }
   ],
   armors: [
@@ -34,7 +38,9 @@ export const SHOP = {
     { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 800 }
   ],
   supplies: [
-    { id: 'medkit', name: '纳米医疗包', desc: '局内按 H 恢复 50 HP', price: 80 }
+    { id: 'medkit', name: '纳米医疗包', desc: '局内按 H 恢复 50 HP', price: 80 },
+    { id: 'stim', name: '肾上腺素注射器', desc: '局内按 G 移速+35% 持续 5 秒', price: 120 },
+    { id: 'emp', name: 'EMP 手雷', desc: '局内按 Q 瘫痪周围敌人 3 秒', price: 180 }
   ]
 }
 
@@ -137,7 +143,7 @@ export function buy(s, kind, id) {
   if (kind === 'weapons') s.weapons.push(id)
   if (kind === 'armors') s.armor = id
   if (kind === 'upgrades') s.bagLv = Math.max(s.bagLv, ['bag1', 'bag2', 'bag3'].indexOf(id) + 1)
-  if (kind === 'supplies') s.items.push({ id: 'medkit', ...ITEM_DEFS.medkit, kind: 'supply' })
+  if (kind === 'supplies') s.items.push({ id, ...ITEM_DEFS[id], kind: 'supply' })
   saveStash(s)
   return { ok: true, msg: '已购买 ' + item.name }
 }
@@ -157,6 +163,15 @@ export function consumeMedkits(s, n) {
   let left = n
   for (let i = s.loadout.items.length - 1; i >= 0 && left > 0; i--) {
     if (s.loadout.items[i].id === 'medkit') { s.loadout.items.splice(i, 1); left-- }
+  }
+  saveStash(s)
+}
+
+// 出击后从出击配置移除已携带的指定消耗品（stim/emp 等）
+export function consumeSupplies(s, id, n) {
+  let left = n
+  for (let i = s.loadout.items.length - 1; i >= 0 && left > 0; i--) {
+    if (s.loadout.items[i].id === id) { s.loadout.items.splice(i, 1); left-- }
   }
   saveStash(s)
 }

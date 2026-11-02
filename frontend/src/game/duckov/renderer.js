@@ -61,10 +61,11 @@ export function render(ctx, game) {
   ctx.fillStyle = '#111827'
   for (const c of game.map.corridors) ctx.fillRect(c.x, c.y, c.w, c.h)
 
-  // ---- 撤离点：绿色光柱 + 脉冲 ----
+  // ---- 撤离点：绿色光柱 + 脉冲（express 快速通道为青色闪电标识）----
   for (const e of game.map.exits) {
     const locked = e.needKey && !game.hasKey
-    const col = locked ? '#f59e0b' : '#4ade80'
+    const express = e.mode === 'express'
+    const col = locked ? '#f59e0b' : (express ? '#22d3ee' : '#4ade80')
     ctx.save()
     ctx.globalAlpha = 0.16 + 0.08 * Math.sin(game.time * 3)
     ctx.fillStyle = col
@@ -78,7 +79,11 @@ export function render(ctx, game) {
     ctx.fillStyle = col
     ctx.font = 'bold 10px monospace'
     ctx.textAlign = 'center'
-    ctx.fillText(locked ? 'EXIT 🔒需钥匙' : 'EXIT', e.x, e.y + 4)
+    ctx.fillText(locked ? 'EXIT 🔒需钥匙' : (express ? 'FAST EXIT' : 'EXIT'), e.x, e.y + 4)
+    if (express) {
+      ctx.font = 'bold 8px monospace'
+      ctx.fillText('⚡1.5s', e.x, e.y + 16)
+    }
   }
 
   // ---- 物资点：发光分级（白微光→金强光柱） ----
@@ -170,6 +175,14 @@ export function render(ctx, game) {
         const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
       }
+    } else if (e.d.drone) {
+      // 无人机：旋转四旋翼造型
+      for (let i = 0; i < 4; i++) {
+        const a = i / 4 * TAU + game.time * 2.5
+        const ax = Math.cos(a) * e.r * 1.5, ay = Math.sin(a) * e.r * 1.5
+        ctx.moveTo(ax, ay)
+        ctx.arc(ax, ay, e.r * 0.42, 0, TAU)
+      }
     } else {
       ctx.arc(0, 0, e.r, 0, TAU)
     }
@@ -180,6 +193,18 @@ export function render(ctx, game) {
     if (e.flashT > 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.85)'
       ctx.fill()
+    }
+    // 狙击手：锁定瞄准线（锁定越久越亮）
+    if (e.d.sniper && e.state === 'combat' && e.aimT > 0) {
+      ctx.save()
+      ctx.globalAlpha = Math.min(0.85, 0.15 + e.aimT * 0.9)
+      ctx.strokeStyle = '#f43f5e'
+      ctx.lineWidth = 1 + e.aimT
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.lineTo(p.x - e.x, p.y - e.y)
+      ctx.stroke()
+      ctx.restore()
     }
     // 朝向玩家的眼睛
     const ea = Math.atan2(p.y - e.y, p.x - e.x)

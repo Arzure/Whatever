@@ -7,7 +7,9 @@ export const ENEMY_KINDS = {
   patrol: { name: '巡逻进程', hp: 40, dmg: 8, speed: 70, r: 11, color: '#f59e0b', range: 260, fireCd: 1.2, bullet: 240, melee: false, sight: 300, fov: 1.1 },
   guard: { name: '守卫进程', hp: 70, dmg: 12, speed: 55, r: 13, color: '#ef4444', range: 200, fireCd: 1.6, bullet: 280, melee: false, sight: 260, fov: 1.3 },
   elite: { name: '精英守卫', hp: 220, dmg: 18, speed: 62, r: 17, color: '#a855f7', range: 240, fireCd: 0.9, bullet: 320, melee: false, sight: 320, fov: 1.4, elite: true },
-  boss: { name: '防火墙核心', hp: 1400, dmg: 26, speed: 46, r: 30, color: '#dc2626', range: 300, fireCd: 1.1, bullet: 300, melee: false, sight: 400, fov: Math.PI, boss: true }
+  boss: { name: '防火墙核心', hp: 1400, dmg: 26, speed: 46, r: 30, color: '#dc2626', range: 300, fireCd: 1.1, bullet: 300, melee: false, sight: 400, fov: Math.PI, boss: true },
+  drone: { name: '侦察无人机', hp: 26, dmg: 6, speed: 105, r: 9, color: '#38bdf8', range: 170, fireCd: 0.7, bullet: 210, melee: false, sight: 340, fov: 1.6, drone: true },
+  sniper: { name: '狙击进程', hp: 55, dmg: 34, speed: 48, r: 12, color: '#f43f5e', range: 420, fireCd: 2.4, bullet: 520, melee: false, sight: 460, fov: 0.7, sniper: true }
 }
 
 const TAU = Math.PI * 2
@@ -31,7 +33,7 @@ export function createEnemy(spawn, map) {
     stateT: 0, wpIdx: 0, waypoints,
     homeRoom: spawn.room,
     lastSeen: null, investT: 0, fireT: rand(0.3, 1),
-    flashT: 0, dead: false, alertMark: 0, alertMarkT: 0
+    flashT: 0, dead: false, alertMark: 0, alertMarkT: 0, stunT: 0
   }
 }
 
@@ -67,6 +69,12 @@ export function makeNoise(game, x, y, radius) {
 export function updateEnemy(game, e, dt) {
   const p = game.player
   if (e.flashT > 0) e.flashT -= dt
+  // EMP 眩晕：不动不射，仅缓慢恢复
+  if (e.stunT > 0) {
+    e.stunT -= dt
+    e.face += 4 * dt
+    return
+  }
   if (e.alertMarkT > 0) e.alertMarkT -= dt
   e.stateT += dt
   const seen = !p.dead && canSee(game, e, p.x, p.y)
@@ -138,9 +146,18 @@ export function updateEnemy(game, e, dt) {
         mvx = Math.cos(back); mvy = Math.sin(back)
       }
     }
-    // 射击（仅可见时）
+    // 射击（仅可见时）；狙击手需先锁定 0.8s
     e.fireT -= dt
-    if (e.fireT <= 0 && seen && distP < e.d.range) {
+    if (e.d.sniper) {
+      if (seen && distP < e.d.range) {
+        e.aimT = (e.aimT || 0) + dt
+        if (e.aimT >= 0.8 && e.fireT <= 0) {
+          e.fireT = e.d.fireCd
+          e.aimT = 0
+          game.enemyShoot(e, aim)
+        }
+      } else e.aimT = 0
+    } else if (e.fireT <= 0 && seen && distP < e.d.range) {
       e.fireT = e.d.fireCd
       game.enemyShoot(e, aim)
     }

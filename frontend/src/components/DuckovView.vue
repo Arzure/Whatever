@@ -9,6 +9,8 @@
           <span class="weapon">{{ hud.weapon }} [{{ hud.ammo }}]</span>
           <span class="bag">背包 {{ hud.bag }}/{{ hud.bagSize }} · 价值 {{ hud.value }}</span>
           <span class="med">+{{ hud.medkits }} 医疗包(H)</span>
+          <span v-if="hud.stims" class="med">+{{ hud.stims }} 肾上腺素(G)</span>
+          <span v-if="hud.emps" class="med">+{{ hud.emps }} EMP(Q)</span>
           <span v-if="hud.hasKey" class="key">🔑</span>
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
@@ -111,7 +113,7 @@
               <button class="buy-btn" :disabled="stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 || stash.coins < it.price" @click="doBuy('upgrades', it.id)">{{ stash.bagLv >= ['bag1','bag2','bag3'].indexOf(it.id) + 1 ? '已购买' : it.price + ' 金币' }}</button>
             </div>
             <div v-for="it in SHOP.supplies" :key="it.id" class="shop-item">
-              <span class="svg-icon" v-html="iconSvg('medkit')"></span>
+              <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b><em>{{ it.desc }}</em>
               <button class="buy-btn" :disabled="stash.coins < it.price" @click="doBuy('supplies', it.id)">{{ it.price }} 金币</button>
             </div>
@@ -177,7 +179,7 @@ import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
 import { getAuthToken } from '../api.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -329,6 +331,10 @@ function iconSvg(id) {
     smg: '<rect x="4" y="18" width="30" height="6" rx="1.5" fill="#fbbf24"/><rect x="12" y="24" width="6" height="14" rx="1.5" fill="#f59e0b"/><rect x="22" y="24" width="5" height="9" rx="1.5" fill="#d97706"/><rect x="34" y="19.5" width="10" height="3" rx="1" fill="#fde68a"/><rect x="8" y="15" width="10" height="3" rx="1" fill="#b45309"/>',
     shotgun: '<rect x="4" y="20" width="40" height="5" rx="1.5" fill="#f472b6"/><rect x="14" y="25" width="14" height="5" rx="2" fill="#be185d"/><rect x="6" y="25" width="8" height="10" rx="2" fill="#9d174d"/><rect x="38" y="25" width="6" height="4" rx="1" fill="#fbcfe8"/>',
     railgun: '<rect x="4" y="21" width="40" height="6" rx="2" fill="#c084fc"/><rect x="10" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="18" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="26" y="16" width="4" height="16" rx="1" fill="#a855f7"/><rect x="34" y="23" width="10" height="2.5" rx="1" fill="#f5f3ff"/><rect x="6" y="27" width="7" height="9" rx="2" fill="#7e22ce"/>',
+    laser: '<rect x="4" y="20" width="34" height="6" rx="2" fill="#a3e635"/><rect x="10" y="15" width="6" height="4" rx="1" fill="#65a30d"/><rect x="38" y="21" width="8" height="4" rx="1" fill="#ecfccb"/><rect x="12" y="26" width="6" height="12" rx="2" fill="#4d7c0f"/><circle cx="24" cy="23" r="2.4" fill="#f0fdf4"/>',
+    rocket: '<rect x="6" y="19" width="30" height="10" rx="3" fill="#fb923c"/><path d="M36 19 L44 24 L36 29 Z" fill="#fdba74"/><circle cx="12" cy="24" r="5" fill="#c2410c"/><rect x="16" y="29" width="4" height="8" rx="1" fill="#9a3412"/><rect x="24" y="29" width="4" height="8" rx="1" fill="#9a3412"/><rect x="8" y="14" width="10" height="4" rx="1" fill="#7c2d12"/>',
+    stim: '<rect x="20" y="6" width="8" height="24" rx="2" fill="#a3e635"/><rect x="22" y="30" width="4" height="10" rx="1" fill="#65a30d"/><rect x="16" y="10" width="16" height="3" rx="1" fill="#ecfccb"/><circle cx="24" cy="42" r="2" fill="#f0fdf4"/>',
+    emp: '<circle cx="24" cy="26" r="12" fill="#0f172a" stroke="#22d3ee" stroke-width="2.5"/><circle cx="24" cy="26" r="5" fill="#22d3ee"/><path d="M24 6 L28 12 L20 12 Z" fill="#67e8f9"/><path d="M24 46 L28 40 L20 40 Z" fill="#67e8f9"/><path d="M4 26 L10 22 L10 30 Z" fill="#67e8f9"/><path d="M44 26 L38 22 L38 30 Z" fill="#67e8f9"/>',
     light: '<path d="M24 6 L38 12 V26 C38 34 31 40 24 42 C17 40 10 34 10 26 V12 Z" fill="#334155" stroke="#94a3b8" stroke-width="2"/><path d="M24 14 L30 17 V26 C30 31 27 34 24 36 C21 34 18 31 18 26 V17 Z" fill="#cbd5e1"/>',
     heavy: '<path d="M24 4 L40 11 V27 C40 37 32 42 24 44 C16 42 8 37 8 27 V11 Z" fill="#1e293b" stroke="#e2e8f0" stroke-width="2.5"/><rect x="18" y="16" width="12" height="16" rx="2" fill="#e2e8f0"/><rect x="21" y="20" width="6" height="8" rx="1" fill="#0f172a"/>',
     bag: '<rect x="10" y="14" width="28" height="28" rx="5" fill="#422006" stroke="#fbbf24" stroke-width="2"/><rect x="18" y="7" width="12" height="9" rx="4" fill="none" stroke="#fbbf24" stroke-width="2"/><rect x="19" y="24" width="10" height="10" rx="2" fill="#fbbf24"/>',
@@ -384,7 +390,11 @@ function fit() {
 function start() {
   const lo = stash.value.loadout;
   const takeMedkits = lo.items.filter(it => it.id === 'medkit').length;
+  const takeStims = lo.items.filter(it => it.id === 'stim').length;
+  const takeEmps = lo.items.filter(it => it.id === 'emp').length;
   consumeMedkits(stash.value, takeMedkits);
+  consumeSupplies(stash.value, 'stim', takeStims);
+  consumeSupplies(stash.value, 'emp', takeEmps);
   stash.value = { ...stash.value };
   panel.value = 'playing';
   hud.value = null;
@@ -407,7 +417,9 @@ function start() {
     bagSize: bagCapacity(stash.value),
     armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
     weapons: lo.weapons.length ? lo.weapons : ['pistol'],
-    medkits: takeMedkits
+    medkits: takeMedkits,
+    stims: takeStims,
+    emps: takeEmps
   });
 }
 
@@ -465,10 +477,14 @@ function onKeyDown(ev) {
     game.player.stamina -= 25;
   }
   if (k === 'h') game.useMedkit();
+  if (k === 'g') game.useStim();
+  if (k === 'q') game.useEmp();
   if (k === '1') game.player.weapon = 'pistol';
   if (k === '2' && game.ownedWeapons.includes('smg')) game.player.weapon = 'smg';
   if (k === '3' && game.ownedWeapons.includes('shotgun')) game.player.weapon = 'shotgun';
   if (k === '4' && game.ownedWeapons.includes('railgun')) game.player.weapon = 'railgun';
+  if (k === '5' && game.ownedWeapons.includes('laser')) game.player.weapon = 'laser';
+  if (k === '6' && game.ownedWeapons.includes('rocket')) game.player.weapon = 'rocket';
   if (k === ' ') ev.preventDefault();
 }
 

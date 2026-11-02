@@ -16,7 +16,9 @@ export const WEAPONS = {
   pistol: { name: '运维手枪', dmg: 24, cd: 0.32, speed: 520, spread: 0.04, mag: Infinity, noise: 180, color: '#67e8f9' },
   smg: { name: '散热冲锋枪', dmg: 13, cd: 0.11, speed: 560, spread: 0.12, mag: 30, reload: 1.4, noise: 260, color: '#fbbf24' },
   shotgun: { name: '脉冲霰弹', dmg: 12, pellets: 6, cd: 0.85, speed: 460, spread: 0.34, mag: 6, reload: 1.8, noise: 340, color: '#f472b6' },
-  railgun: { name: '轨道炮', dmg: 90, cd: 1.1, speed: 760, spread: 0, mag: 5, reload: 2.0, noise: 420, color: '#c084fc' }
+  railgun: { name: '轨道炮', dmg: 90, cd: 1.1, speed: 760, spread: 0, mag: 5, reload: 2.0, noise: 420, color: '#c084fc' },
+  laser: { name: '相位激光枪', dmg: 22, cd: 0.16, speed: 680, spread: 0.02, mag: 24, reload: 1.5, noise: 280, color: '#a3e635' },
+  rocket: { name: '火箭发射器', dmg: 80, cd: 1.4, speed: 380, spread: 0.03, mag: 3, reload: 2.4, noise: 400, color: '#fb923c', aoe: 70 }
 }
 
 // 物资定义：价值/体积
@@ -66,12 +68,14 @@ export class DuckovGame {
     this.hasKey = false
     this.armorMul = cfg.armorMul || 1
     this.medkits = cfg.medkits || 0
+    this.stims = cfg.stims || 0
+    this.emps = cfg.emps || 0
     this.player = {
       x: this.map.playerSpawn.x, y: this.map.playerSpawn.y, r: 12,
       hp: 100, maxHp: 100,
       speed: 175, face: 0,
       weapon: 'pistol', ammo: {}, reloadT: 0, fireT: 0,
-      stamina: 100, dashT: 0, dashCd: 0,
+      stamina: 100, dashT: 0, dashCd: 0, stimT: 0,
       bag: [], bagSize: cfg.bagSize || 10,
       invuln: 0, dead: false
     }
@@ -204,6 +208,11 @@ export class DuckovGame {
     const room = roomAt(this.map, p.x, p.y)
     const coolMul = room && room.type === 'cooling' ? 0.7 : 1
     let spd = p.speed * loadMul * coolMul
+    if (p.stimT > 0) {
+      p.stimT -= dt
+      spd *= 1.35
+      if (Math.random() < 0.3) this.particles.push({ x: p.x, y: p.y, vx: rand(-15, 15), vy: rand(-15, 15), t: 0.2, color: '#a3e635', size: 2 })
+    }
     if (p.dashT > 0) {
       p.dashT -= dt
       spd *= 2.6
@@ -238,7 +247,7 @@ export class DuckovGame {
         const n = w.pellets || 1
         for (let i = 0; i < n; i++) {
           const a = p.face + rand(-w.spread, w.spread)
-          this.bullets.push({ x: p.x + Math.cos(p.face) * 16, y: p.y + Math.sin(p.face) * 16, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, r: 3, dmg: w.dmg, life: 1.2, color: w.color })
+          this.bullets.push({ x: p.x + Math.cos(p.face) * 16, y: p.y + Math.sin(p.face) * 16, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, r: 3, dmg: w.dmg, life: 1.2, color: w.color, aoe: w.aoe || 0 })
         }
         sound.play('shoot')
         makeNoise(this, p.x, p.y, w.noise)
@@ -266,13 +275,15 @@ export class DuckovGame {
         continue
       }
       if (this.pointInWall(b.x, b.y)) {
-        for (let i = 0; i < 3; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-40, 40), vy: rand(-40, 40), t: 0.15, color: b.color, size: 2 })
+        if (b.aoe) this.explode(b.x, b.y, b.aoe, b.dmg)
+        else for (let i = 0; i < 3; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-40, 40), vy: rand(-40, 40), t: 0.15, color: b.color, size: 2 })
         b.dead = true
         continue
       }
       for (const pr of this.map.props) {
         if (pr.hp <= 0) continue
         if (b.x > pr.x && b.x < pr.x + pr.w && b.y > pr.y && b.y < pr.y + pr.h) {
+          if (b.aoe) this.explode(b.x, b.y, b.aoe, b.dmg)
           pr.hp -= b.dmg
           for (let i = 0; i < 4; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-50, 50), vy: rand(-50, 50), t: 0.2, color: '#a16207', size: 2 })
           if (pr.hp <= 0) this.floats.push({ x: pr.x + pr.w / 2, y: pr.y, txt: '货架被击碎！', t: 1, color: '#a16207' })
@@ -284,6 +295,11 @@ export class DuckovGame {
       for (const e of this.enemies) {
         if (e.dead) continue
         if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + b.r) {
+          if (b.aoe) {
+            this.explode(b.x, b.y, b.aoe, b.dmg)
+            b.dead = true
+            break
+          }
           e.hp -= b.dmg
           e.flashT = 0.08
           this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(b.dmg), t: 0.6, color: '#fde047' })
@@ -365,6 +381,31 @@ export class DuckovGame {
     return false
   }
 
+  explode(x, y, radius, dmg) {
+    this.shakeT = 0.2
+    for (let i = 0; i < 16; i++) this.particles.push({ x, y, vx: rand(-140, 140), vy: rand(-140, 140), t: 0.5, color: '#fb923c', size: 3.5 })
+    this.floats.push({ x, y: y - 20, txt: '轰！', t: 0.8, color: '#fb923c', big: true })
+    makeNoise(this, x, y, 320)
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      const d = Math.hypot(e.x - x, e.y - y)
+      if (d < radius + e.r) {
+        const real = Math.max(5, Math.round(dmg * (1 - 0.5 * d / (radius + e.r))))
+        e.hp -= real
+        e.flashT = 0.08
+        this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(real), t: 0.6, color: '#fde047' })
+        if (e.state !== 'combat') {
+          e.state = 'combat'
+          e.stateT = 0
+          e.alertMark = '!'
+          e.alertMarkT = 1.2
+        }
+        e.lastSeen = { x: this.player.x, y: this.player.y }
+        if (e.hp <= 0) this.killEnemy(e)
+      }
+    }
+  }
+
   updateInteract(dt) {
     const p = this.player
     let near = null
@@ -410,7 +451,8 @@ export class DuckovGame {
     this.exitTarget = ex
     if (ex) {
       this.exitProgress += dt
-      if (this.exitProgress >= 3) {
+      const need = ex.mode === 'express' ? 1.5 : 3
+      if (this.exitProgress >= need) {
         this.endRun(true, '撤离成功！带走物资价值 ' + this.lootValue)
         return
       }
@@ -463,6 +505,42 @@ export class DuckovGame {
     for (let i = 0; i < 8; i++) this.particles.push({ x: p.x, y: p.y, vx: rand(-40, 40), vy: rand(-60, -10), t: 0.5, color: '#4ade80', size: 2.5 })
   }
 
+  useStim() {
+    const p = this.player
+    if (this.stims <= 0) {
+      this.floats.push({ x: p.x, y: p.y - 30, txt: '没有肾上腺素！', t: 1, color: '#f87171' })
+      return
+    }
+    this.stims--
+    p.stimT = 5
+    p.stamina = 100
+    this.floats.push({ x: p.x, y: p.y - 40, txt: '肾上腺素！移速提升 5 秒', t: 1.2, color: '#a3e635', big: true })
+    sound.play('levelup')
+  }
+
+  useEmp() {
+    const p = this.player
+    if (this.emps <= 0) {
+      this.floats.push({ x: p.x, y: p.y - 30, txt: '没有 EMP 手雷！', t: 1, color: '#f87171' })
+      return
+    }
+    this.emps--
+    this.shakeT = 0.15
+    this.floats.push({ x: p.x, y: p.y - 40, txt: 'EMP 爆发！范围内敌人瘫痪 3 秒', t: 1.4, color: '#22d3ee', big: true })
+    sound.play('boss')
+    for (let i = 0; i < 12; i++) this.particles.push({ x: p.x, y: p.y, vx: rand(-160, 160), vy: rand(-160, 160), t: 0.4, color: '#22d3ee', size: 2.5 })
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      if (Math.hypot(e.x - p.x, e.y - p.y) < 260) {
+        e.stunT = 3
+        e.state = 'search'
+        e.lastSeen = { x: p.x, y: p.y }
+        e.alertMark = '?'
+        e.alertMarkT = 1
+      }
+    }
+  }
+
   hurtPlayer(dmg) {
     const p = this.player
     if (p.invuln > 0 || p.dead) return
@@ -512,6 +590,8 @@ export class DuckovGame {
       hasKey: this.hasKey,
       stamina: p.stamina,
       medkits: this.medkits,
+      stims: this.stims,
+      emps: this.emps,
       alert: this.alert,
       blackout: this.blackout > 0
     }
