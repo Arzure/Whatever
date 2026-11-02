@@ -260,7 +260,8 @@ export function synthPreview(s) {
     const cpu = s.items.find(it => it.cat === 'cpu' && it.tier === tier)
     const mbOk = cpu ? s.items.some(it => it.cat === 'mb' && it.tier === tier && (!it.platform || !cpu.platform || it.platform === cpu.platform)) : false
     const missing = cats.filter(c => !have[c] || (c === 'mb' && !mbOk))
-    result.push({ tier, name: TIER_NAMES[tier], have: { ...have }, mbOk, ready: missing.length === 0, missing })
+    const got = cats.filter(c => have[c] > 0).length
+    result.push({ tier, name: TIER_NAMES[tier], have: { ...have }, got, mbOk, ready: missing.length === 0, missing })
   }
   return result
 }

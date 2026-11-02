@@ -132,14 +132,15 @@
             </div>
             <p v-if="!stash.items.length" class="bag-empty">仓库空空如也——去封锁区搜刮吧</p>
           </div>
-          <!-- 整机合成台 -->
+          <!-- 整机合成台（紧凑版：进度条 + 悬浮明细） -->
           <div class="synth-sec">
-            <p class="loadout-sec">🖥️ 整机合成台 <i class="sb-note">凑齐同档 8 大部件且 CPU 与主板平台一致 · 合成价 = 散件总价 × 档位倍率</i></p>
-            <div v-for="row in synthRows" :key="row.tier" class="synth-row" :class="{ ready: row.ready }">
+            <p class="loadout-sec">🖥️ 整机合成台 <i class="sb-note">同档 8 件 · CPU/主板平台一致 · 合成价 = 散件总价 × 档位倍率</i></p>
+            <div v-for="row in synthRows" :key="row.tier" class="synth-row" :class="{ ready: row.ready }" :title="synthTip(row)">
               <b class="synth-tier">{{ row.name }}</b>
-              <span v-for="(n, c) in row.have" :key="c" class="synth-cat" :class="{ ok: n > 0 }">{{ PART_CATS[c] }}×{{ n }}</span>
+              <span class="synth-bar"><i :style="{ width: (row.got / 8 * 100) + '%' }"></i></span>
+              <span class="synth-num" :class="{ full: row.ready }">{{ row.got }}/8</span>
               <em v-if="row.have.mb > 0 && !row.mbOk" class="synth-warn">平台不符</em>
-              <button class="buy-btn" :disabled="!row.ready" @click="doSynth">{{ row.ready ? '合成（×' + PC_MULT[row.tier] + '）' : '缺 ' + row.missing.length + ' 件' }}</button>
+              <button class="buy-btn" :disabled="!row.ready" @click="doSynth">{{ row.ready ? '合成 ×' + PC_MULT[row.tier] : '缺件' }}</button>
             </div>
           </div>
           <button class="btn btn2" @click="doSellAll">一键变卖全部战利品</button>
@@ -594,6 +595,10 @@ function doSellAll() {
 
 const synthRows = computed(() => synthPreview(stash.value));
 
+function synthTip(row) {
+  return Object.keys(PART_CATS).map(c => PART_CATS[c] + '×' + (row.have[c] || 0)).join(' · ') + (row.have.mb > 0 && !row.mbOk ? ' · ⚠ CPU 与主板平台不一致' : '');
+}
+
 function doSynth() {
   const r = synthesizePC(stash.value);
   msg.value = r.msg;
@@ -922,6 +927,16 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .safebox-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .safebox-cell { border-color: rgba(251,191,36,0.45); }
 .bi-drop.sb-in { color: #fbbf24; border-color: rgba(251,191,36,0.5); }
+/* 整机合成台（紧凑版） */
+.synth-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid #1e3a5f; border-radius: 6px; margin-bottom: 5px; background: rgba(15,23,42,0.6); }
+.synth-row.ready { border-color: rgba(74,222,128,0.5); background: rgba(20,83,45,0.25); }
+.synth-tier { color: #e2e8f0; font-size: 12px; width: 34px; flex-shrink: 0; }
+.synth-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.synth-bar i { display: block; height: 100%; background: linear-gradient(90deg, #22d3ee, #4ade80); border-radius: 3px; transition: width 0.2s; }
+.synth-num { color: #94a3b8; font-size: 11px; font-style: normal; min-width: 28px; text-align: right; }
+.synth-num.full { color: #4ade80; font-weight: 600; }
+.synth-warn { color: #f59e0b; font-size: 11px; font-style: normal; }
+.synth-row .buy-btn { padding: 3px 10px; font-size: 11px; flex-shrink: 0; }
 /* 局内背包格子化 */
 .bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
 .bag-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; background: rgba(15,23,42,0.9); border: 1px solid rgba(103,232,249,0.25); border-radius: 6px; }
