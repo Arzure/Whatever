@@ -10,19 +10,20 @@
         </div>
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
-        <!-- 换弹进度条（换弹时显示） -->
-        <div v-if="hud.reloading" class="reload-bar-wrap"><div class="reload-bar" :style="{ width: (hud.reloadPct * 100) + '%' }"></div></div>
-        <!-- 小地图（点击展开大图） -->
+<!-- 小地图（点击展开大图） -->
         <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @mousedown="onMmDown" @mousemove="onMmMove" @mouseup="onMmUp" @mouseleave="onMmUp" @click="onMmClick"></canvas>
         <!-- 左下角玩家状态栏 -->
         <div class="status-panel">
           <div class="sp-row sp-weapon">
+            <span class="sp-icon" v-html="iconSvg(hud.weaponId)"></span>
             <span class="sp-weapon-name">{{ hud.weapon }}</span>
             <span class="sp-ammo">[{{ hud.ammo }}<template v-if="hud.mag !== '∞'">/{{ hud.mag }}</template>]</span>
             <span v-if="hud.reloading" class="sp-reloading">⟳ 换弹中…</span>
             <span v-else class="sp-reload-hint">R 换弹</span>
-            <span v-if="hud.armor" class="sp-armor">🛡 {{ hud.armor }}</span>
+            <span v-if="hud.armorId" class="sp-icon" v-html="iconSvg(hud.armorId)"></span>
+            <span v-if="hud.armor" class="sp-armor">{{ hud.armor }}</span>
           </div>
+          <div v-if="hud.reloading" class="sp-reload-bar"><div class="sp-reload-fill" :style="{ width: (hud.reloadPct * 100) + '%' }"></div></div>
           <div class="sp-row">
             <span class="sp-label">HP</span>
             <div class="hp-bar"><div class="hp-fill" :class="{ low: hud.hp < 30 }" :style="{ width: Math.max(0, hud.hp / hud.maxHp * 100) + '%' }"></div></div>
@@ -34,10 +35,10 @@
             <span class="sp-num">{{ Math.round(hud.stamina) }}</span>
           </div>
           <div class="sp-row sp-items">
+            <span class="sp-item"><span class="sp-icon" v-html="iconSvg('medkit')"></span>×{{ hud.medkits }} <i class="sp-key">H</i></span>
+            <span v-if="hud.stims" class="sp-item"><span class="sp-icon" v-html="iconSvg('stim')"></span>×{{ hud.stims }} <i class="sp-key">G</i></span>
+            <span v-if="hud.emps" class="sp-item"><span class="sp-icon" v-html="iconSvg('emp')"></span>×{{ hud.emps }} <i class="sp-key">Q</i></span>
             <span class="sp-loot">💰 {{ hud.value }} · 背包 {{ hud.bag }}/{{ hud.bagSize }}</span>
-            <span class="sp-med">+{{ hud.medkits }} 医疗(H)</span>
-            <span v-if="hud.stims" class="sp-med">+{{ hud.stims }} 针(G)</span>
-            <span v-if="hud.emps" class="sp-med">+{{ hud.emps }} EMP(Q)</span>
           </div>
         </div>
         <div class="hud-bottom">
@@ -53,12 +54,13 @@
       <div v-if="panel === 'playing' && bagOpen && hud" class="bag-panel">
         <h3>背包 <span class="bag-sum">总价值 {{ hud.value }} · 负重 {{ hud.bag }}/{{ hud.bagSize }}</span></h3>
         <p v-if="!bagItems.length" class="bag-empty">空空如也——去搜刮机柜吧</p>
-        <div v-for="(it, i) in bagItems" :key="i" class="bag-item">
-          <span class="svg-icon" v-html="iconSvg(it.id)"></span>
-          <span class="bi-name">{{ it.name }}</span>
-          <span class="bi-val">{{ it.value }}</span>
-          <span class="bi-size">体积 {{ it.size }}</span>
-          <button class="bi-drop" @click="dropItem(i)">丢弃</button>
+        <div class="bag-grid">
+          <div v-for="(it, i) in bagItems" :key="i" class="bag-cell">
+            <span class="svg-icon" v-html="iconSvg(it.id)"></span>
+            <span class="bi-name">{{ it.name }}</span>
+            <span class="bi-val">{{ it.value }}</span>
+            <button class="bi-drop" @click="dropItem(i)">丢弃</button>
+          </div>
         </div>
         <p class="bag-tip">Tab 关闭 · 丢弃低价值物品可提升移速</p>
       </div>
@@ -98,6 +100,14 @@
         <div class="modal">
           <h2>仓库 <button class="modal-x" @click="modal = null">✕</button></h2>
           <p class="modal-sub">💰 {{ stash.coins }} 金币 · 存货 {{ stash.items.length }} 件</p>
+          <!-- 已拥有武器/护甲（免费运维手枪不显示） -->
+          <div v-if="ownedGear.length" class="stash-gear">
+            <div v-for="g in ownedGear" :key="g.id" class="stash-card gear">
+              <span class="svg-icon" v-html="iconSvg(g.id)"></span>
+              <b>{{ g.name }}</b>
+              <em>{{ g.tag }}</em>
+            </div>
+          </div>
           <div class="stash-grid">
             <div v-for="(it, i) in stash.items" :key="i" class="stash-card">
               <span class="svg-icon" v-html="iconSvg(it.id)"></span>
@@ -194,12 +204,12 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
 import { getAuthToken } from '../api.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -212,6 +222,19 @@ let game = null;
 const stash = ref(loadStash());
 const modal = ref(null);
 const msg = ref('');
+
+// 仓库展示的已拥有武器/护甲（免费运维手枪不显示）
+const ownedGear = computed(() => {
+  const list = [];
+  for (const w of stash.value.weapons) {
+    if (w === 'pistol') continue;
+    list.push({ id: w, name: WEAPONS[w] ? WEAPONS[w].name : w, tag: '武器' });
+  }
+  if (stash.value.armor) {
+    list.push({ id: stash.value.armor, name: stash.value.armor === 'light' ? '轻量防火板' : '重型机柜装甲', tag: '护甲' });
+  }
+  return list;
+});
 
 // —— 云端存档同步：跟随账号而非浏览器 ——
 let syncTimer = null;
@@ -488,6 +511,9 @@ function start() {
       panel.value = 'end';
       if (r.win) bankStash(stash.value, game.player.bag, game.medkits);
       else failStash(stash.value);
+      // 未使用的出击消耗品返回仓库
+      for (let i = 0; i < (game.stims || 0); i++) stash.value.items.push({ id: 'stim', ...ITEM_DEFS.stim, kind: 'supply' });
+      for (let i = 0; i < (game.emps || 0); i++) stash.value.items.push({ id: 'emp', ...ITEM_DEFS.emp, kind: 'supply' });
       stash.value = { ...stash.value };
     },
     onHud: (h) => { hud.value = h; drawMinimap(); }
@@ -497,6 +523,7 @@ function start() {
     bagSize: bagCapacity(stash.value),
     armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
     armorName: lo.armor ? (lo.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '',
+    armorId: lo.armor || '',
     weapons: lo.weapons.length ? lo.weapons : ['pistol'],
     medkits: takeMedkits,
     stims: takeStims,
@@ -745,7 +772,19 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hud-top .armor { color: #93c5fd; font-weight: 600; }
 /* 换弹提示 */
 .hud-top .reloading { color: #fbbf24; font-weight: 600; animation: blink 0.6s infinite; }
-/* 换弹进度条（屏幕中上方） */
-.reload-bar-wrap { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); width: 180px; height: 8px; background: rgba(15,23,42,0.85); border: 1px solid #fbbf24; border-radius: 4px; overflow: hidden; z-index: 5; }
-.reload-bar { height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); transition: width 0.05s linear; }
+/* 状态栏内图标 */
+.sp-icon { display: inline-block; width: 22px; height: 22px; flex: none; }
+.sp-item { display: inline-flex; align-items: center; gap: 3px; color: #f87171; }
+.sp-key { font-style: normal; font-size: 10px; color: #94a3b8; border: 1px solid #475569; border-radius: 3px; padding: 0 3px; }
+/* 状态栏内换弹进度条 */
+.sp-reload-bar { width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+.sp-reload-fill { height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); transition: width 0.05s linear; }
+/* 仓库武器/护甲展示区 */
+.stash-gear { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.stash-gear .stash-card { flex-direction: row; align-items: center; gap: 6px; padding: 6px 10px; }
+.stash-gear .stash-card em { color: #67e8f9; font-style: normal; font-size: 11px; }
+/* 局内背包格子化 */
+.bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
+.bag-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; background: rgba(15,23,42,0.9); border: 1px solid rgba(103,232,249,0.25); border-radius: 6px; }
+.bag-cell .svg-icon { width: 34px; height: 34px; }
 </style>

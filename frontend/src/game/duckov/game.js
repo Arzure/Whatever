@@ -73,6 +73,7 @@ export class DuckovGame {
     this.hasKey = false
     this.armorMul = cfg.armorMul || 1
     this.armorName = cfg.armorName || ''
+    this.armorId = cfg.armorId || ''
     this.medkits = cfg.medkits || 0
     this.stims = cfg.stims || 0
     this.emps = cfg.emps || 0
@@ -649,7 +650,9 @@ export class DuckovGame {
       reloading: p.reloadT > 0,
       reloadPct: p.reloadT > 0 ? Math.max(0, 1 - p.reloadT / (w.reload || 1)) : 0,
       weapon: w.name,
+      weaponId: p.weapon,
       armor: this.armorName || '',
+      armorId: this.armorId || '',
       bag: p.bag.reduce((s, l) => s + l.size, 0), bagSize: p.bagSize,
       value: this.lootValue,
       exitT: Math.max(0, this.exitT),
