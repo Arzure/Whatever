@@ -19,6 +19,8 @@
         <!-- 小地图（点击展开大图） -->
         <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @click="mapBig = !mapBig"></canvas>
         <div class="hud-bottom">
+          <span class="hp-label">HP {{ Math.round(hud.hp) }}/{{ hud.maxHp }}</span>
+          <div class="hp-bar"><div class="hp-fill" :class="{ low: hud.hp < 30 }" :style="{ width: Math.max(0, hud.hp / hud.maxHp * 100) + '%' }"></div></div>
           <span>体力 {{ Math.round(hud.stamina) }}/100</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
           <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1/2/3/4 切枪 · H 医疗包 · Tab 背包 · Esc 暂停</span>
@@ -531,6 +533,10 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hud-top .key { color: #fde047; }
 .hud-top .blackout { color: #f87171; animation: blink 0.4s infinite; }
 .hud-bottom { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 10px; padding: 10px 16px; background: linear-gradient(transparent, rgba(5,7,13,0.85)); color: #94a3b8; font-size: 12px; align-items: center; }
+.hp-label { color: #f87171; font-weight: bold; }
+.hp-bar { width: 150px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; border: 1px solid rgba(248,113,113,0.35); }
+.hp-fill { height: 100%; background: linear-gradient(90deg, #ef4444, #f87171); transition: width 0.15s; }
+.hp-fill.low { animation: blink 0.5s infinite; }
 .stamina-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .stamina-fill { height: 100%; background: #22d3ee; transition: width 0.1s; }
 .tip { margin-left: auto; color: #475569; }
