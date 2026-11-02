@@ -596,7 +596,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hp-fill.low { animation: blink 0.5s infinite; }
 .stamina-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .stamina-fill { height: 100%; background: #22d3ee; transition: width 0.1s; }
-.tip { margin-left: auto; color: #475569; }
+.tip { margin-left: auto; color: #cbd5e1; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
 /* 撤离倒计时（顶部居中醒目） */
 .exit-countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 22px; font-weight: bold; color: #e2e8f0; text-shadow: 0 0 12px rgba(34,211,238,0.6); pointer-events: none; }
 .exit-countdown.danger { color: #f87171; animation: blink 0.6s infinite; }
