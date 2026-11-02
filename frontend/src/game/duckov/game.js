@@ -23,6 +23,24 @@ export const WEAPONS = {
 
 // 配件定义：8 大部件 × 4 档（低端/中端/高端/至尊），价值按真实行情缩放（¥100≈10 金币）
 // CPU 与主板分 AMD/Intel 平台，合成整机时平台必须一致
+// 本局变异：每局随机一个全局规则（变异轮盘）
+export const MODIFIERS = [
+  { id: 'none', name: '常规巡逻', desc: '本局无特殊变异' },
+  { id: 'blackout', name: '断电频发', desc: '突发断电间隔大幅缩短' },
+  { id: 'rage', name: '敌人狂暴', desc: '敌人伤害+25%，血量-20%' },
+  { id: 'gpuboom', name: '显卡暴涨', desc: '显卡类配件价值×2' },
+  { id: 'rad', name: '辐射蔓延', desc: '辐射伤害×1.5' },
+  { id: 'stealth', name: '静默行动', desc: '敌人视野-30%' }
+]
+// 局内契约：撤离成功时结算奖励金币
+export const CONTRACTS = [
+  { id: 'kill5', name: '清剿协议：击杀 5 个敌人', reward: 120, check: g => g.kills >= 5 },
+  { id: 'gpu3', name: '矿潮协议：搜刮 3 件显卡', reward: 150, check: g => g.gpuGot >= 3 },
+  { id: 'vault', name: '侦察协议：到访金库', reward: 100, check: g => g.visitedVault },
+  { id: 'nohurt', name: '幽灵协议：无伤撤离', reward: 200, check: g => g.hitCount === 0 },
+  { id: 'fast', name: '闪电协议：90 秒内撤离', reward: 130, check: g => g.time <= 90 }
+]
+
 export const PART_CATS = {
   cpu: '处理器', mb: '主板', gpu: '显卡', ram: '内存',
   ssd: '固态硬盘', psu: '电源', case: '机箱', cooler: '散热器'
@@ -99,8 +117,27 @@ export class DuckovGame {
   }
 
   start(cfg = {}) {
+    // 变异轮盘：本局随机变异 + 2 张随机契约
+    this.modifier = MODIFIERS[(Math.random() * MODIFIERS.length) | 0]
+    const cpool = [...CONTRACTS]
+    this.contracts = []
+    for (let i = 0; i < 2 && cpool.length; i++) {
+      this.contracts.push(cpool.splice((Math.random() * cpool.length) | 0, 1)[0])
+    }
+    this.hitCount = 0
+    this.gpuGot = 0
+    this.visitedVault = false
     this.map = generateMap({})
     this.enemies = this.map.spawns.map(s => createEnemy(s, this.map))
+    // 变异：敌人狂暴（伤害+25% 血量-20%）/ 静默行动（视野-30%），拷贝 d 避免污染全局 KINDS
+    if (this.modifier.id === 'rage') {
+      for (const e of this.enemies) {
+        e.d = { ...e.d, dmg: Math.round(e.d.dmg * 1.25) }
+        e.hp = e.maxHp = Math.round(e.maxHp * 0.8)
+      }
+    } else if (this.modifier.id === 'stealth') {
+      for (const e of this.enemies) e.d = { ...e.d, sight: e.d.sight * 0.7 }
+    }
     // 上一局遗体：死亡时记录的携带物资在出生点附近生成尸体（可长按 E 搜回）
     try {
       const corpse = JSON.parse(localStorage.getItem('duckov_corpse') || 'null')
@@ -131,7 +168,7 @@ export class DuckovGame {
     this.flash = 0
     this.flashGold = 0
     this.blackout = 0
-    this.blackoutT = rand(50, 80)
+    this.blackoutT = this.modifier.id === 'blackout' ? rand(22, 38) : rand(50, 80)
     this.alert = 0
     this.kills = 0
     this.lootValue = 0
@@ -264,7 +301,7 @@ export class DuckovGame {
     this.blackoutT -= dt
     if (this.blackoutT <= 0 && this.blackout <= 0) {
       this.blackout = 10
-      this.blackoutT = rand(60, 90)
+      this.blackoutT = this.modifier.id === 'blackout' ? rand(26, 44) : rand(60, 90)
       this.floats.push({ x: p.x, y: p.y - 50, txt: '突发断电！视野受限，敌人同样失明', t: 2.5, color: '#f87171', big: true })
       sound.play('boss')
     }
@@ -283,10 +320,11 @@ export class DuckovGame {
     const load = p.bag.reduce((s, l) => s + l.size, 0)
     const loadMul = 1 - Math.min(0.3, load / p.bagSize * 0.3)
     const room = roomAt(this.map, p.x, p.y)
+    if (room && room.type === 'vault') this.visitedVault = true
     const coolMul = room && room.type === 'cooling' ? 0.7 : 1
     // 辐射室：持续掉血，高价值物资的风险代价
     if (room && room.type === 'radiation') {
-      p.hp -= 2.5 * dt
+      p.hp -= 2.5 * (this.modifier.id === 'rad' ? 1.5 : 1) * dt
       this.radWarnT = (this.radWarnT || 0) - dt
       if (this.radWarnT <= 0) {
         this.radWarnT = 1.5
@@ -606,8 +644,11 @@ export class DuckovGame {
           this.floats.push({ x: p.x, y: p.y - 40, txt: '背包已满！先丢弃低价值物品', t: 1.2, color: '#f87171', big: true })
         } else {
           near.opened = true
-          p.bag.push({ id: l.id, name: l.name, value: l.value, size: l.size, color: l.color, cat: l.cat, tier: l.tier, platform: l.platform || null })
-          this.lootValue += l.value
+          // 变异：显卡暴涨——显卡类配件价值×2
+          const val = l.cat === 'gpu' && this.modifier.id === 'gpuboom' ? l.value * 2 : l.value
+          p.bag.push({ id: l.id, name: l.name, value: val, size: l.size, color: l.color, cat: l.cat, tier: l.tier, platform: l.platform || null })
+          this.lootValue += val
+          if (l.cat === 'gpu') this.gpuGot++
           this.floats.push({ x: p.x, y: p.y - 40, txt: '获得 ' + l.name + '（价值 ' + l.value + '）', t: 1.2, color: l.color, big: true })
           // 档位差异化拾取音：高端/至尊件触发全屏金光特效
           sound.play('pickup' + l.tier)
@@ -771,6 +812,7 @@ export class DuckovGame {
     if (p.invuln > 0 || p.dead) return
     const real = Math.max(1, Math.round(dmg * (this.armorMul || 1)))
     p.hp -= real
+    this.hitCount = (this.hitCount || 0) + 1
     p.invuln = 0.35
     this.flash = 0.3
     this.shakeT = 0.15
@@ -806,7 +848,18 @@ export class DuckovGame {
     } catch (err) {
       // localStorage 不可用时忽略
     }
-    this.onEnd({ win, msg, value: this.lootValue, kills: this.kills, time: this.time })
+    // 契约结算：撤离成功时统计完成契约与奖励金币
+    let contractBonus = 0
+    const contractsDone = []
+    if (win && this.contracts) {
+      for (const c of this.contracts) {
+        if (c.check(this)) {
+          contractBonus += c.reward
+          contractsDone.push(c.name)
+        }
+      }
+    }
+    this.onEnd({ win, msg, value: this.lootValue, kills: this.kills, time: this.time, contractBonus, contractsDone, modifier: this.modifier })
   }
 
   hudData() {
@@ -828,6 +881,18 @@ export class DuckovGame {
       hasKey: this.hasKey,
       stamina: p.stamina,
       medkits: this.medkits,
+      modifier: this.modifier ? { name: this.modifier.name, desc: this.modifier.desc } : null,
+      contracts: (this.contracts || []).map(c => ({
+        name: c.name,
+        reward: c.reward,
+        done: c.check(this),
+        progress: c.id === 'kill5' ? Math.min(5, this.kills) + '/5'
+          : c.id === 'gpu3' ? Math.min(3, this.gpuGot || 0) + '/3'
+          : c.id === 'vault' ? (this.visitedVault ? '已到访' : '未到访')
+          : c.id === 'nohurt' ? (this.hitCount === 0 ? '未受伤' : '已受伤')
+          : c.id === 'fast' ? Math.min(90, Math.floor(this.time)) + '/90s'
+          : ''
+      })),
       stims: this.stims,
       emps: this.emps,
       alert: this.alert,

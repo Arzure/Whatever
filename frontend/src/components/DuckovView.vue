@@ -10,6 +10,12 @@
         </div>
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
+        <div v-if="hud.modifier" class="hud-modifier">⚡ {{ hud.modifier.name }}</div>
+        <div v-if="hud.contracts && hud.contracts.length" class="hud-contracts">
+          <div v-for="c in hud.contracts" :key="c.name" class="hud-contract" :class="{ done: c.done }">
+            {{ c.done ? '✅' : '📋' }} {{ c.name }} <em>{{ c.progress }}</em> <b v-if="c.done">+{{ c.reward }}💰</b>
+          </div>
+        </div>
 <!-- 小地图（点击展开大图） -->
         <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @mousedown="onMmDown" @mousemove="onMmMove" @mouseup="onMmUp" @mouseleave="onMmUp" @click="onMmClick"></canvas>
         <!-- 左下角玩家状态栏 -->
@@ -96,6 +102,11 @@
           <span>击杀 {{ result.kills }}</span>
           <span>存活 {{ Math.floor(result.time) }}s</span>
           <span>带出 {{ result.value }}</span>
+        </div>
+        <div v-if="result.modifier" class="end-modifier">本局变异：{{ result.modifier.name }} — {{ result.modifier.desc }}</div>
+        <div v-if="result.contractsDone && result.contractsDone.length" class="end-contracts">
+          <p class="ec-title">✅ 契约完成（+{{ result.contractBonus }} 金币）</p>
+          <p v-for="c in result.contractsDone" :key="c" class="ec-item">· {{ c }}</p>
         </div>
         <div class="ready-btns">
           <button class="btn" @click="panel = 'ready'">返回仓库</button>
@@ -738,8 +749,10 @@ function start() {
     onEnd: (r) => {
       result.value = r;
       panel.value = 'end';
-      if (r.win) bankStash(stash.value, game.player.bag, game.medkits);
-      else failStash(stash.value);
+      if (r.win) {
+        bankStash(stash.value, game.player.bag, game.medkits);
+        if (r.contractBonus) stash.value.coins += r.contractBonus;
+      } else failStash(stash.value);
       // 未使用的出击消耗品返回仓库
       for (let i = 0; i < (game.stims || 0); i++) stash.value.items.push({ id: 'stim', ...ITEM_DEFS.stim, kind: 'supply' });
       for (let i = 0; i < (game.emps || 0); i++) stash.value.items.push({ id: 'emp', ...ITEM_DEFS.emp, kind: 'supply' });
@@ -1029,6 +1042,16 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .safebox-cell { border-color: rgba(251,191,36,0.45); }
 .bi-drop.sb-in { color: #fbbf24; border-color: rgba(251,191,36,0.5); }
 /* 整机合成台（紧凑版） */
+.hud-modifier { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; }
+.hud-contracts { position: absolute; top: 92px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; }
+.hud-contract { color: #cbd5e1; font-size: 11px; background: rgba(15,23,42,0.7); padding: 2px 10px; border-radius: 9px; border: 1px solid rgba(148,163,184,0.25); }
+.hud-contract em { font-style: normal; color: #94a3b8; margin: 0 2px; }
+.hud-contract.done { color: #4ade80; border-color: rgba(74,222,128,0.5); }
+.hud-contract b { color: #fde047; margin-left: 2px; }
+.end-modifier { color: #fbbf24; font-size: 13px; margin: 6px 0; }
+.end-contracts { margin: 8px 0; padding: 8px 12px; border: 1px solid rgba(74,222,128,0.4); border-radius: 8px; background: rgba(20,83,45,0.2); }
+.ec-title { color: #4ade80; font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+.ec-item { color: #a7f3d0; font-size: 12px; margin: 2px 0; }
 .synth-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid #1e3a5f; border-radius: 6px; margin-bottom: 5px; background: rgba(15,23,42,0.6); }
 .synth-row.ready { border-color: rgba(74,222,128,0.5); background: rgba(20,83,45,0.25); }
 .synth-tier { color: #e2e8f0; font-size: 12px; width: 34px; flex-shrink: 0; }
