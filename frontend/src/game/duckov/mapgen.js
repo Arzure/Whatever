@@ -43,18 +43,36 @@ export function generateMap(opts = {}) {
     if (used.has(key)) continue
     if (placed > 0 && ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(d => used.has((s.gx + d[0]) + ',' + (s.gy + d[1])))) continue
     used.add(key)
-    // 房间形状多样化：普通/大房间/小房间/圆形房间
+    // 房间形状多样化：大/小/圆/L 形/T 形/矩形（L/T 用切角块构成，块计入墙体）
     const shapeRoll = Math.random()
     let w, h, shape = 'rect'
-    if (shapeRoll < 0.18) { w = rand(380, 460); h = rand(360, 440); shape = 'big' }
-    else if (shapeRoll < 0.36) { w = rand(220, 280); h = rand(200, 260); shape = 'small' }
-    else if (shapeRoll < 0.5) { w = rand(320, 400); h = rand(320, 400); shape = 'round' }
-    else { w = rand(300, 440); h = rand(260, 380) }
+    const blocks = []
+    if (shapeRoll < 0.14) { w = rand(380, 460); h = rand(360, 440); shape = 'big' }
+    else if (shapeRoll < 0.28) { w = rand(220, 280); h = rand(200, 260); shape = 'small' }
+    else if (shapeRoll < 0.40) { w = rand(320, 400); h = rand(320, 400); shape = 'round' }
+    else if (shapeRoll < 0.56) {
+      // L 形：切掉一个角
+      w = rand(380, 480); h = rand(360, 440); shape = 'L'
+      const bw = w * rand(0.32, 0.45), bh = h * rand(0.32, 0.45)
+      const c = randi(0, 3)
+      if (c === 0) blocks.push({ x: 0, y: 0, w: bw, h: bh })
+      else if (c === 1) blocks.push({ x: w - bw, y: 0, w: bw, h: bh })
+      else if (c === 2) blocks.push({ x: w - bw, y: h - bh, w: bw, h: bh })
+      else blocks.push({ x: 0, y: h - bh, w: bw, h: bh })
+    } else if (shapeRoll < 0.66) {
+      // T 形：切掉同侧两个角
+      w = rand(400, 500); h = rand(360, 430); shape = 'T'
+      const bw = w * rand(0.26, 0.36), bh = h * rand(0.3, 0.4)
+      blocks.push({ x: 0, y: 0, w: bw, h: bh })
+      blocks.push({ x: w - bw, y: 0, w: bw, h: bh })
+    } else { w = rand(300, 440); h = rand(260, 380) }
+    const rx = s.gx * CELL + PAD, ry = s.gy * CELL + PAD
     map.rooms.push({
       id: placed, gx: s.gx, gy: s.gy,
-      x: s.gx * CELL + PAD, y: s.gy * CELL + PAD, w, h,
-      cx: s.gx * CELL + PAD + w / 2, cy: s.gy * CELL + PAD + h / 2,
-      doors: [], type: 'server', shape
+      x: rx, y: ry, w, h,
+      cx: rx + w / 2, cy: ry + h / 2,
+      doors: [], type: 'server', shape,
+      blocks: blocks.map(b => ({ x: rx + b.x, y: ry + b.y, w: b.w, h: b.h }))
     })
     placed++
   }
@@ -74,6 +92,9 @@ export function generateMap(opts = {}) {
       r.type = ['server', 'server', 'power', 'cooling', 'radiation', 'armory'][randi(0, 5)]
     }
   }
+  // 主题分区：机房区（青）/ 仓储区（琥珀）/ 实验区（品红）
+  const ZONE_OF = { server: 'tech', power: 'tech', cooling: 'tech', archive: 'storage', armory: 'storage', radiation: 'lab', vault: 'lab', exit: 'exit' }
+  for (const r of map.rooms) r.zone = ZONE_OF[r.type] || 'tech'
 
   // ---- 3. 走廊连接：最小生成树 + 2 条额外环路 ----
   const edges = []
@@ -91,16 +112,18 @@ export function generateMap(opts = {}) {
     if (ra !== rb) { parent[ra] = rb; linked.add(e.i + '-' + e.j) }
   }
   let extra = 0
+  const extraSet = new Set()
   for (const e of edges) {
     if (extra >= 2) break
     const k = e.i + '-' + e.j
-    if (!linked.has(k)) { linked.add(k); extra++ }
+    if (!linked.has(k)) { linked.add(k); extraSet.add(k); extra++ }
   }
 
   for (const k of linked) {
     const parts = k.split('-')
     const a = map.rooms[+parts[0]], b = map.rooms[+parts[1]]
-    const CW = 70
+    // 主干走廊 92 宽 / 环路窄道 52 宽（伏击点）
+    const CW = extraSet.has(k) ? 52 : 92
     const horizFirst = Math.random() < 0.5
     const segs = []
     if (horizFirst) {
@@ -130,6 +153,8 @@ export function generateMap(opts = {}) {
     addWall(r.x - T, r.y + r.h, r.w + T * 2, T)
     addWall(r.x - T, r.y, T, r.h)
     addWall(r.x + r.w, r.y, T, r.h)
+    // L/T 形房间：切角块作为实心墙体
+    for (const b of (r.blocks || [])) addWall(b.x, b.y, b.w, b.h)
   }
   for (const c of map.corridors) {
     // 走廊不生成自身墙体：开放通道（避免走廊墙横穿房间困死出生点）
@@ -170,6 +195,16 @@ export function generateMap(opts = {}) {
   }
   map.walls = wallRects
 
+  // L/T 形房间：切角块附近不可放置掩体/物资/敌人/急救站
+  const inBlock = (r, x, y, m = 34) => (r.blocks || []).some(b => x > b.x - m && x < b.x + b.w + m && y > b.y - m && y < b.y + b.h + m)
+  const randInRoom = (r, m) => {
+    for (let t = 0; t < 14; t++) {
+      const x = rand(r.x + m, r.x + r.w - m), y = rand(r.y + m, r.y + r.h - m)
+      if (!inBlock(r, x, y)) return { x, y }
+    }
+    return { x: r.cx, y: r.cy }
+  }
+
   // ---- 5. 房间内掩体 + 物资点 + 敌人 ----
   for (const r of map.rooms) {
     const t = ROOM_TYPES[r.type]
@@ -192,8 +227,9 @@ export function generateMap(opts = {}) {
       const isBarrel = kind === 'barrel'
       const isCrate = kind === 'crate'
       const isRack = kind === 'rack'
+      const pp = randInRoom(r, 50)
       map.props.push({
-        x: rand(r.x + 50, r.x + r.w - 50), y: rand(r.y + 50, r.y + r.h - 50),
+        x: pp.x, y: pp.y,
         w: isBarrel ? rand(26, 34) : (isCrate ? rand(44, 60) : (isRack ? (horiz ? rand(70, 120) : rand(30, 42)) : (horiz ? rand(60, 110) : rand(28, 40)))),
         h: isBarrel ? rand(26, 34) : (isCrate ? rand(44, 60) : (isRack ? (horiz ? rand(30, 42) : rand(70, 120)) : (horiz ? rand(28, 40) : rand(60, 110)))),
         kind, hp: (kind === 'wood' || kind === 'crate' || kind === 'barrel') ? 60 : Infinity, room: r.id
@@ -202,8 +238,9 @@ export function generateMap(opts = {}) {
     if (!t.exit) {
       const nLoot = 1 + t.value + randi(0, 1)
       for (let i = 0; i < nLoot; i++) {
+        const lp = randInRoom(r, 40)
         map.lootSpots.push({
-          x: rand(r.x + 40, r.x + r.w - 40), y: rand(r.y + 40, r.y + r.h - 40),
+          x: lp.x, y: lp.y,
           room: r.id, tier: Math.min(3, t.value + (Math.random() < 0.25 ? 1 : 0)),
           opened: false
         })
@@ -212,8 +249,9 @@ export function generateMap(opts = {}) {
     if (t.enemies > 0) {
       for (let i = 0; i < t.enemies; i++) {
         const kinds = r.type === 'vault' ? ['guard', 'guard', 'elite', 'sniper'] : r.type === 'power' ? ['guard', 'patrol', 'sniper'] : r.type === 'cooling' ? ['patrol', 'drone'] : r.type === 'radiation' ? ['bomber', 'bomber', 'rusher'] : r.type === 'armory' ? ['guard', 'rusher', 'sniper'] : ['patrol', 'patrol', 'guard', 'drone', 'rusher', 'bomber']
+        const sp = randInRoom(r, 40)
         map.spawns.push({
-          x: rand(r.x + 40, r.x + r.w - 40), y: rand(r.y + 40, r.y + r.h - 40),
+          x: sp.x, y: sp.y,
           room: r.id, kind: kinds[i % kinds.length]
         })
       }
@@ -222,9 +260,9 @@ export function generateMap(opts = {}) {
     if (t.exit) {
       // 撤离点多样化：第一个为钥匙门（安全但需钥匙），第二个为快速通道（无需钥匙但撤离读条仅 1.5s，位置更深入）
       const first = map.exits.length === 0
+      const ep = first ? { x: r.cx, y: r.cy } : randInRoom(r, 60)
       map.exits.push({
-        x: first ? r.cx : rand(r.x + 60, r.x + r.w - 60),
-        y: first ? r.cy : rand(r.y + 60, r.y + r.h - 60),
+        x: ep.x, y: ep.y,
         room: r.id,
         needKey: first,
         mode: first ? 'normal' : 'express',
@@ -237,8 +275,9 @@ export function generateMap(opts = {}) {
   const nHeal = Math.min(healRooms.length, randi(3, 4))
   for (let i = 0; i < nHeal; i++) {
     const r = healRooms[(Math.random() * healRooms.length) | 0]
+    const hpt = randInRoom(r, 50)
     map.healSpots.push({
-      x: rand(r.x + 50, r.x + r.w - 50), y: rand(r.y + 50, r.y + r.h - 50),
+      x: hpt.x, y: hpt.y,
       room: r.id, taken: false
     })
   }
@@ -250,7 +289,11 @@ export function generateMap(opts = {}) {
 // 点所在房间（含走廊，走廊返回伪房间）
 export function roomAt(map, x, y) {
   for (const r of map.rooms) {
-    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+      // L/T 形房间：切角块区域不算房间内部
+      if ((r.blocks || []).some(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)) continue
+      return r
+    }
   }
   for (const c of map.corridors) {
     if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return { id: -1, type: 'corridor', x: c.x, y: c.y, w: c.w, h: c.h, cx: c.x + c.w / 2, cy: c.y + c.h / 2 }

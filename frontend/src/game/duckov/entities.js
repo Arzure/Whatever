@@ -25,6 +25,12 @@ export function createEnemy(spawn, map) {
   const waypoints = []
   if (room) {
     for (let i = 0; i < 3; i++) waypoints.push({ x: rand(room.x + 40, room.x + room.w - 40), y: rand(room.y + 40, room.y + room.h - 40) })
+    // 巡逻路径延伸至门口：敌人会走到房间出入口附近张望，不再站桩打转
+    if (room.doors && room.doors.length) {
+      const d = room.doors[(Math.random() * room.doors.length) | 0]
+      if (d.dir === 'v') waypoints.push({ x: d.x < room.cx ? room.x + 70 : room.x + room.w - 70, y: d.y })
+      else waypoints.push({ x: d.x, y: d.y < room.cy ? room.y + 70 : room.y + room.h - 70 })
+    }
   }
   return {
     kind: spawn.kind, d: k,
@@ -35,7 +41,8 @@ export function createEnemy(spawn, map) {
     stateT: 0, wpIdx: 0, waypoints,
     homeRoom: spawn.room,
     lastSeen: null, investT: 0, fireT: rand(0.3, 1),
-    flashT: 0, dead: false, alertMark: 0, alertMarkT: 0, stunT: 0
+    flashT: 0, dead: false, alertMark: 0, alertMarkT: 0, stunT: 0,
+    chargeT: rand(2, 4), chargeD: 0, raged: false
   }
 }
 
@@ -84,11 +91,28 @@ export function updateEnemy(game, e, dt) {
   const home = game.map.rooms.find(r => r.id === e.homeRoom)
 
   // ---- 状态转移 ----
+  // Boss 狂暴阶段：血量低于 50% 提速 40%、射速加快
+  if (e.d.boss && !e.raged && e.hp < e.maxHp * 0.5) {
+    e.raged = true
+    e.alertMark = '!!'; e.alertMarkT = 2
+    if (game.floats) game.floats.push({ x: e.x, y: e.y - 46, txt: '⚠ 防火墙核心狂暴！', t: 2, color: '#fde047', big: true })
+  }
   if (seen) {
     if (e.state !== 'combat') {
       e.state = 'combat'; e.stateT = 0
       e.alertMark = '!'; e.alertMarkT = 1.5
       game.onSpotted(e)
+      // 小队联动：唤醒附近队友一同前往玩家位置
+      for (const ally of game.enemies) {
+        if (ally === e || ally.dead || ally.state === 'combat') continue
+        if (Math.hypot(ally.x - e.x, ally.y - e.y) < 280) {
+          ally.state = 'alert'
+          ally.stateT = 0
+          ally.lastSeen = { x: p.x, y: p.y }
+          ally.investT = 6
+          ally.alertMark = '!'; ally.alertMarkT = 1.2
+        }
+      }
     }
     e.lastSeen = { x: p.x, y: p.y }
   } else if (e.state === 'combat' && e.stateT > 3) {
@@ -96,7 +120,7 @@ export function updateEnemy(game, e, dt) {
   }
 
   let mvx = 0, mvy = 0
-  let spd = e.d.speed
+  let spd = e.d.speed * (e.raged ? 1.4 : 1)
 
   if (e.state === 'patrol') {
     // 沿路径点巡逻（领地内）
@@ -156,6 +180,20 @@ export function updateEnemy(game, e, dt) {
         if (d > 24) { mvx = dx / d; mvy = dy / d; spd *= 1.15 }
         else { e.state = 'search'; e.stateT = 0; e.investT = 5 }
       }
+    } else if (e.d.elite && seen) {
+      // 精英守卫：周期性冲锋，贴近后爆发输出
+      e.face = lerpAngle(e.face, aim, 8 * dt)
+      if (e.chargeD > 0) {
+        e.chargeD -= dt
+        mvx = Math.cos(aim); mvy = Math.sin(aim)
+        spd *= 2.6
+      } else {
+        e.chargeT -= dt
+        const ideal = e.d.range * 0.7
+        if (distP > ideal + 30) { mvx = Math.cos(aim); mvy = Math.sin(aim) }
+        else if (distP < ideal - 40) { mvx = -Math.cos(aim); mvy = -Math.sin(aim) }
+        if (e.chargeT <= 0 && distP < 340) { e.chargeT = 4; e.chargeD = 0.55 }
+      }
     } else if (seen) {
       e.face = lerpAngle(e.face, aim, 8 * dt)
       const ideal = e.d.range * 0.7
@@ -194,7 +232,7 @@ export function updateEnemy(game, e, dt) {
         }
       } else e.aimT = 0
     } else if (e.fireT <= 0 && seen && distP < e.d.range) {
-      e.fireT = e.d.fireCd
+      e.fireT = e.d.fireCd * (e.d.boss && e.raged ? 0.6 : 1)
       game.enemyShoot(e, aim)
     }
   } else if (e.state === 'search') {

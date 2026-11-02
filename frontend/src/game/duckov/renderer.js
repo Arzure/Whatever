@@ -31,10 +31,38 @@ export function render(ctx, game) {
   ctx.translate(-cx, -cy)
 
   // ---- 房间地面 ----
+  const ZONE_TINT = { tech: 'rgba(34,211,238,0.045)', storage: 'rgba(251,191,36,0.045)', lab: 'rgba(217,70,239,0.05)' }
   for (const r of game.map.rooms) {
     const t = ROOM_TYPES[r.type] || {}
     ctx.fillStyle = t.color || '#1e293b'
     ctx.fillRect(r.x, r.y, r.w, r.h)
+    // 主题分区色调叠加
+    if (r.zone && ZONE_TINT[r.zone]) {
+      ctx.fillStyle = ZONE_TINT[r.zone]
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    }
+    // L/T 形房间：切角块渲染为墙体色（不可通行区域）
+    for (const b of (r.blocks || [])) {
+      ctx.fillStyle = '#0b1220'
+      ctx.fillRect(b.x, b.y, b.w, b.h)
+      ctx.strokeStyle = '#475569'
+      ctx.lineWidth = 1
+      ctx.strokeRect(b.x, b.y, b.w, b.h)
+      // 斜纹填充提示不可通行
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(b.x, b.y, b.w, b.h)
+      ctx.clip()
+      ctx.strokeStyle = 'rgba(148,163,184,0.18)'
+      ctx.lineWidth = 1.5
+      for (let d = -b.h; d < b.w + b.h; d += 14) {
+        ctx.beginPath()
+        ctx.moveTo(b.x + d, b.y + b.h)
+        ctx.lineTo(b.x + d + b.h, b.y)
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
     // 地板网格线
     ctx.strokeStyle = 'rgba(255,255,255,0.04)'
     ctx.lineWidth = 1
@@ -74,9 +102,17 @@ export function render(ctx, game) {
       ctx.fillText((t.name || '') + (r.type === 'vault' ? ' ⚠' : ''), r.cx, r.y + 16)
     }
   }
-  // 走廊地面
-  ctx.fillStyle = '#111827'
-  for (const c of game.map.corridors) ctx.fillRect(c.x, c.y, c.w, c.h)
+  // 走廊地面（窄道伏击点用深色差异化提示）
+  for (const c of game.map.corridors) {
+    const narrow = c.w <= 56 || c.h <= 56
+    ctx.fillStyle = narrow ? '#0d1322' : '#111827'
+    ctx.fillRect(c.x, c.y, c.w, c.h)
+    if (narrow) {
+      ctx.strokeStyle = 'rgba(148,163,184,0.25)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2)
+    }
+  }
 
   // ---- 撤离点：绿色光柱 + 脉冲（express 快速通道为青色闪电标识）----
   for (const e of game.map.exits) {
