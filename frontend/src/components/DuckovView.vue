@@ -309,16 +309,19 @@ function drawMinimap() {
     ctx.lineWidth = 1;
     ctx.strokeRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
   }
-  // 撤离点（绿色 EXIT 标记）
+  // 撤离点（区分类型：钥匙门=橙/绿随钥匙状态，快速通道=青色）
   for (const e of m.exits) {
-    ctx.fillStyle = '#4ade80';
+    const express = e.mode === 'express';
+    const locked = e.needKey && !game.hasKey;
+    const col = express ? '#22d3ee' : (locked ? '#f59e0b' : '#4ade80');
+    ctx.fillStyle = col;
     ctx.beginPath();
     ctx.arc(e.x * scale, e.y * scale, big ? 6 : 4, 0, Math.PI * 2);
     ctx.fill();
     if (big) {
-      ctx.fillStyle = '#4ade80';
+      ctx.fillStyle = col;
       ctx.font = '10px monospace';
-      ctx.fillText('EXIT', e.x * scale + 8, e.y * scale + 3);
+      ctx.fillText(express ? 'FAST' : (locked ? 'EXIT🔒' : 'EXIT'), e.x * scale + 8, e.y * scale + 3);
     }
   }
   // 玩家（青色脉冲点）
