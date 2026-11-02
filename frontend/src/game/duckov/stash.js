@@ -35,7 +35,9 @@ export const SHOP = {
   upgrades: [
     { id: 'bag1', name: '扩容背包 I', desc: '背包容量 +4', price: 200 },
     { id: 'bag2', name: '扩容背包 II', desc: '背包容量 +4', price: 450 },
-    { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 950 }
+    { id: 'bag3', name: '扩容背包 III', desc: '背包容量 +4', price: 950 },
+    { id: 'safebox1', name: '安全箱扩容 I', desc: '安全箱容量 +2（死亡保留）', price: 600 },
+    { id: 'safebox2', name: '安全箱扩容 II', desc: '安全箱容量 +2（死亡保留）', price: 1200 }
   ],
   supplies: [
     { id: 'medkit', name: '纳米医疗包', desc: '局内按 H 恢复 50 HP', price: 80 },
@@ -49,13 +51,14 @@ export function loadStash() {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null')
     if (s) {
       if (!Array.isArray(s.items)) s.items = []
+      if (!Array.isArray(s.safebox)) s.safebox = []
       if (!s.loadout) s.loadout = { weapons: ['pistol'], armor: null, items: [] }
       if (!Array.isArray(s.loadout.weapons) || !s.loadout.weapons.length) s.loadout.weapons = ['pistol']
       if (!Array.isArray(s.loadout.items)) s.loadout.items = []
       return s
     }
   } catch (e) { /* 忽略 */ }
-  return { coins: 0, items: [], weapons: ['pistol'], armor: null, bagLv: 0, bestValue: 0, raids: 0, extracts: 0, loadout: { weapons: ['pistol'], armor: null, items: [] } }
+  return { coins: 0, items: [], safebox: [], weapons: ['pistol'], armor: null, bagLv: 0, safeboxLv: 0, bestValue: 0, raids: 0, extracts: 0, loadout: { weapons: ['pistol'], armor: null, items: [] } }
 }
 
 // 仓库物品放入出击配置（仅可用道具：医疗包等；战利品不可携带）
@@ -136,13 +139,18 @@ export function buy(s, kind, id) {
   if (kind === 'armors' && s.armor === id) return { ok: false, msg: '已装备' }
   if (kind === 'upgrades') {
     const lv = ['bag1', 'bag2', 'bag3'].indexOf(id) + 1
-    if (s.bagLv >= lv) return { ok: false, msg: '已购买' }
+    if (lv > 0 && s.bagLv >= lv) return { ok: false, msg: '已购买' }
+    const slv = ['safebox1', 'safebox2'].indexOf(id) + 1
+    if (slv > 0 && (s.safeboxLv || 0) >= slv) return { ok: false, msg: '已购买' }
   }
   if (s.coins < item.price) return { ok: false, msg: '金币不足' }
   s.coins -= item.price
   if (kind === 'weapons') s.weapons.push(id)
   if (kind === 'armors') s.armor = id
-  if (kind === 'upgrades') s.bagLv = Math.max(s.bagLv, ['bag1', 'bag2', 'bag3'].indexOf(id) + 1)
+  if (kind === 'upgrades') {
+    s.bagLv = Math.max(s.bagLv, ['bag1', 'bag2', 'bag3'].indexOf(id) + 1)
+    s.safeboxLv = Math.max(s.safeboxLv || 0, ['safebox1', 'safebox2'].indexOf(id) + 1)
+  }
   if (kind === 'supplies') s.items.push({ id, ...ITEM_DEFS[id], kind: 'supply' })
   saveStash(s)
   return { ok: true, msg: '已购买 ' + item.name }
@@ -178,6 +186,32 @@ export function consumeSupplies(s, id, n) {
 
 export function bagCapacity(s) {
   return 20 + (s.bagLv || 0) * 4
+}
+
+// 安全箱容量：基础 4 格 + 扩容
+export function safeboxCapacity(s) {
+  return 4 + (s.safeboxLv || 0) * 2
+}
+
+// 仓库物品放入安全箱（死亡保留）
+export function moveToSafebox(s, idx) {
+  const it = s.items[idx]
+  if (!it) return { ok: false, msg: '无效物品' }
+  if (s.safebox.length >= safeboxCapacity(s)) return { ok: false, msg: '安全箱已满' }
+  s.items.splice(idx, 1)
+  s.safebox.push(it)
+  saveStash(s)
+  return { ok: true, msg: '已放入安全箱：' + it.name }
+}
+
+// 安全箱物品放回仓库
+export function moveFromSafebox(s, idx) {
+  const it = s.safebox[idx]
+  if (!it) return { ok: false, msg: '无效物品' }
+  s.safebox.splice(idx, 1)
+  s.items.push(it)
+  saveStash(s)
+  return { ok: true, msg: '已取出：' + it.name }
 }
 
 export function armorMul(s) {

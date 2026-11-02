@@ -4,7 +4,7 @@
  * ============================================================ */
 
 // 高频事件节流（毫秒）：同一音效在间隔内不重复播放
-const THROTTLE = { shoot: 90, pickup: 70, hit: 100 }
+const THROTTLE = { shoot: 90, pickup: 70, hit: 100, footstep: 180, heartbeat: 900 }
 
 class SoundKit {
   constructor() {
@@ -26,6 +26,11 @@ class SoundKit {
   }
 
   beep(freq, dur, type, vol, slide) {
+    this.beepPan(freq, dur, type, vol, slide, 0)
+  }
+
+  // 带立体声声像的音效：pan ∈ [-1, 1]，负值左声道，正值右声道
+  beepPan(freq, dur, type, vol, slide, pan) {
     const ctx = this.ensure()
     if (!ctx) return
     const t = ctx.currentTime
@@ -36,8 +41,16 @@ class SoundKit {
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t + dur)
     g.gain.setValueAtTime(vol || 0.06, t)
     g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+    let dest = ctx.destination
+    if (pan && ctx.createStereoPanner) {
+      const p = ctx.createStereoPanner()
+      p.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), t)
+      g.connect(p)
+      p.connect(ctx.destination)
+    } else {
+      g.connect(ctx.destination)
+    }
     o.connect(g)
-    g.connect(ctx.destination)
     o.start(t)
     o.stop(t + dur)
   }
@@ -68,6 +81,13 @@ class SoundKit {
         break
       case 'heartbeat':
         this.beep(75, 0.1, 'sine', 0.14, 48)
+        setTimeout(() => this.beep(60, 0.08, 'sine', 0.1, 42), 180)
+        break
+      case 'footstep':
+        this.beep(90, 0.04, 'triangle', 0.03, 60)
+        break
+      case 'hurtDir':
+        this.beep(200, 0.12, 'sawtooth', 0.08, 90)
         break
       case 'boss':
         this.beep(110, 0.3, 'sawtooth', 0.1, 55)

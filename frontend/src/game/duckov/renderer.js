@@ -425,6 +425,28 @@ export function render(ctx, game) {
     ctx.fillRect(0, 0, W, H)
   }
 
+  // ---- 受击方向指示：屏幕边缘红色扇形闪烁 ----
+  if (game.hitDirT > 0 && game.hitDir !== undefined) {
+    const p = game.player
+    const rel = game.hitDir - p.face
+    const alpha = Math.min(0.55, game.hitDirT / 0.9 * 0.55)
+    const cx = W / 2, cy = H / 2
+    const R = Math.max(W, H) * 0.75
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(rel)
+    const grad = ctx.createLinearGradient(0, 0, R, 0)
+    grad.addColorStop(0, 'rgba(239,68,68,0)')
+    grad.addColorStop(1, 'rgba(239,68,68,' + alpha.toFixed(3) + ')')
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.arc(0, 0, R, -0.45, 0.45)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
   // ---- CRT 扫描线 ----
   ctx.globalAlpha = 0.05
   ctx.fillStyle = '#000'

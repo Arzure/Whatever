@@ -60,6 +60,7 @@
             <span class="bi-name">{{ it.name }}</span>
             <span class="bi-val">{{ it.value }}</span>
             <button class="bi-drop" @click="dropItem(i)">丢弃</button>
+            <button class="bi-drop sb-in" @click="stashSafebox(i)">存箱</button>
           </div>
         </div>
         <p class="bag-tip">Tab 关闭 · 丢弃低价值物品可提升移速</p>
@@ -100,6 +101,19 @@
         <div class="modal">
           <h2>仓库 <button class="modal-x" @click="modal = null">✕</button></h2>
           <p class="modal-sub">💰 {{ stash.coins }} 金币 · 存货 {{ stash.items.length }} 件</p>
+          <!-- 安全箱（死亡保留） -->
+          <div class="safebox-sec">
+            <p class="loadout-sec">🔐 安全箱 {{ stash.safebox.length }}/{{ safeboxCapacity(stash) }} <i class="sb-note">死亡保留 · 撤离/阵亡均带回</i></p>
+            <div class="safebox-grid">
+              <div v-for="(it, i) in stash.safebox" :key="'sb' + i" class="bag-cell safebox-cell">
+                <span class="svg-icon" v-html="iconSvg(it.id)"></span>
+                <span class="bi-name">{{ it.name }}</span>
+                <span class="bi-val">{{ it.value }}</span>
+                <button class="bi-drop" @click="doSafeboxOut(i)">取出</button>
+              </div>
+              <p v-if="!stash.safebox.length" class="bag-empty">空——在下方仓库物品中点『存箱』放入</p>
+            </div>
+          </div>
           <!-- 已拥有武器/护甲（免费运维手枪不显示） -->
           <div v-if="ownedGear.length" class="stash-gear">
             <div v-for="g in ownedGear" :key="g.id" class="stash-card gear">
@@ -113,6 +127,7 @@
               <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b>
               <em>{{ it.value }} 金币</em>
+              <button class="sell-btn" @click="doSafeboxIn(i)">存箱</button>
               <button class="sell-btn" @click="doSell(i)">变卖</button>
             </div>
             <p v-if="!stash.items.length" class="bag-empty">仓库空空如也——去封锁区搜刮吧</p>
@@ -209,7 +224,7 @@ import { DuckovGame, WEAPONS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
 import { getAuthToken } from '../api.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS, safeboxCapacity, moveToSafebox, moveFromSafebox } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -458,6 +473,26 @@ function doBuy(kind, id) {
   stash.value = { ...stash.value };
 }
 
+function doSafeboxIn(i) {
+  const r = moveToSafebox(stash.value, i);
+  msg.value = r.msg;
+  if (r.ok) sound.play('pickup');
+  stash.value = { ...stash.value };
+}
+
+function doSafeboxOut(i) {
+  const r = moveFromSafebox(stash.value, i);
+  msg.value = r.msg;
+  if (r.ok) sound.play('pickup');
+  stash.value = { ...stash.value };
+}
+
+function stashSafebox(i) {
+  if (!game || !game.player) return;
+  game.stashToSafebox(i);
+  bagItems.value = [...game.player.bag];
+}
+
 function doSell(i) {
   const r = sellItem(stash.value, i);
   msg.value = r.msg;
@@ -524,6 +559,8 @@ function start() {
     armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
     armorName: lo.armor ? (lo.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '',
     armorId: lo.armor || '',
+    safebox: stash.value.safebox,
+    safeboxCap: safeboxCapacity(stash.value),
     weapons: lo.weapons.length ? lo.weapons : ['pistol'],
     medkits: takeMedkits,
     stims: takeStims,
@@ -783,6 +820,13 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .stash-gear { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .stash-gear .stash-card { flex-direction: row; align-items: center; gap: 6px; padding: 6px 10px; }
 .stash-gear .stash-card em { color: #67e8f9; font-style: normal; font-size: 11px; }
+/* 安全箱 */
+.safebox-sec { margin-bottom: 10px; }
+.safebox-sec .loadout-sec { margin: 0 0 6px; }
+.sb-note { font-style: normal; font-size: 11px; color: #64748b; margin-left: 8px; }
+.safebox-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.safebox-cell { border-color: rgba(251,191,36,0.45); }
+.bi-drop.sb-in { color: #fbbf24; border-color: rgba(251,191,36,0.5); }
 /* 局内背包格子化 */
 .bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
 .bag-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; background: rgba(15,23,42,0.9); border: 1px solid rgba(103,232,249,0.25); border-radius: 6px; }

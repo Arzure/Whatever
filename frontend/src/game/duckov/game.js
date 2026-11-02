@@ -74,6 +74,8 @@ export class DuckovGame {
     this.armorMul = cfg.armorMul || 1
     this.armorName = cfg.armorName || ''
     this.armorId = cfg.armorId || ''
+    this.safebox = cfg.safebox || []
+    this.safeboxCap = cfg.safeboxCap || 4
     this.medkits = cfg.medkits || 0
     this.stims = cfg.stims || 0
     this.emps = cfg.emps || 0
@@ -371,6 +373,7 @@ export class DuckovGame {
         const tt = Math.max(0, Math.min(1, ((p.x - bx0) * sx + (p.y - by0) * sy) / (sx * sx + sy * sy || 1)))
         const cx = bx0 + sx * tt, cy = by0 + sy * tt
         if (Math.hypot(cx - p.x, cy - p.y) < p.r + b.r) {
+          this.lastHitAng = Math.atan2(b.vy, b.vx)
           this.hurtPlayer(b.dmg)
           b.dead = true
         }
@@ -395,6 +398,29 @@ export class DuckovGame {
     }
     this.noiseRings = this.noiseRings.filter(n => n.t > 0)
     if (this.shakeT > 0) this.shakeT -= dt
+
+    // 敌人脚步声：最近敌人距离衰减 + 立体声定位（越近节奏越快）
+    this.footT = (this.footT || 0) - dt
+    if (this.footT <= 0) {
+      let best = null, bd = 320
+      for (const en of this.enemies) {
+        if (en.dead) continue
+        const d = Math.hypot(en.x - p.x, en.y - p.y)
+        if (d < bd) { bd = d; best = en }
+      }
+      if (best) {
+        this.footT = 0.18 + bd / 320 * 0.3
+        const ang = Math.atan2(best.y - p.y, best.x - p.x)
+        const vol = 0.04 * (1 - bd / 320)
+        if (vol > 0.005) sound.beepPan(90, 0.045, 'triangle', vol, 60, Math.sin(ang - p.face))
+      } else {
+        this.footT = 0.35
+      }
+    }
+    // 低血量心跳（HP<30 循环，节流 900ms）
+    if (p.hp < 30 && !p.dead) sound.play('heartbeat')
+    // 受击方向指示计时
+    if (this.hitDirT > 0) this.hitDirT -= dt
 
     this.fovPoly = computeFov(this, p.x, p.y, this.blackout > 0 ? 150 : 360)
     updateExplored(this)
@@ -443,7 +469,10 @@ export class DuckovGame {
     makeNoise(this, e.x, e.y, 300)
     const p = this.player
     const d = Math.hypot(p.x - e.x, p.y - e.y)
-    if (d < 90) this.hurtPlayer(Math.max(10, Math.round(e.d.dmg * (1 - 0.5 * d / 90))))
+    if (d < 90) {
+      this.lastHitAng = Math.atan2(p.y - e.y, p.x - e.x)
+      this.hurtPlayer(Math.max(10, Math.round(e.d.dmg * (1 - 0.5 * d / 90))))
+    }
   }
 
   updateInteract(dt) {
@@ -534,6 +563,22 @@ export class DuckovGame {
     }
   }
 
+  // 局内将背包物品存入安全箱（死亡保留，撤离/死亡均带回仓库）
+  stashToSafebox(i) {
+    const p = this.player
+    const it = p.bag[i]
+    if (!it) return
+    if (this.safebox.length >= this.safeboxCap) {
+      this.floats.push({ x: p.x, y: p.y - 40, txt: '安全箱已满！', t: 1, color: '#f87171', big: true })
+      return
+    }
+    p.bag.splice(i, 1)
+    this.lootValue -= it.value
+    this.safebox.push({ id: it.id, name: it.name, value: it.value, color: it.color, size: it.size, kind: it.kind || 'loot' })
+    this.floats.push({ x: p.x, y: p.y - 40, txt: '已存入安全箱：' + it.name, t: 1.2, color: '#4ade80', big: true })
+    sound.play('pickup')
+  }
+
   killEnemy(e) {
     e.dead = true
     this.kills++
@@ -613,6 +658,13 @@ export class DuckovGame {
     this.flash = 0.3
     this.shakeT = 0.15
     sound.play('hurt')
+    // 受击方向：记录方位 + 立体声提示音
+    if (this.lastHitAng !== undefined) {
+      this.hitDir = this.lastHitAng
+      this.hitDirT = 0.9
+      sound.beepPan(200, 0.12, 'sawtooth', 0.07, 90, Math.sin(this.hitDir - p.face))
+      this.lastHitAng = undefined
+    }
     this.floats.push({ x: p.x, y: p.y - 26, txt: '-' + real, t: 0.7, color: '#f87171' })
     if (p.hp <= 0) {
       p.dead = true
