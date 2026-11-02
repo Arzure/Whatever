@@ -823,8 +823,8 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .modal-x:hover { color: #f87171; }
 .modal-sub { color: #94a3b8; font-size: 12px; margin: 0 0 14px; }
 /* 仓库 */
-.stash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-.stash-card { border: 1px solid #1e3a5f; border-radius: 8px; padding: 10px 8px; background: rgba(15,23,42,0.6); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; }
+.stash-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 14px; }
+.stash-card { border: 1px solid #1e3a5f; border-radius: 8px; padding: 6px 4px; background: rgba(15,23,42,0.6); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; }
 .stash-card b { color: #e2e8f0; font-size: 12px; }
 .stash-card em { color: #fde047; font-style: normal; font-size: 11px; }
 .sell-btn { background: #422006; color: #fbbf24; border: 1px solid #b45309; border-radius: 4px; padding: 3px 12px; font-size: 11px; cursor: pointer; font-family: monospace; }
@@ -840,7 +840,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 /* 出击配置 */
 .loadout-cols { display: flex; gap: 14px; }
 .loadout-col { flex: 1; min-width: 0; }
-.svg-icon { width: 34px; height: 34px; display: block; flex-shrink: 0; }
+.svg-icon { width: 30px; height: 30px; display: block; flex-shrink: 0; }
 .loadout-card .svg-icon { width: 44px; height: 44px; display: block; filter: drop-shadow(0 0 6px rgba(34,211,238,0.25)); }
 .loadout-drop { min-height: 90px; border: 1.5px dashed #1e3a5f; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
 .loadout-drop.target { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
@@ -919,7 +919,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .safebox-sec { margin-bottom: 10px; }
 .safebox-sec .loadout-sec { margin: 0 0 6px; }
 .sb-note { font-style: normal; font-size: 11px; color: #64748b; margin-left: 8px; }
-.safebox-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.safebox-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .safebox-cell { border-color: rgba(251,191,36,0.45); }
 .bi-drop.sb-in { color: #fbbf24; border-color: rgba(251,191,36,0.5); }
 /* 局内背包格子化 */
