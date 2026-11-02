@@ -176,6 +176,9 @@ export class DuckovGame {
     this.armorMul = cfg.armorMul || 1
     this.armorName = cfg.armorName || ''
     this.armorId = cfg.armorId || ''
+    // 整机部署被动：移速加成 + 击杀回血
+    this.pcSpeed = (cfg.pcPassive && cfg.pcPassive.speed) || 0
+    this.pcKillHeal = (cfg.pcPassive && cfg.pcPassive.killHeal) || 0
     this.safebox = cfg.safebox || []
     this.safeboxCap = cfg.safeboxCap || 4
     this.medkits = cfg.medkits || 0
@@ -336,7 +339,7 @@ export class DuckovGame {
         return
       }
     }
-    let spd = p.speed * loadMul * coolMul
+    let spd = p.speed * loadMul * coolMul * (1 + (this.pcSpeed || 0))
     if (p.stimT > 0) {
       p.stimT -= dt
       spd *= 1.35
@@ -724,6 +727,10 @@ export class DuckovGame {
   killEnemy(e) {
     e.dead = true
     this.kills++
+    // 整机部署被动：击杀回血
+    if (this.pcKillHeal && this.player.hp > 0) {
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.pcKillHeal)
+    }
     // 击杀 hitstop：0.1s 时间减速
     this.hitstopT = 0.1
     this.shakeT = 0.12

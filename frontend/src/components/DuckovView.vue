@@ -93,6 +93,13 @@
           <button class="btn btn2" @click="modal = 'loadout'">出击配置</button>
         </div>
         <p class="ready-info">💰 {{ stash.coins }} 金币 · 仓库 {{ stash.items.length }} 件 · 携带医疗包 {{ loadoutMedkitCount(stash) }} · 出击 {{ stash.raids }} 次 · 撤离 {{ stash.extracts }} 次</p>
+        <div v-if="stash.deployedPC" class="deployed-info">🖥 已部署：{{ stash.deployedPC.name }}（{{ PC_PASSIVES[stash.deployedPC.tier].name }}：移速 +{{ Math.round(PC_PASSIVES[stash.deployedPC.tier].speed * 100) }}%<template v-if="PC_PASSIVES[stash.deployedPC.tier].killHeal">，击杀回血 {{ PC_PASSIVES[stash.deployedPC.tier].killHeal }}</template>）</div>
+        <div class="market-panel">
+          <p class="mp-title">📈 今日配件行情</p>
+          <div class="mp-row">
+            <span v-for="m in marketRows" :key="m.cat" class="mp-item" :class="{ up: m.up, down: m.down }">{{ m.name }} {{ m.up ? '🔺' : (m.down ? '🔻' : '—') }} {{ (m.mul * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
       </div>
       <!-- 结算面板 -->
       <div v-else-if="panel === 'end'" class="panel">
@@ -138,11 +145,18 @@
               <em>{{ g.tag }}</em>
             </div>
           </div>
+          <div v-if="stash.deployedPC" class="deployed-bar">
+            <span class="svg-icon" v-html="iconSvg(stash.deployedPC.id)"></span>
+            <b>{{ stash.deployedPC.name }}</b>
+            <em>{{ PC_PASSIVES[stash.deployedPC.tier].name }}：移速 +{{ Math.round(PC_PASSIVES[stash.deployedPC.tier].speed * 100) }}%<template v-if="PC_PASSIVES[stash.deployedPC.tier].killHeal">，击杀回血 {{ PC_PASSIVES[stash.deployedPC.tier].killHeal }}</template></em>
+            <button class="sell-btn" @click="doUndeployPC">卸下</button>
+          </div>
           <div class="stash-grid">
             <div v-for="(it, i) in stash.items" :key="i" class="stash-card">
               <span class="svg-icon" v-html="iconSvg(it.id)"></span>
               <b>{{ it.name }}</b>
               <em>{{ it.value }} 金币</em>
+              <button v-if="it.kind === 'pc'" class="sell-btn deploy-btn" @click="doDeployPC(i)">部署</button>
               <button class="sell-btn" @click="doSafeboxIn(i)">存箱</button>
               <button class="sell-btn" @click="doSell(i)">变卖</button>
             </div>
@@ -261,7 +275,7 @@ import { DuckovGame, WEAPONS, PART_CATS } from '../game/duckov/game.js';
 import { render } from '../game/duckov/renderer.js';
 import { sound } from '../game/audio.js';
 import { getAuthToken } from '../api.js';
-import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS, safeboxCapacity, moveToSafebox, moveFromSafebox, synthPreview, synthesizePC, PC_MULT } from '../game/duckov/stash.js';
+import { loadStash, saveStash, bankStash, failStash, buy, sellItem, sellAllLoot, medkitCount, loadoutMedkitCount, moveItemToLoadout, moveItemBack, consumeMedkits, consumeSupplies, bagCapacity, armorMul, SHOP, ITEM_DEFS, safeboxCapacity, moveToSafebox, moveFromSafebox, synthPreview, synthesizePC, PC_MULT, deployPC, undeployPC, PC_PASSIVES, marketReport } from '../game/duckov/stash.js';
 
 const canvasRef = ref(null);
 const stageRef = ref(null);
@@ -673,6 +687,21 @@ function doSellAll() {
 }
 
 const synthRows = computed(() => synthPreview(stash.value));
+const marketRows = computed(() => marketReport());
+
+function doDeployPC(i) {
+  const r = deployPC(stash.value, i);
+  msg.value = r.msg;
+  if (r.ok) sound.play('levelup');
+  stash.value = { ...stash.value };
+}
+
+function doUndeployPC() {
+  const r = undeployPC(stash.value);
+  msg.value = r.msg;
+  if (r.ok) sound.play('pickup');
+  stash.value = { ...stash.value };
+}
 
 // 出击配置仓库栏：只显示可携带的道具（消耗品），不罗列配件战利品
 const loadoutStashItems = computed(() => stash.value.items.map((it, i) => ({ it, i })).filter(x => x.it.kind === 'supply' || x.it.usable));
@@ -766,6 +795,7 @@ function start() {
     armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
     armorName: lo.armor ? (lo.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '',
     armorId: lo.armor || '',
+    pcPassive: stash.value.deployedPC ? PC_PASSIVES[stash.value.deployedPC.tier] : null,
     safebox: stash.value.safebox,
     safeboxCap: safeboxCapacity(stash.value),
     weapons: lo.weapons.length ? lo.weapons : ['pistol'],
@@ -1042,6 +1072,17 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .safebox-cell { border-color: rgba(251,191,36,0.45); }
 .bi-drop.sb-in { color: #fbbf24; border-color: rgba(251,191,36,0.5); }
 /* 整机合成台（紧凑版） */
+.deployed-info { color: #4ade80; font-size: 12px; margin: 4px 0; }
+.deployed-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 6px 0; border: 1px solid rgba(74,222,128,0.4); border-radius: 8px; background: rgba(20,83,45,0.2); }
+.deployed-bar b { color: #4ade80; font-size: 12px; }
+.deployed-bar em { color: #a7f3d0; font-size: 11px; font-style: normal; flex: 1; }
+.deploy-btn { border-color: rgba(74,222,128,0.5) !important; color: #4ade80 !important; }
+.market-panel { margin: 8px 0; padding: 6px 10px; border: 1px solid rgba(34,211,238,0.3); border-radius: 8px; background: rgba(8,12,20,0.6); }
+.mp-title { color: #22d3ee; font-size: 12px; font-weight: 600; margin: 0 0 4px; }
+.mp-row { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.mp-item { color: #94a3b8; font-size: 11px; }
+.mp-item.up { color: #4ade80; }
+.mp-item.down { color: #f87171; }
 .hud-modifier { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; }
 .hud-contracts { position: absolute; top: 92px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; }
 .hud-contract { color: #cbd5e1; font-size: 11px; background: rgba(15,23,42,0.7); padding: 2px 10px; border-radius: 9px; border: 1px solid rgba(148,163,184,0.25); }

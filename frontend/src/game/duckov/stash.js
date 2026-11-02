@@ -132,13 +132,43 @@ export function failStash(s) {
 }
 
 // 变卖单件物资（任何物品都可单件变卖）
+// ---- 配件行情：每日按类别波动（±40%），日期做种子，无需存储 ----
+// hash 字符串 → 0~1
+function dayHash(str) {
+  let h = 2166136261
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 10000) / 10000
+}
+// 今日某类别行情倍率（0.6~1.4）
+export function marketMul(cat) {
+  const day = new Date().toISOString().slice(0, 10)
+  return 0.6 + dayHash(day + '|' + cat) * 0.8
+}
+// 今日行情报告：各类别倍率与涨跌标记
+export function marketReport() {
+  const cats = ['cpu', 'mb', 'gpu', 'ram', 'ssd', 'psu', 'case', 'cooler']
+  const names = { cpu: '处理器', mb: '主板', gpu: '显卡', ram: '内存', ssd: '固态', psu: '电源', case: '机箱', cooler: '散热器' }
+  return cats.map(c => {
+    const m = marketMul(c)
+    return { cat: c, name: names[c], mul: m, up: m > 1.08, down: m < 0.92 }
+  })
+}
+// 物品按行情计价
+function marketValue(it) {
+  return Math.round(it.value * (it.cat ? marketMul(it.cat) : 1))
+}
+
 export function sellItem(s, idx) {
   const it = s.items[idx]
   if (!it) return { ok: false, msg: '无效物资' }
-  s.coins += it.value
+  const v = marketValue(it)
+  s.coins += v
   s.items.splice(idx, 1)
   saveStash(s)
-  return { ok: true, msg: '出售 ' + it.name + ' +' + it.value + ' 金币' }
+  return { ok: true, msg: '出售 ' + it.name + ' +' + v + ' 金币' + (it.cat && marketMul(it.cat) > 1.08 ? '（行情上涨 🔺）' : '') }
 }
 
 // 一键变卖全部战利品（忽略武器/防具/道具等可用物品）
@@ -146,7 +176,7 @@ export function sellAllLoot(s) {
   let total = 0
   s.items = s.items.filter(it => {
     if (it.kind === 'supply' || it.usable) return true
-    total += it.value
+    total += marketValue(it)
     return false
   })
   s.coins += total
@@ -267,6 +297,33 @@ export function synthPreview(s) {
 }
 
 // 合成整机：优先合成可用的最高档位；成功返回整机物品
+// ---- 整机部署：部署一台整机获得局内被动（档位越高越强）----
+export const PC_PASSIVES = [
+  { name: '入门超频', speed: 0.05, killHeal: 0 },
+  { name: '稳定超频', speed: 0.08, killHeal: 0 },
+  { name: '水冷超频', speed: 0.10, killHeal: 1 },
+  { name: '极限超频', speed: 0.15, killHeal: 2 }
+]
+
+export function deployPC(s, idx) {
+  const it = s.items[idx]
+  if (!it || it.kind !== 'pc') return { ok: false, msg: '只能部署整机' }
+  if (s.deployedPC) return { ok: false, msg: '已部署整机，先卸下当前整机' }
+  s.items.splice(idx, 1)
+  s.deployedPC = it
+  saveStash(s)
+  return { ok: true, msg: '已部署：' + it.name + '（' + PC_PASSIVES[it.tier].name + '：移速 +' + Math.round(PC_PASSIVES[it.tier].speed * 100) + '%' + (PC_PASSIVES[it.tier].killHeal ? '，击杀回血 ' + PC_PASSIVES[it.tier].killHeal : '') + '）' }
+}
+
+export function undeployPC(s) {
+  if (!s.deployedPC) return { ok: false, msg: '没有已部署的整机' }
+  const it = s.deployedPC
+  s.deployedPC = null
+  s.items.push(it)
+  saveStash(s)
+  return { ok: true, msg: '已卸下：' + it.name }
+}
+
 export function synthesizePC(s) {
   for (let tier = 3; tier >= 0; tier--) {
     const cpuIdx = s.items.findIndex(it => it.cat === 'cpu' && it.tier === tier)
