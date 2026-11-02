@@ -6,7 +6,9 @@
       <div v-if="hud" class="hud">
         <div class="hud-top">
           <span class="hp">HP {{ hud.hp | 0 }}/{{ hud.maxHp }}</span>
-          <span class="weapon">{{ hud.weapon }} [{{ hud.ammo }}]</span>
+          <span class="weapon">{{ hud.weapon }} [{{ hud.ammo }}<template v-if="hud.mag !== '∞'">/{{ hud.mag }}</template>]</span>
+          <span v-if="hud.armor" class="armor">🛡 {{ hud.armor }}</span>
+          <span v-if="hud.reloading" class="reloading">⟳ 换弹中…</span>
           <span class="bag">背包 {{ hud.bag }}/{{ hud.bagSize }} · 价值 {{ hud.value }}</span>
           <span class="med">+{{ hud.medkits }} 医疗包(H)</span>
           <span v-if="hud.stims" class="med">+{{ hud.stims }} 肾上腺素(G)</span>
@@ -16,6 +18,8 @@
         </div>
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
+        <!-- 换弹进度条（换弹时显示） -->
+        <div v-if="hud.reloading" class="reload-bar-wrap"><div class="reload-bar" :style="{ width: (hud.reloadPct * 100) + '%' }"></div></div>
         <!-- 小地图（点击展开大图） -->
         <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @mousedown="onMmDown" @mousemove="onMmMove" @mouseup="onMmUp" @mouseleave="onMmUp" @click="onMmClick"></canvas>
         <div class="hud-bottom">
@@ -24,7 +28,7 @@
           <span>体力 {{ Math.round(hud.stamina) }}/100</span>
           <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
           <span class="loot-val">物资价值 {{ hud.value }}</span>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · 1-6 切枪 · H 医疗包 · G 肾上腺素 · Q EMP · Tab 背包 · Esc 暂停 · 点小地图放大/拖动</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · R 换弹 · 1-6 切枪 · H 医疗包 · G 肾上腺素 · Q EMP · Tab 背包 · Esc 暂停 · 点小地图放大/拖动</span>
         </div>
       </div>
       <!-- 暂停遮罩 -->
@@ -479,6 +483,7 @@ function start() {
   game.start({
     bagSize: bagCapacity(stash.value),
     armorMul: lo.armor ? (lo.armor === 'light' ? 0.75 : 0.55) : 1,
+    armorName: lo.armor ? (lo.armor === 'light' ? '轻量防火板' : '重型机柜装甲') : '',
     weapons: lo.weapons.length ? lo.weapons : ['pistol'],
     medkits: takeMedkits,
     stims: takeStims,
@@ -710,4 +715,11 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .icon-bag::before { inset: 18% 25%; background: #422006; border: 1.5px solid #fbbf24; border-radius: 4px 4px 8px 8px; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
 .icon-bag::after { left: 38%; top: 8%; width: 24%; height: 14%; background: transparent; border: 1.5px solid #fbbf24; border-bottom: none; border-radius: 6px 6px 0 0; }
 @keyframes blink { 50% { opacity: 0.3; } }
+/* 防具 HUD 标签 */
+.hud-top .armor { color: #93c5fd; font-weight: 600; }
+/* 换弹提示 */
+.hud-top .reloading { color: #fbbf24; font-weight: 600; animation: blink 0.6s infinite; }
+/* 换弹进度条（屏幕中上方） */
+.reload-bar-wrap { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); width: 180px; height: 8px; background: rgba(15,23,42,0.85); border: 1px solid #fbbf24; border-radius: 4px; overflow: hidden; z-index: 5; }
+.reload-bar { height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); transition: width 0.05s linear; }
 </style>

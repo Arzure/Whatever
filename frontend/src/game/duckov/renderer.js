@@ -122,6 +122,27 @@ export function render(ctx, game) {
     ctx.restore()
   }
 
+  // ---- 急救站：绿色十字光柱（taken 后消失）----
+  for (const h of (game.map.healSpots || [])) {
+    if (h.taken) continue
+    ctx.save()
+    ctx.globalAlpha = 0.14 + 0.08 * Math.sin(game.time * 3)
+    ctx.fillStyle = '#4ade80'
+    ctx.fillRect(h.x - 20, h.y - 20, 40, 40)
+    ctx.restore()
+    ctx.strokeStyle = '#4ade80'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([5, 4])
+    ctx.beginPath(); ctx.arc(h.x, h.y, 16 + Math.sin(game.time * 3) * 2, 0, TAU); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = '#4ade80'
+    ctx.fillRect(h.x - 8, h.y - 2.5, 16, 5)
+    ctx.fillRect(h.x - 2.5, h.y - 8, 5, 16)
+    ctx.font = 'bold 8px monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText('+30', h.x, h.y + 28)
+  }
+
   // ---- 掩体（按类型差异化：金属/木箱/弹药箱/油桶/机架）----
   for (const pr of game.map.props) {
     if (pr.hp <= 0) continue

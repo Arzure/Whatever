@@ -24,7 +24,7 @@ export function generateMap(opts = {}) {
   const roomCount = opts.roomCount || randi(8, 11)
   const map = {
     rooms: [], corridors: [], walls: [], props: [],
-    lootSpots: [], spawns: [], exits: [],
+    lootSpots: [], spawns: [], exits: [], healSpots: [],
     playerSpawn: null, W: 0, H: 0
   }
 
@@ -231,6 +231,16 @@ export function generateMap(opts = {}) {
         progress: 0
       })
     }
+  }
+  // ---- 6. 急救站：少量回血道具点（路过自动拾取 +30 HP，满血不消耗）----
+  const healRooms = map.rooms.filter(r => r.type !== 'exit' && r.type !== 'archive')
+  const nHeal = Math.min(healRooms.length, randi(3, 4))
+  for (let i = 0; i < nHeal; i++) {
+    const r = healRooms[(Math.random() * healRooms.length) | 0]
+    map.healSpots.push({
+      x: rand(r.x + 50, r.x + r.w - 50), y: rand(r.y + 50, r.y + r.h - 50),
+      room: r.id, taken: false
+    })
   }
   map.W = GRID * CELL + PAD * 2
   map.H = GRID * CELL + PAD * 2

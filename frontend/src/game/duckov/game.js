@@ -13,7 +13,7 @@ const rand = (a, b) => a + Math.random() * (b - a)
 
 // 武器定义：手感差异化
 export const WEAPONS = {
-  pistol: { name: '运维手枪', dmg: 24, cd: 0.32, speed: 520, spread: 0.04, mag: Infinity, noise: 180, color: '#67e8f9' },
+  pistol: { name: '运维手枪', dmg: 24, cd: 0.32, speed: 520, spread: 0.04, mag: 8, reload: 1.0, noise: 180, color: '#67e8f9' },
   smg: { name: '散热冲锋枪', dmg: 13, cd: 0.11, speed: 560, spread: 0.12, mag: 30, reload: 1.4, noise: 260, color: '#fbbf24' },
   shotgun: { name: '脉冲霰弹', dmg: 12, pellets: 6, cd: 0.85, speed: 460, spread: 0.34, mag: 6, reload: 1.8, noise: 340, color: '#f472b6' },
   railgun: { name: '轨道炮', dmg: 90, cd: 1.1, speed: 760, spread: 0, mag: 5, reload: 2.0, noise: 420, color: '#c084fc' },
@@ -72,6 +72,7 @@ export class DuckovGame {
     this.lootValue = 0
     this.hasKey = false
     this.armorMul = cfg.armorMul || 1
+    this.armorName = cfg.armorName || ''
     this.medkits = cfg.medkits || 0
     this.stims = cfg.stims || 0
     this.emps = cfg.emps || 0
@@ -248,6 +249,13 @@ export class DuckovGame {
     p.face = Math.atan2(this.mouse.y - this.canvas.height / 2, this.mouse.x - this.canvas.width / 2)
 
     const w = WEAPONS[p.weapon]
+    // 切枪打断装填
+    if (p.lastWeapon !== p.weapon) { p.lastWeapon = p.weapon; p.reloadT = 0 }
+    // R 键手动换弹（弹匣未满时）
+    if (this.keys['r'] && p.reloadT <= 0 && w.mag !== Infinity && p.ammo[p.weapon] < w.mag) {
+      p.reloadT = w.reload
+      this.floats.push({ x: p.x, y: p.y - 30, txt: '装填中...', t: 0.8, color: '#fbbf24' })
+    }
     if (p.reloadT > 0) {
       p.reloadT -= dt
       if (p.reloadT <= 0) {
@@ -439,6 +447,17 @@ export class DuckovGame {
 
   updateInteract(dt) {
     const p = this.player
+    // 急救站：路过自动拾取回血（满血时不消耗）
+    for (const h of (this.map.healSpots || [])) {
+      if (h.taken) continue
+      if (Math.hypot(h.x - p.x, h.y - p.y) < 26 && p.hp < p.maxHp) {
+        h.taken = true
+        p.hp = Math.min(p.maxHp, p.hp + 30)
+        this.floats.push({ x: p.x, y: p.y - 40, txt: '急救站 +30 HP', t: 1.2, color: '#4ade80', big: true })
+        sound.play('levelup')
+        for (let i = 0; i < 6; i++) this.particles.push({ x: h.x, y: h.y, vx: rand(-30, 30), vy: rand(-50, -10), t: 0.5, color: '#4ade80', size: 2.5 })
+      }
+    }
     let near = null
     for (const s of this.map.lootSpots) {
       if (s.opened) continue
@@ -626,7 +645,11 @@ export class DuckovGame {
     return {
       hp: p.hp, maxHp: p.maxHp,
       ammo: w.mag === Infinity ? '∞' : (p.reloadT > 0 ? '装填' : p.ammo[p.weapon]),
+      mag: w.mag === Infinity ? '∞' : w.mag,
+      reloading: p.reloadT > 0,
+      reloadPct: p.reloadT > 0 ? Math.max(0, 1 - p.reloadT / (w.reload || 1)) : 0,
       weapon: w.name,
+      armor: this.armorName || '',
       bag: p.bag.reduce((s, l) => s + l.size, 0), bagSize: p.bagSize,
       value: this.lootValue,
       exitT: Math.max(0, this.exitT),
