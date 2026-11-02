@@ -292,6 +292,13 @@ export function render(ctx, game) {
         const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
       }
+    } else if (e.d.elite) {
+      // 精英守卫：六边形核心（区别于普通圆形敌人）
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU + game.time * 0.8
+        const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
     } else if (e.d.drone) {
       // 无人机：旋转四旋翼造型
       for (let i = 0; i < 4; i++) {
@@ -307,6 +314,48 @@ export function render(ctx, game) {
     ctx.fill()
     ctx.stroke()
     ctx.shadowBlur = 0
+    // Boss 专属：外圈齿轮齿 + 内层反向旋转核心 + 狂暴红焰
+    if (e.d.boss) {
+      if (e.raged) {
+        ctx.save()
+        ctx.globalAlpha = 0.3 + 0.15 * Math.sin(game.time * 10)
+        ctx.fillStyle = '#ef4444'
+        ctx.beginPath(); ctx.arc(0, 0, e.r * 1.75, 0, TAU); ctx.fill()
+        ctx.restore()
+      }
+      ctx.strokeStyle = e.raged ? '#fca5a5' : '#f87171'
+      ctx.lineWidth = 2.5
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU - game.time * 0.7
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(a) * e.r * 1.12, Math.sin(a) * e.r * 1.12)
+        ctx.lineTo(Math.cos(a) * e.r * 1.4, Math.sin(a) * e.r * 1.4)
+        ctx.stroke()
+      }
+      // 内层反向旋转小八边形核心
+      ctx.strokeStyle = e.raged ? '#fde047' : '#fca5a5'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU + game.time * 0.9
+        const px = Math.cos(a) * e.r * 0.45, py = Math.sin(a) * e.r * 0.45
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.closePath()
+      ctx.stroke()
+    }
+    // 精英专属：旋转尖刺护盾环（冲锋时变金色）
+    if (e.d.elite) {
+      ctx.strokeStyle = e.chargeD > 0 ? '#fde047' : '#c084fc'
+      ctx.lineWidth = 2
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU - game.time * 1.4
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(a) * e.r * 1.2, Math.sin(a) * e.r * 1.2)
+        ctx.lineTo(Math.cos(a) * e.r * 1.62, Math.sin(a) * e.r * 1.62)
+        ctx.stroke()
+      }
+    }
     if (e.flashT > 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.85)'
       ctx.fill()
