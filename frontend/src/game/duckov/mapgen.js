@@ -9,7 +9,7 @@ export const ROOM_TYPES = {
   server: { name: '机房', value: 1, enemies: 2, color: '#164e63' },
   power: { name: '配电室', value: 2, enemies: 3, color: '#713f12' },
   cooling: { name: '冷却室', value: 2, enemies: 2, color: '#155e75', slow: 0.7 },
-  archive: { name: '档案室', value: 1, enemies: 1, color: '#3f3f46' },
+  archive: { name: '档案室', value: 1, enemies: 0, color: '#3f3f46' },
   radiation: { name: '辐射室', value: 3, enemies: 2, color: '#7c2d12', radiation: true },
   armory: { name: '军械库', value: 2, enemies: 3, color: '#1e3a5f', armory: true },
   vault: { name: '金库', value: 3, enemies: 4, color: '#4c1d95', vault: true },

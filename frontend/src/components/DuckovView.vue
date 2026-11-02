@@ -5,14 +5,6 @@
       <!-- HUD -->
       <div v-if="hud" class="hud">
         <div class="hud-top">
-          <span class="hp">HP {{ hud.hp | 0 }}/{{ hud.maxHp }}</span>
-          <span class="weapon">{{ hud.weapon }} [{{ hud.ammo }}<template v-if="hud.mag !== '∞'">/{{ hud.mag }}</template>]</span>
-          <span v-if="hud.armor" class="armor">🛡 {{ hud.armor }}</span>
-          <span v-if="hud.reloading" class="reloading">⟳ 换弹中…</span>
-          <span class="bag">背包 {{ hud.bag }}/{{ hud.bagSize }} · 价值 {{ hud.value }}</span>
-          <span class="med">+{{ hud.medkits }} 医疗包(H)</span>
-          <span v-if="hud.stims" class="med">+{{ hud.stims }} 肾上腺素(G)</span>
-          <span v-if="hud.emps" class="med">+{{ hud.emps }} EMP(Q)</span>
           <span v-if="hud.hasKey" class="key">🔑</span>
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
@@ -22,13 +14,34 @@
         <div v-if="hud.reloading" class="reload-bar-wrap"><div class="reload-bar" :style="{ width: (hud.reloadPct * 100) + '%' }"></div></div>
         <!-- 小地图（点击展开大图） -->
         <canvas ref="minimapRef" class="minimap" :class="{ big: mapBig }" @mousedown="onMmDown" @mousemove="onMmMove" @mouseup="onMmUp" @mouseleave="onMmUp" @click="onMmClick"></canvas>
+        <!-- 左下角玩家状态栏 -->
+        <div class="status-panel">
+          <div class="sp-row sp-weapon">
+            <span class="sp-weapon-name">{{ hud.weapon }}</span>
+            <span class="sp-ammo">[{{ hud.ammo }}<template v-if="hud.mag !== '∞'">/{{ hud.mag }}</template>]</span>
+            <span v-if="hud.reloading" class="sp-reloading">⟳ 换弹中…</span>
+            <span v-else class="sp-reload-hint">R 换弹</span>
+            <span v-if="hud.armor" class="sp-armor">🛡 {{ hud.armor }}</span>
+          </div>
+          <div class="sp-row">
+            <span class="sp-label">HP</span>
+            <div class="hp-bar"><div class="hp-fill" :class="{ low: hud.hp < 30 }" :style="{ width: Math.max(0, hud.hp / hud.maxHp * 100) + '%' }"></div></div>
+            <span class="sp-num">{{ Math.round(hud.hp) }}/{{ hud.maxHp }}</span>
+          </div>
+          <div class="sp-row">
+            <span class="sp-label">体力</span>
+            <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
+            <span class="sp-num">{{ Math.round(hud.stamina) }}</span>
+          </div>
+          <div class="sp-row sp-items">
+            <span class="sp-loot">💰 {{ hud.value }} · 背包 {{ hud.bag }}/{{ hud.bagSize }}</span>
+            <span class="sp-med">+{{ hud.medkits }} 医疗(H)</span>
+            <span v-if="hud.stims" class="sp-med">+{{ hud.stims }} 针(G)</span>
+            <span v-if="hud.emps" class="sp-med">+{{ hud.emps }} EMP(Q)</span>
+          </div>
+        </div>
         <div class="hud-bottom">
-          <span class="hp-label">HP {{ Math.round(hud.hp) }}/{{ hud.maxHp }}</span>
-          <div class="hp-bar"><div class="hp-fill" :class="{ low: hud.hp < 30 }" :style="{ width: Math.max(0, hud.hp / hud.maxHp * 100) + '%' }"></div></div>
-          <span>体力 {{ Math.round(hud.stamina) }}/100</span>
-          <div class="stamina-bar"><div class="stamina-fill" :style="{ width: hud.stamina + '%' }"></div></div>
-          <span class="loot-val">物资价值 {{ hud.value }}</span>
-          <span class="tip">WASD 移动 · 鼠标射击 · Shift 冲刺 · E 搜刮 · R 换弹 · 1-6 切枪 · H 医疗包 · G 肾上腺素 · Q EMP · Tab 背包 · Esc 暂停 · 点小地图放大/拖动</span>
+          <span class="tip">WASD 移动 · 鼠标射击 · R 换弹 · E 搜刮 · 1-6 切枪 · H/G/Q 道具 · Tab 背包 · Esc 暂停</span>
         </div>
       </div>
       <!-- 暂停遮罩 -->
@@ -607,6 +620,19 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .stamina-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .stamina-fill { height: 100%; background: #22d3ee; transition: width 0.1s; }
 .tip { margin-left: auto; color: #cbd5e1; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+/* 左下角玩家状态栏 */
+.status-panel { position: absolute; left: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; background: rgba(5,7,13,0.82); border: 1px solid rgba(103,232,249,0.25); border-radius: 8px; font-size: 13px; z-index: 4; }
+.sp-row { display: flex; align-items: center; gap: 8px; }
+.sp-weapon-name { color: #67e8f9; font-weight: bold; font-size: 14px; }
+.sp-ammo { color: #fbbf24; font-weight: bold; font-size: 14px; }
+.sp-reloading { color: #fbbf24; font-weight: 600; animation: blink 0.6s infinite; }
+.sp-reload-hint { color: #64748b; font-size: 11px; }
+.sp-armor { color: #93c5fd; font-weight: 600; margin-left: 6px; }
+.sp-label { color: #94a3b8; font-size: 11px; width: 26px; }
+.sp-num { color: #e2e8f0; font-size: 11px; min-width: 52px; }
+.sp-items { gap: 12px; font-size: 12px; }
+.sp-loot { color: #fde047; font-weight: 600; }
+.sp-med { color: #f87171; }
 /* 撤离倒计时（顶部居中醒目） */
 .exit-countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 22px; font-weight: bold; color: #e2e8f0; text-shadow: 0 0 12px rgba(34,211,238,0.6); pointer-events: none; }
 .exit-countdown.danger { color: #f87171; animation: blink 0.6s infinite; }

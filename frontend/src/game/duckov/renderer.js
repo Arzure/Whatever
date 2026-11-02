@@ -198,11 +198,11 @@ export function render(ctx, game) {
     ctx.strokeRect(w.x, w.y, w.w, w.h)
   }
 
-  // ---- 噪音圈 ----
+  // ---- 噪音圈（弱化视觉强度，仅作提示）----
   for (const n of game.noiseRings) {
-    ctx.globalAlpha = Math.max(0, n.t / 0.6) * 0.5
+    ctx.globalAlpha = Math.max(0, n.t / 0.6) * 0.22
     ctx.strokeStyle = '#fbbf24'
-    ctx.lineWidth = 2
+    ctx.lineWidth = 1.2
     ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, TAU); ctx.stroke()
     ctx.globalAlpha = 1
   }
