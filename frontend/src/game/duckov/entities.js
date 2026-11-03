@@ -52,7 +52,9 @@ export const BOSS_MOVES = [
   { id: 'ring', name: '环形弹幕' },
   { id: 'fan', name: '扇形扫射' },
   { id: 'homing', name: '追踪弹' },
-  { id: 'charge', name: '直线冲撞' }
+  { id: 'charge', name: '直线冲撞' },
+  { id: 'laser', name: '激光扫射' },
+  { id: 'summon', name: '召唤小怪' }
 ]
 
 // Boss 防御节点世界坐标（与渲染/命中判定共用同一公式）
@@ -161,6 +163,51 @@ function updateBoss(game, e, dt, seen, distP, aim) {
         sound.play('bossstun')
         if (game.floats) game.floats.push({ x: e.x, y: e.y - 52, txt: '撞墙硬直！全力输出！', t: 1.4, color: '#4ade80', big: true })
       }
+    } else if (mv === 'laser') {
+      // 激光扫射：从当前朝向扫 180°（持续 0.8s），被扫到受伤
+      if (e.bossT < 0.1) sound.play('bosscharge')
+      const sweepAng = e.face - Math.PI / 2 + (e.bossT / 0.8) * Math.PI
+      const laserLen = e.d.range
+      for (let j = -3; j <= 3; j++) {
+        const aa = sweepAng + j * 0.06
+        game.ebullets.push({
+          x: e.x + Math.cos(aa) * (e.r + 6), y: e.y + Math.sin(aa) * (e.r + 6),
+          vx: Math.cos(aa) * 2, vy: Math.sin(aa) * 2,
+          r: 3, dmg: Math.round(e.d.dmg * 0.6), life: 0.12, color: '#ef4444', owner: e
+        })
+      }
+      // 碰撞检测激光束命中玩家
+      const ex = e.x + Math.cos(sweepAng) * (e.r + 6)
+      const ey = e.y + Math.sin(sweepAng) * (e.r + 6)
+      if (Math.hypot(p.x - ex, p.y - ey) < laserLen + 8) {
+        const t = Math.max(0, Math.min(1, ((p.x - ex) * Math.cos(sweepAng) + (p.y - ey) * Math.sin(sweepAng)) / laserLen))
+        if (Math.abs((p.x - ex) * Math.sin(sweepAng) - (p.y - ey) * Math.cos(sweepAng)) < 16 + p.r && t < 1) {
+          if (!e.laserHitT) e.laserHitT = 0
+          if (e.laserHitT < e.bossT - 0.15) {
+            e.laserHitT = e.bossT
+            game.hurtPlayer(Math.round(e.d.dmg * 0.6))
+          }
+        }
+      }
+      if (e.bossT >= 0.8) { e.bossState = 'overheat'; e.bossT = 0; sound.play('bossoverheat'); e.laserHitT = 0 }
+    } else if (mv === 'summon') {
+      // 召唤小怪：在 Boss 周围刷 3 只 low-tier 巡逻兵
+      if (e.bossT <= dt) {
+        sound.play('bosscharge')
+        for (let i = 0; i < 3; i++) {
+          const sa = rand(0, TAU)
+          const sd = 60 + rand(0, 40)
+          const spawn = { x: e.x + Math.cos(sa) * sd, y: e.y + Math.sin(sa) * sd }
+          const c = game.collideWalls(spawn.x, spawn.y, 10)
+          const newE = createEnemy({ x: c.x, y: c.y, kind: 'patrol', roomId: e.homeRoom }, game.map)
+          newE.state = 'combat'
+          newE.lastSeen = { x: p.x, y: p.y }
+          game.enemies.push(newE)
+        }
+        if (game.floats) game.floats.push({ x: e.x, y: e.y - 52, txt: '增援抵达！', t: 1.2, color: '#f87171', big: true })
+      }
+      e.bossState = 'overheat'; e.bossT = 0
+      sound.play('bossoverheat')
     }
   } else if (e.bossState === 'overheat') {
     // 过热 2s：停火漂移（输出窗口）+ 泄压粒子

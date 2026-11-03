@@ -206,7 +206,7 @@ export class DuckovGame {
       hp: 100, maxHp: 100,
       speed: 175, face: 0,
       weapon: 'pistol', ammo: {}, reloadT: 0, fireT: 0,
-      stamina: 100, dashT: 0, dashCd: 0, stimT: 0,
+      stamina: 100, sprintT: 0, dashT: 0, dashCd: 0, stimT: 0,
       bag: [], bagSize: cfg.bagSize || 10,
       invuln: 0, dead: false
     }
@@ -393,6 +393,11 @@ export class DuckovGame {
       if (Math.random() < 0.6) this.particles.push({ x: p.x, y: p.y, vx: rand(-20, 20), vy: rand(-20, 20), t: 0.25, color: '#67e8f9', size: 3 })
     }
     if (p.dashCd > 0) p.dashCd -= dt
+    // 按住奔跑：Shift 按住+移动+体力>0 时速度 ×1.4，体力每秒消耗 22
+    if (!p.dashT && this.keys['shift'] && p.stamina > 0 && (ix || iy)) {
+      spd *= 1.4
+      p.stamina = Math.max(0, p.stamina - 22 * dt)
+    }
     if (p.stamina < 100) p.stamina = Math.min(100, p.stamina + 18 * dt)
     if (ix || iy) {
       const m = Math.hypot(ix, iy)

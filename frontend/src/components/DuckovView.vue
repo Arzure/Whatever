@@ -77,7 +77,7 @@
           </div>
         </div>
         <div class="hud-bottom">
-          <span class="tip">WASD 移动 · 鼠标射击 · R 换弹 · E 搜刮 · 1-6 切枪 · H/G/Q 道具 · Tab 背包 · Esc 暂停</span>
+          <span class="tip">WASD 移动 · Shift 闪避/奔跑 · 鼠标射击 · R 换弹 · E 搜刮 · 1-6 切枪 · H/G/Q 道具 · Tab 背包 · Esc 暂停</span>
         </div>
       </div>
       <!-- 暂停遮罩 -->
