@@ -5,6 +5,7 @@
  * 只读 game 状态，不修改游戏逻辑
  * ============================================================ */
 import { ROOM_TYPES } from './mapgen.js'
+import { bossNodePos } from './entities.js'
 
 const TAU = Math.PI * 2
 
@@ -332,6 +333,51 @@ export function render(ctx, game) {
     ctx.fill()
     ctx.stroke()
     ctx.shadowBlur = 0
+    // Boss 前摇视觉：telegraph 闪烁 + charge 方向指示线
+    if (e.bossState === 'telegraph') {
+      const flash = 0.5 + 0.5 * Math.sin(game.time * 18)
+      ctx.globalAlpha = 0.4 + 0.35 * flash
+      ctx.fillStyle = '#ef4444'
+      ctx.beginPath(); ctx.arc(0, 0, e.r * 1.6, 0, TAU); ctx.fill()
+      ctx.globalAlpha = 1
+      if (e.bossNextMove && e.bossNextMove.id === 'charge') {
+        ctx.save()
+        ctx.globalAlpha = 0.5 + 0.3 * Math.sin(game.time * 12)
+        ctx.strokeStyle = '#ef4444'
+        ctx.lineWidth = 3
+        ctx.setLineDash([8, 6])
+        const dx = Math.cos(e.face) * 100, dy = Math.sin(e.face) * 100
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(e.face) * (e.r + 4), Math.sin(e.face) * (e.r + 4))
+        ctx.lineTo(dx, dy)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = '#ef4444'
+        ctx.beginPath()
+        ctx.moveTo(dx, dy)
+        ctx.lineTo(dx - Math.cos(e.face) * 14 + Math.cos(e.face + Math.PI / 2) * 7, dy - Math.sin(e.face) * 14 + Math.sin(e.face + Math.PI / 2) * 7)
+        ctx.lineTo(dx - Math.cos(e.face) * 14 + Math.cos(e.face - Math.PI / 2) * 7, dy - Math.sin(e.face) * 14 + Math.sin(e.face - Math.PI / 2) * 7)
+        ctx.closePath(); ctx.fill()
+        ctx.restore()
+      }
+    }
+    // Boss 眩晕星环（stun 状态）
+    if (e.bossState === 'stun') {
+      ctx.save()
+      ctx.globalAlpha = 0.4 + 0.2 * Math.sin(game.time * 8)
+      ctx.strokeStyle = '#fde047'
+      ctx.lineWidth = 2
+      for (let i = 0; i < 3; i++) {
+        const rr = e.r * 1.5 + i * 8 + Math.sin(game.time * 5 + i) * 4
+        ctx.beginPath(); ctx.arc(0, 0, rr, game.time * 2 + i, game.time * 2 + i + Math.PI * 0.8); ctx.stroke()
+      }
+      ctx.fillStyle = '#fde047'
+      ctx.font = 'bold 20px monospace'
+      ctx.textAlign = 'center'
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(game.time * 6)
+      ctx.fillText('*STUN*', 0, -e.r - 16)
+      ctx.restore()
+    }
     // Boss 专属：外圈齿轮齿 + 内层反向旋转核心 + 狂暴红焰
     if (e.d.boss) {
       if (e.raged) {
@@ -419,6 +465,48 @@ export function render(ctx, game) {
       ctx.font = '9px monospace'
       ctx.textAlign = 'center'
       ctx.fillText(Math.ceil(e.hp) + '/' + e.maxHp, e.x, e.y - e.r - 10)
+    }
+  }
+
+  // ---- Boss 防御节点渲染 ----
+  for (const e of game.enemies) {
+    if (e.dead || !e.d.boss || !e.bossNodes) continue
+    for (const n of e.bossNodes) {
+      const np = bossNodePos(e, n, game.time)
+      if (!inFov(game, np.x, np.y)) continue
+      ctx.save()
+      if (!n.alive) {
+        ctx.globalAlpha = 0.3
+        ctx.fillStyle = '#374151'
+        ctx.beginPath(); ctx.arc(np.x, np.y, 6, 0, TAU); ctx.fill()
+        ctx.fillStyle = '#9ca3af'
+        ctx.font = 'bold 8px monospace'
+        ctx.textAlign = 'center'
+        ctx.fillText(Math.ceil(n.regenT) + 's', np.x, np.y + 3)
+        ctx.restore()
+        continue
+      }
+      const pulse = 0.5 + 0.5 * Math.sin(game.time * 3)
+      ctx.shadowColor = '#22d3ee'
+      ctx.shadowBlur = 8 + 4 * pulse
+      ctx.fillStyle = n.hp > n.maxHp * 0.5 ? '#0e7490' : '#7f1d1d'
+      ctx.beginPath()
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU - game.time * 1.2
+        const px = np.x + Math.cos(a) * 6, py = np.y + Math.sin(a) * 6
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.closePath(); ctx.fill()
+      ctx.strokeStyle = '#67e8f9'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      const bw = 14
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      ctx.fillRect(np.x - bw / 2, np.y - 12, bw, 2.5)
+      ctx.fillStyle = n.hp > n.maxHp * 0.5 ? '#22d3ee' : '#ef4444'
+      ctx.fillRect(np.x - bw / 2, np.y - 12, bw * (n.hp / n.maxHp), 2.5)
+      ctx.restore()
     }
   }
 

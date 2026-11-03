@@ -1,11 +1,8 @@
 /* ============================================================
- * 割草幸存者：8-bit 音效合成器
- * Web Audio API 纯合成，零素材依赖；含 Music/SFX 开关与高频音节流
+ * 8-bit 
+ * Web Audio API  Music/SFX 
  * ============================================================ */
-
-// 高频事件节流（毫秒）：同一音效在间隔内不重复播放
 const THROTTLE = { shoot: 90, pickup: 70, hit: 100, footstep: 180, heartbeat: 900 }
-
 class SoundKit {
   constructor() {
     this.ctx = null
@@ -14,7 +11,6 @@ class SoundKit {
     this.musicTimer = null
     this.lastT = {}
   }
-
   ensure() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext
@@ -24,12 +20,10 @@ class SoundKit {
     if (this.ctx.state === 'suspended') this.ctx.resume()
     return this.ctx
   }
-
   beep(freq, dur, type, vol, slide) {
     this.beepPan(freq, dur, type, vol, slide, 0)
   }
-
-  // 带立体声声像的音效：pan ∈ [-1, 1]，负值左声道，正值右声道
+  // pan  [-1, 1]
   beepPan(freq, dur, type, vol, slide, pan) {
     const ctx = this.ensure()
     if (!ctx) return
@@ -54,7 +48,6 @@ class SoundKit {
     o.start(t)
     o.stop(t + dur)
   }
-
   play(name) {
     if (!this.sfxOn) return
     const now = performance.now()
@@ -66,7 +59,6 @@ class SoundKit {
       case 'shoot':
         this.beep(880, 0.06, 'square', 0.025, 440)
         break
-      // 武器差异化射击音
       case 'shoot_pistol':
         this.beep(760, 0.05, 'square', 0.03, 380)
         break
@@ -89,12 +81,10 @@ class SoundKit {
         this.beep(220, 0.05, 'sawtooth', 0.035, 110)
         break
       case 'kill':
-        // 击杀确认音：短促上扬双音
         this.beep(660, 0.07, 'square', 0.05, 990)
         setTimeout(() => this.beep(1320, 0.1, 'square', 0.045), 60)
         break
       case 'extract':
-        // 撤离演出：上升音阶琶音（情绪奖励）
         this.beep(523, 0.12, 'square', 0.06)
         setTimeout(() => this.beep(659, 0.12, 'square', 0.06), 130)
         setTimeout(() => this.beep(784, 0.12, 'square', 0.06), 260)
@@ -104,7 +94,6 @@ class SoundKit {
       case 'pickup':
         this.beep(1320, 0.07, 'square', 0.045, 1760)
         break
-      // 配件拾取音：档位越高越华丽
       case 'pickup0':
         this.beep(880, 0.06, 'square', 0.035, 990)
         break
@@ -118,7 +107,6 @@ class SoundKit {
         setTimeout(() => this.beep(1760, 0.1, 'square', 0.045), 170)
         break
       case 'pickup3':
-        // 至尊件：华丽琶音
         this.beep(660, 0.09, 'square', 0.05)
         setTimeout(() => this.beep(880, 0.09, 'square', 0.05), 90)
         setTimeout(() => this.beep(1100, 0.09, 'square', 0.05), 180)
@@ -126,12 +114,29 @@ class SoundKit {
         setTimeout(() => this.beep(1760, 0.22, 'square', 0.05), 360)
         break
       case 'bossrage':
-        // Boss 狂暴警报：双音警报循环
+        // Boss 
         this.beep(880, 0.16, 'sawtooth', 0.07, 660)
         setTimeout(() => this.beep(660, 0.16, 'sawtooth', 0.07, 880), 180)
         setTimeout(() => this.beep(880, 0.16, 'sawtooth', 0.07, 660), 380)
         setTimeout(() => this.beep(660, 0.24, 'sawtooth', 0.07, 440), 560)
         break
+      case 'bosstele':
+        // Boss 
+        this.beep(660, 0.1, 'square', 0.06, 880)
+        setTimeout(() => this.beep(880, 0.12, 'square', 0.06, 660), 120)
+        break
+      case 'bosscharge':
+        // Boss 
+        this.beep(200, 0.3, 'sawtooth', 0.08, 90)
+        break
+      case 'bossstun':
+        // Boss 
+        this.beep(520, 0.18, 'square', 0.06, 130)
+        setTimeout(() => this.beep(390, 0.22, 'square', 0.05, 98), 190)
+        break
+      case 'bossoverheat':
+        // Boss 
+        this.beep(990, 0.25, 'sawtooth', 0.05, 220)
       case 'levelup':
         this.beep(660, 0.1, 'square', 0.06)
         setTimeout(() => this.beep(880, 0.1, 'square', 0.06), 90)
@@ -173,8 +178,7 @@ class SoundKit {
         break
     }
   }
-
-  // 命中音调随敌人剩余血量变化：ratio = 剩余HP/最大HP，血越少音调越高（200→700Hz）
+  // ratio = HP/HP200700Hz
   hitPitch(ratio) {
     if (!this.sfxOn) return
     const now = performance.now()
@@ -184,10 +188,9 @@ class SoundKit {
     const f = 200 + (1 - r) * 500
     this.beep(f, 0.05, 'sawtooth', 0.03, f * 0.55)
   }
-
-  // 动态音乐分层：0 平静 / 1 战斗 / 3 高潮（Boss/狂暴），叠加伴奏层
+  // 0  / 1  / 3 Boss/
   setIntensity(v) { this.intensity = v }
-  // 简易芯片音乐循环：三角波低音 + 方波主旋律
+  //  + 
   startMusic() {
     if (this.musicTimer || !this.musicOn) return
     if (!this.ensure()) return
@@ -208,7 +211,6 @@ class SoundKit {
       i++
     }, 260)
   }
-
   stopMusic() {
     if (this.musicTimer) {
       clearInterval(this.musicTimer)
@@ -216,5 +218,4 @@ class SoundKit {
     }
   }
 }
-
 export const sound = new SoundKit()

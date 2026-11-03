@@ -4,7 +4,7 @@
  * 渲染完全在 renderer.js，本文件不依赖 DOM
  * ============================================================ */
 import { generateMap, roomAt, ROOM_TYPES } from './mapgen.js'
-import { createEnemy, updateEnemy, makeNoise } from './entities.js'
+import { createEnemy, updateEnemy, makeNoise, bossNodePos } from './entities.js'
 import { computeFov, updateExplored } from './fog.js'
 import { sound } from '../audio.js'
 
@@ -304,6 +304,18 @@ export class DuckovGame {
     this.alert = Math.min(3, this.alert + 0.5)
   }
 
+  // Boss 伤害倍率：防御节点全存活时减伤 50%，每击破一个节点受伤 +25%；过热/撞墙硬直输出窗口受伤 ×1.5
+  bossDmgMul(e) {
+    if (!e.d.boss) return 1
+    let mul = 1
+    if (e.bossNodes) {
+      const broken = e.bossNodes.filter(n => !n.alive).length
+      mul = 0.5 + 0.25 * broken
+    }
+    if (e.bossState === 'overheat' || e.bossState === 'stun') mul *= 1.5
+    return mul
+  }
+
   enemyShoot(e, aim) {
     const k = e.d
     this.ebullets.push({ x: e.x + Math.cos(aim) * (e.r + 4), y: e.y + Math.sin(aim) * (e.r + 4), vx: Math.cos(aim) * k.bullet, vy: Math.sin(aim) * k.bullet, r: 4, dmg: k.dmg, life: 2.2, color: k.color, owner: e })
@@ -469,10 +481,35 @@ export class DuckovGame {
             b.dead = true
             break
           }
-          e.hp -= b.dmg
+          // Boss：先判定防御节点命中，再按节点数计算本体伤害倍率
+          if (e.d.boss && e.bossNodes) {
+            let hitNode = null
+            for (const n of e.bossNodes) {
+              if (!n.alive) continue
+              const np = bossNodePos(e, n, this.time)
+              if (Math.hypot(b.x - np.x, b.y - np.y) < 10 + b.r) { hitNode = n; break }
+            }
+            if (hitNode) {
+              hitNode.hp -= b.dmg
+              this.floats.push({ x: b.x, y: b.y - 8, txt: '节点-' + b.dmg, t: 0.5, color: '#67e8f9' })
+              for (let i = 0; i < 3; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-50, 50), vy: rand(-50, 50), t: 0.2, color: '#67e8f9', size: 2 })
+              if (hitNode.hp <= 0) {
+                hitNode.alive = false
+                hitNode.regenT = 12
+                sound.play('levelup')
+                this.floats.push({ x: e.x, y: e.y - 52, txt: '防御节点击破！Boss 受伤 +25%', t: 1.6, color: '#4ade80', big: true })
+                for (let i = 0; i < 12; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-110, 110), vy: rand(-110, 110), t: 0.5, color: '#67e8f9', size: 3 })
+              }
+              b.dead = true
+              break
+            }
+          }
+          const dmgMul = this.bossDmgMul(e)
+          const realDmg = Math.max(1, Math.round(b.dmg * dmgMul))
+          e.hp -= realDmg
           e.flashT = 0.08
           sound.hitPitch(e.hp / e.maxHp)
-          this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(b.dmg), t: 0.6, color: '#fde047' })
+          this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(realDmg), t: 0.6, color: dmgMul > 1 ? '#4ade80' : '#fde047' })
           for (let i = 0; i < 4; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-60, 60), vy: rand(-60, 60), t: 0.25, color: e.d.color, size: 2.5 })
           if (e.state !== 'combat') {
             e.state = 'combat'
@@ -491,6 +528,18 @@ export class DuckovGame {
 
     for (const b of this.ebullets) {
       b.life -= dt
+      // 追踪弹：缓慢转向玩家（可拉扯甩掉）
+      if (b.homing && !p.dead) {
+        const cur = Math.atan2(b.vy, b.vx)
+        const want = Math.atan2(p.y - b.y, p.x - b.x)
+        let da = want - cur
+        while (da > Math.PI) da -= Math.PI * 2
+        while (da < -Math.PI) da += Math.PI * 2
+        const turn = Math.max(-1.6 * dt, Math.min(1.6 * dt, da))
+        const spd2 = Math.hypot(b.vx, b.vy)
+        b.vx = Math.cos(cur + turn) * spd2
+        b.vy = Math.sin(cur + turn) * spd2
+      }
       b.x += b.vx * dt
       b.y += b.vy * dt
       if (b.life <= 0 || this.pointInWall(b.x, b.y)) {
@@ -585,11 +634,11 @@ export class DuckovGame {
       if (e.dead) continue
       const d = Math.hypot(e.x - x, e.y - y)
       if (d < radius + e.r) {
-        const real = Math.max(5, Math.round(dmg * (1 - 0.5 * d / (radius + e.r))))
+        const real = Math.max(5, Math.round(dmg * (1 - 0.5 * d / (radius + e.r)) * this.bossDmgMul(e)))
         e.hp -= real
         e.flashT = 0.08
         sound.hitPitch(e.hp / e.maxHp)
-        this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(real), t: 0.6, color: '#fde047' })
+        this.floats.push({ x: e.x + rand(-6, 6), y: e.y - e.r, txt: String(real), t: 0.6, color: this.bossDmgMul(e) > 1 ? '#4ade80' : '#fde047' })
         if (e.state !== 'combat') {
           e.state = 'combat'
           e.stateT = 0
@@ -950,7 +999,19 @@ export class DuckovGame {
       stims: this.stims,
       emps: this.emps,
       alert: this.alert,
-      blackout: this.blackout > 0
+      blackout: this.blackout > 0,
+      boss: (() => {
+        const b = this.enemies.find(e => e.d.boss && !e.dead)
+        if (!b) return null
+        return {
+          hp: b.hp, maxHp: b.maxHp, name: b.d.name, raged: b.raged,
+          state: b.bossState,
+          moveName: b.bossNextMove ? b.bossNextMove.name : '',
+          nodes: (b.bossNodes || []).map(n => ({
+            alive: n.alive, hp: n.hp, maxHp: n.maxHp, regenT: n.regenT
+          }))
+        }
+      })()
     }
   }
 
