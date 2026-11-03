@@ -292,6 +292,9 @@ export class DuckovGame {
         y = ny + dy / dd * r
       }
     }
+    // 地图外边界硬钳制：防止玩家跑到房间和走廊外的空白区域
+    x = Math.max(r, Math.min(this.map.W - r, x))
+    y = Math.max(r, Math.min(this.map.H - r, y))
     return { x, y }
   }
 
