@@ -163,18 +163,70 @@ export function render(ctx, game) {
     }
     const tierCols = ['#e2e8f0', '#4ade80', '#60a5fa', '#fde047']
     const col = tierCols[s.tier] || '#e2e8f0'
-    ctx.save()
-    ctx.shadowColor = col
-    ctx.shadowBlur = 6 + s.tier * 5
-    ctx.fillStyle = '#0f172a'
-    ctx.fillRect(s.x - 9, s.y - 7, 18, 14)
-    ctx.strokeStyle = col
-    ctx.lineWidth = 1.5
-    ctx.strokeRect(s.x - 9, s.y - 7, 18, 14)
-    ctx.shadowBlur = 0
-    ctx.fillStyle = col
-    ctx.fillRect(s.x - 4, s.y - 3, 8, 6)
-    ctx.restore()
+    const prop = s.propIndex != null ? game.map.props[s.propIndex] : null
+    if (prop && prop.hp > 0) {
+      // 锚定到掩体边缘的发光提示
+      ctx.save()
+      ctx.shadowColor = col
+      ctx.shadowBlur = 6 + s.tier * 4
+      const pulse = 0.6 + 0.4 * Math.sin(game.time * 3 + s.propIndex)
+      ctx.globalAlpha = 0.5 + 0.35 * pulse
+      // 确定物资点在掩体的哪条边上
+      const dTop = Math.abs(s.y - prop.y)
+      const dBot = Math.abs(s.y - (prop.y + prop.h))
+      const dL = Math.abs(s.x - prop.x)
+      const dR = Math.abs(s.x - (prop.x + prop.w))
+      const minD = Math.min(dTop, dBot, dL, dR)
+      const onTop = minD === dTop, onBot = minD === dBot
+      const onLeft = minD === dL, onRight = minD === dR
+      if (prop.kind === 'barrel') {
+        // 油桶：环形光晕
+        const bx = prop.x + prop.w / 2, by = prop.y + prop.h / 2, br = Math.min(prop.w, prop.h) / 2
+        ctx.strokeStyle = col
+        ctx.lineWidth = 2 + s.tier
+        ctx.beginPath(); ctx.arc(bx, by, br + 4 + s.tier * 3 + Math.sin(game.time * 4) * 2, 0, TAU); ctx.stroke()
+      } else {
+        // 方形掩体：边缘缝隙发光
+        let gx, gy, gw, gh
+        const gapW = 4 + s.tier * 2
+        if (onTop || onBot) {
+          gx = prop.x + 8; gw = Math.max(prop.w - 16, 8)
+          gy = onTop ? prop.y - gapW / 2 : prop.y + prop.h - gapW / 2
+          gh = gapW
+        } else {
+          gy = prop.y + 8; gh = Math.max(prop.h - 16, 8)
+          gx = onLeft ? prop.x - gapW / 2 : prop.x + prop.w - gapW / 2
+          gw = gapW
+        }
+        ctx.fillStyle = col
+        ctx.fillRect(gx - 1, gy - 1, gw + 2, gh + 2)
+        ctx.fillStyle = '#ffffff'
+        ctx.globalAlpha = 0.35 + 0.25 * pulse
+        ctx.fillRect(gx + 1, gy + 1, gw - 2, gh - 2)
+      }
+      // 微光粒子
+      ctx.globalAlpha = 0.4 + 0.3 * pulse
+      ctx.fillStyle = col
+      ctx.beginPath()
+      ctx.arc(s.x + Math.sin(game.time * 5 + s.propIndex * 1.7) * 10,
+        s.y + Math.cos(game.time * 5 + s.propIndex * 2.3) * 6, 2 + s.tier, 0, TAU)
+      ctx.fill()
+      ctx.restore()
+    } else {
+      // fallback：无掩体锚定时的独立方块渲染
+      ctx.save()
+      ctx.shadowColor = col
+      ctx.shadowBlur = 6 + s.tier * 5
+      ctx.fillStyle = '#0f172a'
+      ctx.fillRect(s.x - 9, s.y - 7, 18, 14)
+      ctx.strokeStyle = col
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(s.x - 9, s.y - 7, 18, 14)
+      ctx.shadowBlur = 0
+      ctx.fillStyle = col
+      ctx.fillRect(s.x - 4, s.y - 3, 8, 6)
+      ctx.restore()
+    }
   }
 
   // ---- 急救站：绿色十字光柱（taken 后消失）----
