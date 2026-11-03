@@ -8,8 +8,8 @@
           <span v-if="hud.hasKey" class="key">🔑</span>
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
-        <!-- Boss 专属 UI（已抽离至 BossHud.vue） -->
-        <BossHud v-if="hud" :boss="hud.boss" />
+        <!-- Boss 专属 UI（已抽离至 BossHud.vue；仅激活后显示） -->
+        <BossHud v-if="hud && hud.boss && hud.boss.state" :boss="hud.boss" />
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
         <div v-if="hud.modifier" class="hud-modifier">⚡ {{ hud.modifier.name }}</div>
@@ -944,7 +944,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .sp-loot { color: #fde047; font-weight: 600; }
 .sp-med { color: #f87171; }
 /* 撤离倒计时（顶部居中醒目） */
-.exit-countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 22px; font-weight: bold; color: #e2e8f0; text-shadow: 0 0 12px rgba(34,211,238,0.6); pointer-events: none; }
+.exit-countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 22px; font-weight: bold; color: #e2e8f0; text-shadow: 0 0 12px rgba(34,211,238,0.6); pointer-events: none; z-index: 20; }
 .exit-countdown.danger { color: #f87171; animation: blink 0.6s infinite; }
 /* 小地图（右上角，点击展开大图） */
 .minimap { position: absolute; top: 10px; right: 12px; width: 150px; height: 150px; border: 1px solid #1e3a5f; border-radius: 8px; cursor: pointer; pointer-events: auto; z-index: 5; transition: width 0.2s, height 0.2s; }
@@ -1092,9 +1092,9 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .mp-item { color: #94a3b8; font-size: 11px; }
 .mp-item.up { color: #4ade80; }
 .mp-item.down { color: #f87171; }
-.hud-modifier { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; }
+.hud-modifier { position: absolute; top: 105px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; z-index: 5; }
 /* Boss 样式已抽离至 BossHud.vue（scoped） */
-.hud-contracts { position: absolute; top: 92px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; }
+.hud-contracts { position: absolute; top: 135px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; z-index: 5; }
 .hud-contract { color: #cbd5e1; font-size: 11px; background: rgba(15,23,42,0.7); padding: 2px 10px; border-radius: 9px; border: 1px solid rgba(148,163,184,0.25); }
 .hud-contract em { font-style: normal; color: #94a3b8; margin: 0 2px; }
 .hud-contract.done { color: #4ade80; border-color: rgba(74,222,128,0.5); }
