@@ -491,11 +491,11 @@ function drawMinimap() {
     ctx.lineWidth = 1;
     ctx.strokeRect(tx(co.x), ty(co.y), co.w * scale, co.h * scale);
   }
-  // 房间（已探索显示类型图标，未探索保持暗色）
+  // 房间（展开时显示全貌；小地图仅显示已探索）
   const ROOM_ICON = { vault: '⚠', radiation: '☢', armory: '✚', server: '▣', power: '⚡', cooling: '❄', archive: '▤', exit: '→' }
   const bossAlive = m.rooms.some(r => r.type === 'vault') && game.enemies.some(e => e.d.boss && !e.dead)
   for (const r of m.rooms) {
-    const seen = r.explored
+    const seen = r.explored || big
     ctx.fillStyle = seen ? 'rgba(34,211,238,0.10)' : 'rgba(34,211,238,0.04)'
     ctx.fillRect(tx(r.x), ty(r.y), r.w * scale, r.h * scale)
     ctx.strokeStyle = seen ? 'rgba(103,232,249,0.45)' : 'rgba(103,232,249,0.15)'
@@ -512,7 +512,7 @@ function drawMinimap() {
         } else if (r.type === 'radiation') {
           ctx.fillStyle = '#fb923c'
         } else {
-          ctx.fillStyle = 'rgba(103,232,249,0.8)'
+          ctx.fillStyle = r.explored ? 'rgba(103,232,249,0.8)' : 'rgba(103,232,249,0.35)'
         }
         ctx.font = Math.max(9, r.w * scale * 0.3) + 'px monospace'
         ctx.textAlign = 'center'

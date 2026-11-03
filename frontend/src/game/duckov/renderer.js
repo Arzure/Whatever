@@ -78,15 +78,41 @@ export function render(ctx, game) {
       ctx.fillStyle = 'rgba(34,211,238,0.06)'
       ctx.fillRect(r.x, r.y, r.w, r.h)
     }
-    // 辐射室：橙色警示脉冲
+    // 辐射室：危险区域清晰可视化（双层光晕 + 危险条纹边框 + 辐射标记）
     if (r.type === 'radiation') {
       const pulse = 0.5 + 0.5 * Math.sin(game.time * 2)
+      // 危险底色填充
       ctx.fillStyle = 'rgba(234,88,12,' + (0.05 + pulse * 0.06).toFixed(3) + ')'
       ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.strokeStyle = 'rgba(251,146,60,0.5)'
-      ctx.lineWidth = 2
-      ctx.setLineDash([10, 8])
-      ctx.strokeRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8)
+      // 外层发光光晕（强脉冲，标识危险范围）
+      ctx.save()
+      ctx.globalAlpha = 0.18 + pulse * 0.12
+      ctx.fillStyle = '#ea580c'
+      ctx.fillRect(r.x - 6, r.y - 6, r.w + 12, r.h + 12)
+      ctx.restore()
+      // 危险条纹边框（粗实线 + 内虚线）
+      ctx.strokeStyle = 'rgba(251,146,60,0.7)'
+      ctx.lineWidth = 3
+      ctx.strokeRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4)
+      ctx.strokeStyle = 'rgba(234,88,12,0.55)'
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([6, 4])
+      ctx.strokeRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16)
+      ctx.setLineDash([])
+      // 四角辐射警告标记
+      const mrk = '☢'
+      ctx.fillStyle = 'rgba(251,146,60,' + (0.5 + pulse * 0.4).toFixed(2) + ')'
+      ctx.font = 'bold 18px monospace'
+      ctx.textAlign = 'center'
+      ctx.fillText(mrk, r.x + 18, r.y + 20)
+      ctx.fillText(mrk, r.x + r.w - 18, r.y + 20)
+      ctx.fillText(mrk, r.x + 18, r.y + r.h - 4)
+      ctx.fillText(mrk, r.x + r.w - 18, r.y + r.h - 4)
+      // 沿边危险条纹
+      ctx.strokeStyle = 'rgba(251,146,60,0.35)'
+      ctx.lineWidth = 4
+      ctx.setLineDash([14, 12])
+      ctx.strokeRect(r.x + r.w / 4, r.y + 3, r.w / 2, r.h - 6)
       ctx.setLineDash([])
     }
     // 军械库：蓝色描边
