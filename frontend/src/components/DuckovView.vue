@@ -457,7 +457,8 @@ function onMmUp() { mmDown = false; mmLast = null; }
 function onMmClick() {
   if (mapBig.value && mmMoved) return;
   mapBig.value = !mapBig.value;
-  if (!mapBig.value) mapDrag.value = { x: 0, y: 0 };
+  if (!mapBig.value) { mapDrag.value = { x: 0, y: 0 }; }
+  if (mapBig.value) { clampMapDrag(); drawMinimap(); }
 }
 function drawMinimap() {
   const c = minimapRef.value;
@@ -908,7 +909,7 @@ function onCtx(ev) { ev.preventDefault(); }
 </script>
 
 <style scoped>
-.duckov-wrap { position: fixed; inset: 0; background: #05070d; display: flex; }
+.duckov-wrap { position: fixed; top: 44px; right: 0; bottom: 0; left: 0; background: #05070d; display: flex; }
 .stage { position: relative; flex: 1; overflow: hidden; }
 canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .hud { position: absolute; inset: 0; pointer-events: none; font-family: monospace; }
