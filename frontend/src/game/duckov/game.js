@@ -389,6 +389,7 @@ export class DuckovGame {
     }
     if (p.dashT > 0) {
       p.dashT -= dt
+      p.invuln = Math.max(p.invuln, 0.01)
       spd *= 2.6
       if (Math.random() < 0.6) this.particles.push({ x: p.x, y: p.y, vx: rand(-20, 20), vy: rand(-20, 20), t: 0.25, color: '#67e8f9', size: 3 })
     }
@@ -438,6 +439,16 @@ export class DuckovGame {
         sound.play('shoot_' + p.weapon)
         makeNoise(this, p.x, p.y, w.noise)
         this.shakeT = 0.08
+        // 枪口火焰粒子（沿射击方向喷射）
+        for (let j = 0; j < 3 + (n > 1 ? 2 : 0); j++) {
+          const fa = p.face + rand(-0.12, 0.12)
+          const fd = 16 + rand(4, 14)
+          this.particles.push({
+            x: p.x + Math.cos(p.face) * 16, y: p.y + Math.sin(p.face) * 16,
+            vx: Math.cos(fa) * rand(60, 150), vy: Math.sin(fa) * rand(60, 150),
+            t: rand(0.08, 0.18), color: w.color, size: rand(2, 4)
+          })
+        }
       }
     }
 
@@ -501,6 +512,7 @@ export class DuckovGame {
               if (hitNode.hp <= 0) {
                 hitNode.alive = false
                 hitNode.regenT = 12
+                this.hitstopT = Math.max(this.hitstopT, 0.3)
                 sound.play('levelup')
                 this.floats.push({ x: e.x, y: e.y - 52, txt: '防御节点击破！Boss 受伤 +25%', t: 1.6, color: '#4ade80', big: true })
                 for (let i = 0; i < 12; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-110, 110), vy: rand(-110, 110), t: 0.5, color: '#67e8f9', size: 3 })
@@ -843,6 +855,10 @@ export class DuckovGame {
       } else {
         this.floats.push({ x: e.x, y: e.y - 55, txt: '背包已满，至尊配件 ' + l.name + ' 无法拾取！', t: 2.2, color: '#f87171', big: true })
       }
+      // Boss 击杀额外奖励金币（即时到账）
+      const gold = 800 + Math.floor(Math.random() * 700)
+      this.lootValue += gold
+      this.floats.push({ x: e.x, y: e.y - 42, txt: '+' + gold + '💰', t: 1.8, color: '#fde047', big: true })
     }
     if (e.d.elite && !this.hasKey) {
       this.hasKey = true
