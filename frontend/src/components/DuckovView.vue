@@ -12,8 +12,8 @@
         <BossHud v-if="hud && hud.boss && hud.boss.state" :boss="hud.boss" />
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
-        <div v-if="hud.modifier" class="hud-modifier">⚡ {{ hud.modifier.name }}</div>
-        <div v-if="hud.contracts && hud.contracts.length" class="hud-contracts">
+        <div v-if="hud.modifier" class="hud-modifier" :class="{ 'with-boss': hud.boss && hud.boss.state }">⚡ {{ hud.modifier.name }}</div>
+        <div v-if="hud.contracts && hud.contracts.length" class="hud-contracts" :class="{ 'with-boss': hud.boss && hud.boss.state }">
           <div v-for="c in hud.contracts" :key="c.name" class="hud-contract" :class="{ done: c.done }">
             {{ c.done ? '✅' : '📋' }} {{ c.name }} <em>{{ c.progress }}</em> <b v-if="c.done">+{{ c.reward }}💰</b>
           </div>
@@ -1093,9 +1093,11 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .mp-item { color: #94a3b8; font-size: 11px; }
 .mp-item.up { color: #4ade80; }
 .mp-item.down { color: #f87171; }
-.hud-modifier { position: absolute; top: 105px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; z-index: 5; }
+.hud-modifier { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); color: #fbbf24; font-size: 12px; background: rgba(15,23,42,0.75); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(251,191,36,0.35); pointer-events: none; z-index: 6; transition: top 0.2s; }
+.hud-modifier.with-boss { top: 128px; }
 /* Boss 样式已抽离至 BossHud.vue（scoped） */
-.hud-contracts { position: absolute; top: 135px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; z-index: 5; }
+.hud-contracts { position: absolute; top: 68px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center; pointer-events: none; z-index: 6; transition: top 0.2s; }
+.hud-contracts.with-boss { top: 158px; }
 .hud-contract { color: #cbd5e1; font-size: 11px; background: rgba(15,23,42,0.7); padding: 2px 10px; border-radius: 9px; border: 1px solid rgba(148,163,184,0.25); }
 .hud-contract em { font-style: normal; color: #94a3b8; margin: 0 2px; }
 .hud-contract.done { color: #4ade80; border-color: rgba(74,222,128,0.5); }

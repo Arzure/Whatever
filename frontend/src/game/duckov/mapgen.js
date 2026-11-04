@@ -85,7 +85,9 @@ export function generateMap(opts = {}) {
   const far = sorted.slice(-2)
   far.forEach(r => { r.type = 'exit' })
   const mid = sorted.filter(r => r !== spawnRoom && !far.includes(r))
-  const vaultRoom = mid[mid.length - 1] || sorted[sorted.length - 3] || spawnRoom
+  // 金库放在 mid 后半段（距出生点至少 grid/2 格），避免玩家出生即撞 Boss
+  const vaultPool = mid.slice(Math.max(0, mid.length - Math.ceil(mid.length / 2)))
+  const vaultRoom = vaultPool[randi(0, vaultPool.length - 1)] || mid[mid.length - 1] || sorted[sorted.length - 3] || spawnRoom
   vaultRoom.type = 'vault'
   for (const r of map.rooms) {
     if (r.type !== 'archive' && r.type !== 'exit' && r.type !== 'vault') {
@@ -237,12 +239,26 @@ export function generateMap(opts = {}) {
     }
     if (!t.exit) {
       const nLoot = 1 + t.value + randi(0, 1)
-      for (let i = 0; i < nLoot; i++) {
-        const lp = randInRoom(r, 40)
+      // 物资点锚定到同房间最近 prop 旁边（机柜缝隙 / 箱顶 / 管道检修口）
+      const roomProps = map.props.filter(pr => pr.room === r.id)
+      for (let li = 0; li < nLoot; li++) {
+        let lx, ly, propIndex = -1
+        if (roomProps.length > 0) {
+          const pr = roomProps[li % roomProps.length]
+          propIndex = map.props.indexOf(pr)
+          const side = Math.floor(Math.random() * 4) // 0=top 1=right 2=bottom 3=left
+          if (side === 0) { lx = pr.x + pr.w / 2; ly = pr.y - 6 }
+          else if (side === 1) { lx = pr.x + pr.w + 6; ly = pr.y + pr.h / 2 }
+          else if (side === 2) { lx = pr.x + pr.w / 2; ly = pr.y + pr.h + 6 }
+          else { lx = pr.x - 6; ly = pr.y + pr.h / 2 }
+        } else {
+          const lp = randInRoom(r, 40)
+          lx = lp.x; ly = lp.y
+        }
         map.lootSpots.push({
-          x: lp.x, y: lp.y,
+          x: lx, y: ly,
           room: r.id, tier: Math.min(3, t.value + (Math.random() < 0.25 ? 1 : 0)),
-          opened: false
+          opened: false, propIndex
         })
       }
     }
