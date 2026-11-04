@@ -406,8 +406,10 @@ export class DuckovGame {
     if (ix || iy) {
       const m = Math.hypot(ix, iy)
       const c = this.collideWalls(p.x + ix / m * spd * dt, p.y + iy / m * spd * dt, p.r)
-      p.x = c.x
-      p.y = c.y
+      // 校验：移动后必须在某房间或走廊内，否则拒绝移动（防止走到房间之间的空白 void 区域）
+      if (roomAt(this.map, c.x, c.y)) {
+        p.x = c.x; p.y = c.y
+      }
     }
     p.face = Math.atan2(this.mouse.y - this.canvas.height / 2, this.mouse.x - this.canvas.width / 2)
 
