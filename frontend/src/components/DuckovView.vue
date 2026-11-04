@@ -9,11 +9,11 @@
           <span v-if="hud.blackout" class="blackout">⚡ 断电中</span>
         </div>
         <!-- Boss 专属 UI（已抽离至 BossHud.vue；仅激活后显示） -->
-        <BossHud v-if="hud && hud.boss && hud.boss.state" :boss="hud.boss" />
+        <BossHud v-if="hud && hud.boss && hud.boss.state && Math.hypot(hud.px - hud.boss.x, hud.py - hud.boss.y) < 600" :boss="hud.boss" />
         <!-- 撤离倒计时（醒目居中） -->
         <div class="exit-countdown" :class="{ danger: hud.exitT < 30 }">⏱ {{ fmtTime(hud.exitT) }}</div>
-        <div v-if="hud.modifier" class="hud-modifier" :class="{ 'with-boss': hud.boss && hud.boss.state }">⚡ {{ hud.modifier.name }}</div>
-        <div v-if="hud.contracts && hud.contracts.length" class="hud-contracts" :class="{ 'with-boss': hud.boss && hud.boss.state }">
+        <div v-if="hud.modifier" class="hud-modifier" :class="{ 'with-boss': hud.boss && hud.boss.state && Math.hypot(hud.px - hud.boss.x, hud.py - hud.boss.y) < 600 }">⚡ {{ hud.modifier.name }}</div>
+        <div v-if="hud.contracts && hud.contracts.length" class="hud-contracts" :class="{ 'with-boss': hud.boss && hud.boss.state && Math.hypot(hud.px - hud.boss.x, hud.py - hud.boss.y) < 600 }">
           <div v-for="c in hud.contracts" :key="c.name" class="hud-contract" :class="{ done: c.done }">
             {{ c.done ? '✅' : '📋' }} {{ c.name }} <em>{{ c.progress }}</em> <b v-if="c.done">+{{ c.reward }}💰</b>
           </div>

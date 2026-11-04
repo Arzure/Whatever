@@ -176,7 +176,7 @@ export class DuckovGame {
     this.floats = []
     this.noiseRings = []
     this.time = 0
-    this.exitT = 210
+    this.exitT = 300
     this.exitProgress = 0
     this.exitTarget = null
     this.openT = 0
@@ -1009,6 +1009,7 @@ export class DuckovGame {
       exitT: Math.max(0, this.exitT),
       hasKey: this.hasKey,
       stamina: p.stamina,
+      px: p.x, py: p.y,
       medkits: this.medkits,
       modifier: this.modifier ? { name: this.modifier.name, desc: this.modifier.desc } : null,
       contracts: (this.contracts || []).map(c => ({
@@ -1031,6 +1032,7 @@ export class DuckovGame {
         if (!b) return null
         return {
           hp: b.hp, maxHp: b.maxHp, name: b.d.name, raged: b.raged,
+          x: b.x, y: b.y,
           state: b.bossState,
           moveName: b.bossNextMove ? b.bossNextMove.name : '',
           nodes: (b.bossNodes || []).map(n => ({

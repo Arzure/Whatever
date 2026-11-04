@@ -175,14 +175,19 @@
             <span class="gp-dkfloor"></span>
             <span class="gp-dkroom gp-dkr1"></span>
             <span class="gp-dkroom gp-dkr2"></span>
-            <span class="gp-dkroom gp-dkr3"></span>
+            <span class="gp-dkroom gp-dkr3 gp-dkvault"></span>
             <span class="gp-dkexit"></span>
-            <span class="gp-dkcone gp-dkc1"></span>
-            <span class="gp-dkcone gp-dkc2"></span>
-            <span class="gp-dkfoe gp-dkf1"></span>
-            <span class="gp-dkfoe gp-dkf2"></span>
+            <span class="gp-dkguard gp-dkg1">
+              <span class="gp-dkcone"></span>
+              <span class="gp-dkfoe"></span>
+            </span>
+            <span class="gp-dkguard gp-dkg2">
+              <span class="gp-dkcone"></span>
+              <span class="gp-dkfoe"></span>
+            </span>
             <span class="gp-dkloot gp-dkl1"></span>
             <span class="gp-dkloot gp-dkl2"></span>
+            <span class="gp-dkboss"></span>
             <span class="gp-dkplayer"></span>
             <span class="gp-dkscan"></span>
           </template>
@@ -1641,6 +1646,11 @@ function onCardLeave(e) {
 .gp-dkr1 { left: 8%; top: 10%; width: 34%; height: 38%; }
 .gp-dkr2 { right: 10%; top: 8%; width: 38%; height: 30%; }
 .gp-dkr3 { left: 16%; bottom: 10%; width: 40%; height: 34%; }
+.gp-dkvault {
+  border-color: rgba(168,85,247,0.7) !important;
+  background: rgba(60,10,100,0.35) !important;
+  box-shadow: inset 0 0 24px rgba(168,85,247,0.15), 0 0 8px rgba(168,85,247,0.2) !important;
+}
 .gp-dkexit {
   position: absolute;
   right: 8%; bottom: 12%;
@@ -1669,12 +1679,31 @@ function onCardLeave(e) {
   border-left: 22px solid transparent;
   border-right: 22px solid transparent;
   border-bottom: 40px solid rgba(245,158,11,0.16);
-  transform-origin: 50% 100%;
+  transform-origin: 22px 0;
   z-index: 1;
 }
-.gp-dkc1 { left: 30%; top: 34%; animation: gp-dk-sweep 4s ease-in-out infinite; }
-.gp-dkc2 { left: 62%; top: 60%; animation: gp-dk-sweep 4s ease-in-out infinite reverse; animation-delay: -2s; }
-@keyframes gp-dk-sweep {
+.gp-dkguard {
+  position: absolute;
+  z-index: 1;
+}
+.gp-dkg1 { left: 30%; top: 34%; animation: gp-dk-patrol1 5s ease-in-out infinite; }
+.gp-dkg2 { left: 62%; top: 60%; animation: gp-dk-patrol2 6s ease-in-out infinite; }
+.gp-dkguard .gp-dkcone {
+  left: -22px; top: 0;
+}
+.gp-dkg1 .gp-dkcone { animation: gp-dk-sweep1 5s ease-in-out infinite; }
+.gp-dkg2 .gp-dkcone { animation: gp-dk-sweep2 6s ease-in-out infinite; }
+.gp-dkguard .gp-dkfoe {
+  left: -5px; top: -5px;
+  z-index: 2;
+  animation: none;
+  transform: none;
+}
+@keyframes gp-dk-sweep1 {
+  0%, 100% { transform: rotate(-30deg); }
+  50% { transform: rotate(30deg); }
+}
+@keyframes gp-dk-sweep2 {
   0%, 100% { transform: rotate(-30deg); }
   50% { transform: rotate(30deg); }
 }
@@ -1685,9 +1714,8 @@ function onCardLeave(e) {
   background: #f59e0b;
   box-shadow: 0 0 8px rgba(245,158,11,0.8);
   z-index: 2;
+  transform: translate(-50%, -50%);
 }
-.gp-dkf1 { left: 30%; top: 34%; animation: gp-dk-patrol1 5s ease-in-out infinite; }
-.gp-dkf2 { left: 62%; top: 60%; animation: gp-dk-patrol2 6s ease-in-out infinite; }
 @keyframes gp-dk-patrol1 {
   0%, 100% { left: 30%; top: 34%; }
   50% { left: 44%; top: 22%; }
@@ -1709,6 +1737,20 @@ function onCardLeave(e) {
 @keyframes gp-dk-glint {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
+}
+.gp-dkboss {
+  position: absolute;
+  left: 28%; top: 22%;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #c026d3;
+  box-shadow: 0 0 18px rgba(192,38,211,0.9), 0 0 36px rgba(192,38,211,0.5);
+  z-index: 3;
+  animation: gp-dk-boss-pulse 1.4s ease-in-out infinite;
+}
+@keyframes gp-dk-boss-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(192,38,211,0.9), 0 0 36px rgba(192,38,211,0.5); }
+  50% { transform: scale(1.3); box-shadow: 0 0 28px rgba(192,38,211,1), 0 0 50px rgba(192,38,211,0.8); }
 }
 .gp-dkplayer {
   position: absolute;

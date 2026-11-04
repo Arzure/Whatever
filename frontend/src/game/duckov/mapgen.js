@@ -21,7 +21,7 @@ const randi = (a, b) => Math.floor(rand(a, b + 1))
 
 // 生成一张地图：房间网格布局 + 走廊 + 掩体 + 物资点 + 敌人配置
 export function generateMap(opts = {}) {
-  const roomCount = opts.roomCount || randi(8, 11)
+  const roomCount = opts.roomCount || randi(9, 13)
   const map = {
     rooms: [], corridors: [], walls: [], props: [],
     lootSpots: [], spawns: [], exits: [], healSpots: [],
@@ -85,12 +85,9 @@ export function generateMap(opts = {}) {
   const far = sorted.slice(-2)
   far.forEach(r => { r.type = 'exit' })
   const mid = sorted.filter(r => r !== spawnRoom && !far.includes(r))
-  // 金库放在 mid 后半段（距出生点至少 grid/2 格），避免玩家出生即撞 Boss
-  const vaultPool = mid.slice(Math.max(0, mid.length - Math.ceil(mid.length / 2)))
-  const vaultRoom = vaultPool[randi(0, vaultPool.length - 1)] || mid[mid.length - 1] || sorted[sorted.length - 3] || spawnRoom
-  vaultRoom.type = 'vault'
+  // 金库作为叶子节点后生成（从根本消除割点），类型分配跳过
   for (const r of map.rooms) {
-    if (r.type !== 'archive' && r.type !== 'exit' && r.type !== 'vault') {
+    if (r.type !== 'archive' && r.type !== 'exit') {
       r.type = ['server', 'server', 'power', 'cooling', 'radiation', 'armory'][randi(0, 5)]
     }
   }
@@ -116,7 +113,7 @@ export function generateMap(opts = {}) {
   let extra = 0
   const extraSet = new Set()
   for (const e of edges) {
-    if (extra >= 2) break
+    if (extra >= 3) break
     const k = e.i + '-' + e.j
     if (!linked.has(k)) { linked.add(k); extraSet.add(k); extra++ }
   }
@@ -196,6 +193,118 @@ export function generateMap(opts = {}) {
     }
   }
   map.walls = wallRects
+
+  // ---- 金库房间后生成：作为图的叶子节点，物理上不可能成为割点 ----
+  const vaultId = map.rooms.length
+  const roomMinXY = randi(Math.floor(GRID * 0.4), GRID - 1)
+  // 尝试最多 20 次选与现有房间不重叠的网格位
+  let vaultGX, vaultGY, vaultCX, vaultCY, vaultX, vaultY, vaultW, vaultH
+  let vaultOK = false
+  for (let attempt = 0; attempt < 50; attempt++) {
+    vaultGX = randi(0, GRID - 1)
+    vaultGY = randi(0, GRID - 1)
+    vaultCX = vaultGX * CELL + PAD + CELL / 2
+    vaultCY = vaultGY * CELL + PAD + CELL / 2
+    vaultW = randi(280, 380); vaultH = randi(260, 340)
+    vaultX = vaultCX - vaultW / 2; vaultY = vaultCY - vaultH / 2
+    const overlap = map.rooms.some(r =>
+      r.x - 40 < vaultX + vaultW && r.x + r.w + 40 > vaultX &&
+      r.y - 40 < vaultY + vaultH && r.y + r.h + 40 > vaultY)
+    if (!overlap) { vaultOK = true; break }
+  }
+  if (!vaultOK) {
+    // 兜底：遍历全部网格位置找空位，避免右下角强行覆盖
+    const allSlots = []
+    for (let gx = 0; gx < GRID; gx++) for (let gy = 0; gy < GRID; gy++) allSlots.push({ gx, gy })
+    for (let si = allSlots.length - 1; si > 0; si--) { const j = (Math.random() * (si + 1)) | 0; const t = allSlots[si]; allSlots[si] = allSlots[j]; allSlots[j] = t }
+    for (const slot of allSlots) {
+      const scx = slot.gx * CELL + PAD + CELL / 2, scy = slot.gy * CELL + PAD + CELL / 2
+      const sw = 300, sh = 280
+      const sx = scx - sw / 2, sy = scy - sh / 2
+      if (!map.rooms.some(r => r.x - 40 < sx + sw && r.x + r.w + 40 > sx && r.y - 40 < sy + sh && r.y + r.h + 40 > sy)) {
+        vaultGX = slot.gx; vaultGY = slot.gy
+        vaultCX = scx; vaultCY = scy
+        vaultW = sw; vaultH = sh
+        vaultX = sx; vaultY = sy
+        vaultOK = true; break
+      }
+    }
+    if (!vaultOK) {
+      vaultGX = GRID - 1; vaultGY = GRID - 1
+      vaultCX = vaultGX * CELL + PAD + CELL / 2; vaultCY = vaultGY * CELL + PAD + CELL / 2
+      vaultW = 300; vaultH = 280
+      vaultX = vaultCX - vaultW / 2; vaultY = vaultCY - vaultH / 2
+    }
+  }
+  map.rooms.push({
+    id: vaultId, gx: vaultGX, gy: vaultGY,
+    x: vaultX, y: vaultY, w: vaultW, h: vaultH,
+    cx: vaultCX, cy: vaultCY,
+    doors: [], type: 'vault', shape: 'rect', blocks: []
+  })
+  const vaultRoom = map.rooms[vaultId]
+  vaultRoom.zone = 'lab'
+
+  // 找最近的非金库房间，建一条走廊连接
+  let nearestR = null, nearestD = Infinity
+  for (const r of map.rooms) {
+    if (r === vaultRoom) continue
+    const d = Math.hypot(r.cx - vaultCX, r.cy - vaultCY)
+    if (d < nearestD) { nearestD = d; nearestR = r }
+  }
+  if (nearestR) {
+    // 单条包围盒走廊：取两房间墙条并集，确保一条走廊同时触两面墙
+    const a = nearestR, b = vaultRoom
+    const bx0 = Math.min(a.x - T, b.x - T), by0 = Math.min(a.y - T, b.y - T)
+    const bx1 = Math.max(a.x + a.w + T, b.x + b.w + T), by1 = Math.max(a.y + a.h + T, b.y + b.h + T)
+    map.corridors.push({ x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 })
+    // 门记录
+    a.doors.push({ dir: 'v', x: b.cx > a.cx ? a.x + a.w : a.x, y: a.cy })
+    b.doors.push({ dir: 'v', x: a.cx > b.cx ? b.x + b.w : b.x, y: b.cy })
+    // 追加金库墙体
+    addWall(vaultX - T, vaultY - T, vaultW + T * 2, T)
+    addWall(vaultX - T, vaultY + vaultH, vaultW + T * 2, T)
+    addWall(vaultX - T, vaultY, T, vaultH)
+    addWall(vaultX + vaultW, vaultY, T, vaultH)
+    // 门洞开挖：新走廊同时与金库墙 + 邻居房间墙相交处开门
+    const nbrStrips = [
+      { x: nearestR.x - T, y: nearestR.y - T, w: nearestR.w + T * 2, h: T, horiz: true },
+      { x: nearestR.x - T, y: nearestR.y + nearestR.h, w: nearestR.w + T * 2, h: T, horiz: true },
+      { x: nearestR.x - T, y: nearestR.y, w: T, h: nearestR.h, horiz: false },
+      { x: nearestR.x + nearestR.w, y: nearestR.y, w: T, h: nearestR.h, horiz: false }
+    ]
+    const vaultStrips = [
+      { x: vaultX - T, y: vaultY - T, w: vaultW + T * 2, h: T, horiz: true },
+      { x: vaultX - T, y: vaultY + vaultH, w: vaultW + T * 2, h: T, horiz: true },
+      { x: vaultX - T, y: vaultY, w: T, h: vaultH, horiz: false },
+      { x: vaultX + vaultW, y: vaultY, w: T, h: vaultH, horiz: false }
+    ]
+    // L/T 形邻居：跳过切角块区域
+    const skipBlock = (r, ox, oy, ox2, oy2) =>
+      (r.blocks || []).some(b => ox2 > b.x && ox < b.x + b.w && oy2 > b.y && oy < b.y + b.h)
+    for (const c of map.corridors.slice(-2)) {
+      for (const s of [...vaultStrips, ...nbrStrips]) {
+        const ox = Math.max(c.x, s.x), oy = Math.max(c.y, s.y)
+        const ox2 = Math.min(c.x + c.w, s.x + s.w), oy2 = Math.min(c.y + c.h, s.y + s.h)
+        if (ox2 - ox <= 6 || oy2 - oy <= 6) continue
+        if (nearestR && vaultStrips.includes(s) ? false : (nearestR ? skipBlock(nearestR, ox, oy, ox2, oy2) : false)) continue
+        let cx0 = ox, cy0 = oy, cw = ox2 - ox, ch = oy2 - oy
+        if (s.horiz && cw > 120) { cx0 = (ox + ox2) / 2 - 60; cw = 120 }
+        if (!s.horiz && ch > 120) { cy0 = (oy + oy2) / 2 - 60; ch = 120 }
+        for (let i = wallRects.length - 1; i >= 0; i--) {
+          const w = wallRects[i]
+          if (w.x < cx0 + cw && w.x + w.w > cx0 && w.y < cy0 + ch && w.y + w.h > cy0) {
+            wallRects.splice(i, 1)
+            if (w.x < cx0) wallRects.push({ x: w.x, y: w.y, w: cx0 - w.x, h: w.h })
+            if (w.x + w.w > cx0 + cw) wallRects.push({ x: cx0 + cw, y: w.y, w: w.x + w.w - cx0 - cw, h: w.h })
+            if (w.y < cy0) wallRects.push({ x: Math.max(w.x, cx0), y: w.y, w: Math.min(w.x + w.w, cx0 + cw) - Math.max(w.x, cx0), h: cy0 - w.y })
+            if (w.y + w.h > cy0 + ch) wallRects.push({ x: Math.max(w.x, cx0), y: cy0 + ch, w: Math.min(w.x + w.w, cx0 + cw) - Math.max(w.x, cx0), h: w.y + w.h - cy0 - ch })
+          }
+        }
+      }
+    }
+    map.walls = wallRects
+  }
 
   // L/T 形房间：切角块附近不可放置掩体/物资/敌人/急救站
   const inBlock = (r, x, y, m = 34) => (r.blocks || []).some(b => x > b.x - m && x < b.x + b.w + m && y > b.y - m && y < b.y + b.h + m)
