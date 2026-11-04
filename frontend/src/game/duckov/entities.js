@@ -9,7 +9,7 @@ export const ENEMY_KINDS = {
   patrol: { name: '巡逻进程', hp: 40, dmg: 8, speed: 70, r: 11, color: '#f59e0b', range: 260, fireCd: 1.2, bullet: 240, melee: false, sight: 300, fov: 1.1 },
   guard: { name: '守卫进程', hp: 70, dmg: 12, speed: 55, r: 13, color: '#ef4444', range: 200, fireCd: 1.6, bullet: 280, melee: false, sight: 260, fov: 1.3 },
   elite: { name: '精英守卫', hp: 220, dmg: 18, speed: 62, r: 17, color: '#a855f7', range: 240, fireCd: 0.9, bullet: 320, melee: false, sight: 320, fov: 1.4, elite: true },
-  boss: { name: '防火墙核心', hp: 1400, dmg: 26, speed: 46, r: 30, color: '#dc2626', range: 300, fireCd: 1.1, bullet: 300, melee: false, sight: 400, fov: Math.PI, boss: true },
+  boss: { name: '防火墙核心', hp: 800, dmg: 26, speed: 46, r: 30, color: '#dc2626', range: 300, fireCd: 1.1, bullet: 300, melee: false, sight: 400, fov: Math.PI, boss: true },
   drone: { name: '侦察无人机', hp: 26, dmg: 6, speed: 105, r: 9, color: '#38bdf8', range: 170, fireCd: 0.7, bullet: 210, melee: false, sight: 340, fov: 1.6, drone: true },
   sniper: { name: '狙击进程', hp: 55, dmg: 34, speed: 48, r: 12, color: '#f43f5e', range: 420, fireCd: 2.4, bullet: 520, melee: false, sight: 460, fov: 0.7, sniper: true },
   rusher: { name: '狂暴进程', hp: 60, dmg: 16, speed: 128, r: 11, color: '#fb7185', range: 30, fireCd: 0.8, bullet: 0, melee: true, sight: 320, fov: 1.5, rusher: true },
