@@ -438,6 +438,23 @@ export function render(ctx, game) {
         ctx.closePath(); ctx.fill()
         ctx.restore()
       }
+      // 激光扫射预警：红色扇形指示扫射范围
+      if (e.bossNextMove && e.bossNextMove.id === 'laser') {
+        ctx.save()
+        ctx.globalAlpha = 0.18 + 0.1 * Math.sin(game.time * 16)
+        ctx.fillStyle = '#ef4444'
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.arc(0, 0, e.d.range, e.face - Math.PI / 2, e.face + Math.PI / 2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = '#f87171'
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([12, 8])
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
     }
     // Boss 眩晕星环（stun 状态）
     if (e.bossState === 'stun') {
@@ -720,6 +737,21 @@ export function render(ctx, game) {
     const a = 0.12 + 0.1 * Math.abs(Math.sin(game.time * 6))
     ctx.fillStyle = 'rgba(239,68,68,' + a.toFixed(3) + ')'
     ctx.fillRect(0, 0, W, H)
+  }
+
+  // ---- Boss 入场冲击波：扩散圆环 + 暗角增强 ----
+  if (game.bossIntroT > 0) {
+    const k = Math.min(1, game.bossIntroT / 1.5)
+    // 暗角 Vignette
+    const vGrad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75)
+    vGrad.addColorStop(0, 'rgba(0,0,0,0)')
+    vGrad.addColorStop(1, 'rgba(0,0,0,' + (0.55 * k).toFixed(3) + ')')
+    ctx.fillStyle = vGrad
+    ctx.fillRect(0, 0, W, H)
+    // 红色脉冲边框
+    ctx.strokeStyle = 'rgba(239,68,68,' + (0.5 * k * (0.6 + 0.4 * Math.sin(game.time * 14))).toFixed(3) + ')'
+    ctx.lineWidth = 4
+    ctx.strokeRect(4, 4, W - 8, H - 8)
   }
 
   // ---- 高端/至尊配件拾取：全屏金光特效 ----

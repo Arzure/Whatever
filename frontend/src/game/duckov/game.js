@@ -354,6 +354,7 @@ export class DuckovGame {
       sound.play('boss')
     }
     if (this.blackout > 0) this.blackout -= dt
+    if (this.bossIntroT > 0) this.bossIntroT -= dt
 
     if (this.exitT <= 0) {
       this.endRun(false, '断电时刻已到，封锁区永久关闭')
@@ -520,7 +521,17 @@ export class DuckovGame {
                 this.hitstopT = Math.max(this.hitstopT, 0.3)
                 sound.play('levelup')
                 this.floats.push({ x: e.x, y: e.y - 52, txt: '防御节点击破！Boss 受伤 +25%', t: 1.6, color: '#4ade80', big: true })
-                for (let i = 0; i < 12; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-110, 110), vy: rand(-110, 110), t: 0.5, color: '#67e8f9', size: 3 })
+                // 8方向粒子散裂 + 中心爆发环
+                for (let i = 0; i < 8; i++) {
+                  const ang = i / 8 * Math.PI * 2
+                  for (let j = 0; j < 3; j++) {
+                    this.particles.push({ x: b.x, y: b.y, vx: Math.cos(ang) * (60 + j * 40), vy: Math.sin(ang) * (60 + j * 40), t: 0.55, color: j === 0 ? '#fff' : '#67e8f9', size: j === 0 ? 4 : 3 })
+                  }
+                }
+                for (let i = 0; i < 6; i++) this.particles.push({ x: b.x, y: b.y, vx: rand(-130, 130), vy: rand(-130, 130), t: 0.45, color: '#fde047', size: 2.5 })
+                // 屏幕短时色偏：青→白闪
+                this.flash = Math.max(this.flash, 0.15)
+                this.flashGold = Math.max(this.flashGold, 0.1)
               }
               b.dead = true
               break
@@ -845,8 +856,17 @@ export class DuckovGame {
     this.floats.push({ x: e.x, y: e.y - 24, txt: '击杀 x' + this.kills, t: 0.9, color: '#fde047', big: true })
     sound.play('kill')
     if (e.d.boss) {
-      this.flash = 0.4
-      this.floats.push({ x: e.x, y: e.y - 30, txt: '防火墙核心瓦解！', t: 2, color: '#fde047', big: true })
+      // 终结慢镜头：hitstop 从 0.1s 延长至 0.6s
+      this.hitstopT = 0.6
+      this.shakeT = 0.35
+      this.flash = 0.5
+      this.flashGold = 0.7
+      // 金色冲击波粒子
+      for (let i = 0; i < 20; i++) {
+        const ang = i / 20 * Math.PI * 2
+        this.particles.push({ x: e.x, y: e.y, vx: Math.cos(ang) * (80 + Math.random() * 200), vy: Math.sin(ang) * (80 + Math.random() * 200), t: 0.8, color: '#fde047', size: 3 + Math.random() * 3 })
+      }
+      this.floats.push({ x: e.x, y: e.y - 30, txt: '防火墙核心瓦解！', t: 2.5, color: '#fde047', big: true })
       sound.play('bosskill')
       // Boss 必掉一件至尊配件（tier 3）
       const top = PARTS.filter(pt => pt.tier === 3)

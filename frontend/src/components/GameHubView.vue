@@ -191,6 +191,16 @@
             <span class="gp-dkplayer"></span>
             <span class="gp-dkscan"></span>
           </template>
+          <!-- 战术突袭：炸弹拆除FPS · 十字准星 + 闪光弹 + 拆弹进度 -->
+          <template v-else-if="g.id === 'tactical'">
+            <span class="gp-tcsky"></span>
+            <span class="gp-tcbomb"></span>
+            <span class="gp-tctimer"></span>
+            <span class="gp-tccross"></span>
+            <span class="gp-tcflash"></span>
+            <span class="gp-tcenemy gp-tce1"></span>
+            <span class="gp-tcenemy gp-tce2"></span>
+          </template>
           <template v-else>
             <span class="gp-grid"></span>
             <span class="gp-cube gp-c1"></span>
@@ -357,6 +367,13 @@ const games = [
     desc: '搜打撤 · 封锁机房 · 撤离或掉落',
     icon: 'sword',
     badge: 'EXTRACTION',
+  },
+  {
+    id: 'tactical',
+    name: '战术突袭',
+    desc: '炸弹拆除 · 经济博弈 · A点B点中路',
+    icon: 'sword',
+    badge: 'FPS 3D',
   },
 ];
 
@@ -1825,5 +1842,106 @@ function onCardLeave(e) {
 @keyframes gp-sv-gem {
   0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.9; }
   50% { transform: rotate(180deg) scale(0.7); opacity: 0.5; }
+}
+/* —— 战术突袭预览：暗夜战场 + 炸弹闪烁 + 准星 + 闪光弹 + 敌人剪影 —— */
+.gp-tcsky {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 55%, #1a1a2e 0%, #0a0a14 70%);
+}
+.gp-tcbomb {
+  position: absolute;
+  left: 50%; top: 38%;
+  width: 20px; height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  border: 2px solid #555;
+  box-shadow: 0 0 0 4px rgba(30,30,30,0.6), 0 0 16px rgba(220,38,38,0.4);
+  animation: gp-tcbomb-pulse 1s ease-in-out infinite;
+}
+.gp-tcbomb::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: -6px;
+  width: 4px; height: 8px;
+  margin-left: -2px;
+  background: #dc2626;
+  border-radius: 2px;
+}
+@keyframes gp-tcbomb-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(30,30,30,0.6), 0 0 16px rgba(220,38,38,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(30,30,30,0.6), 0 0 32px rgba(220,38,38,0.9); }
+}
+.gp-tctimer {
+  position: absolute;
+  left: 50%; top: 28%;
+  width: 36px; height: 6px;
+  margin-left: -18px;
+  border-radius: 3px;
+  background: rgba(20,20,30,0.8);
+  border: 1px solid rgba(220,38,38,0.4);
+  overflow: hidden;
+}
+.gp-tctimer::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+  animation: gp-tctimer-warn 2s ease-in-out infinite;
+}
+@keyframes gp-tctimer-warn {
+  0%, 40% { width: 55%; opacity: 0.8; }
+  50%, 100% { width: 35%; opacity: 1; }
+}
+.gp-tccross {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 16px; height: 16px;
+  margin: -8px 0 0 -8px;
+  animation: gp-tccross-aim 4s ease-in-out infinite;
+}
+.gp-tccross::before, .gp-tccross::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.7);
+}
+.gp-tccross::before { left: 7px; top: 0; width: 2px; height: 16px; }
+.gp-tccross::after { left: 0; top: 7px; width: 16px; height: 2px; }
+@keyframes gp-tccross-aim {
+  0%, 100% { transform: translate(-8px, 4px); }
+  30% { transform: translate(6px, -6px); }
+  60% { transform: translate(-2px, -8px); }
+}
+.gp-tcflash {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  animation: gp-tcflash-bang 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes gp-tcflash-bang {
+  0%, 55%, 100% { background: rgba(255,255,255,0); }
+  58% { background: rgba(255,255,255,0.85); }
+  62% { background: rgba(255,255,255,0); }
+  66% { background: rgba(255,255,255,0.3); }
+  70% { background: rgba(255,255,255,0); }
+}
+.gp-tcenemy {
+  position: absolute;
+  width: 8px; height: 12px;
+  background: rgba(239,68,68,0.2);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 2px;
+  animation: gp-tcenemy-strafe 3s ease-in-out infinite;
+}
+.gp-tce1 { right: 20%; top: 42%; animation-delay: 0s; }
+.gp-tce2 { right: 28%; top: 52%; animation-delay: 1.5s; }
+@keyframes gp-tcenemy-strafe {
+  0%, 100% { transform: translateX(0); opacity: 0.4; }
+  30% { transform: translateX(-14px); opacity: 0.7; }
+  60% { transform: translateX(6px); opacity: 0.3; }
 }
 </style>

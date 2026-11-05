@@ -33,6 +33,15 @@ export function updateBoss(game, e, dt, seen, distP, aim) {
     e.bossT = 0
     e.bossMoveIdx = 0
     e.bossNodes = [0, 1, 2, 3].map(i => ({ ang: i * Math.PI / 2, hp: 80, maxHp: 80, alive: true, regenT: 0 }))
+    // 首次激活：入场冲击波 + 全屏震动
+    if (!e.bossIntroDone) {
+      e.bossIntroDone = true
+      game.bossIntroT = 1.5
+      game.shakeT = 0.3
+      game.flash = 0.25
+      game.hitstopT = Math.max(game.hitstopT, 0.2)
+      if (game.floats) game.floats.push({ x: e.x, y: e.y - 56, txt: '⚠ 防火墙核心已激活！', t: 2, color: '#ef4444', big: true })
+    }
   }
   e.bossT += dt
   // 防御节点再生

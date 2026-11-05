@@ -31,6 +31,7 @@ const routes = [
   { path: '/billiards', name: 'billiards' },
   { path: '/jump', name: 'jump' },
   { path: '/bloodwave', name: 'bloodwave' },
+  { path: '/tactical', name: 'tactical' },
   { path: '/:pathMatch(.*)*', redirect: '/home' },
 ];
 
