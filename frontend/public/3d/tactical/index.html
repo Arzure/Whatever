@@ -179,8 +179,14 @@ const SMOKE_RADIUS = 6, SMOKE_DURATION = 15, SMOKE_PARTICLES = 40;
 let AC; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
 
 /** 短促正弦/方波音效: frequency, duration(秒), volume(0-1), type */
+let _lastBeepTime = 0, _lastBeepFreq = 0;
 function beep(f, d, v, t) {
-  if (!AC) return; t = t || AC.currentTime;
+  if (!AC) return;
+  // 节流：同频率50ms内不重复
+  const now = AC.currentTime;
+  if (now - _lastBeepTime < 0.05 && f === _lastBeepFreq) return;
+  _lastBeepTime = now; _lastBeepFreq = f;
+  t = t || now;
   const o = AC.createOscillator(), g = AC.createGain();
   o.type = 'square'; o.frequency.setValueAtTime(f, t);
   g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
@@ -311,6 +317,8 @@ function isSmokeBetween(x1, z1, x2, z2) {
 // ==================================================================
 const hitSparks = [];
 const bulletHoles = [];
+const bloodSplatters = [];
+const BLOOD_MAX = 30;
 
 function spawnHitSparks(x, y, z) {
   for (let i = 0; i < 4 + Math.floor(Math.random() * 4); i++) {
@@ -331,13 +339,23 @@ function spawnHitSparks(x, y, z) {
   }
 }
 
+const BULLET_HOLE_MAX = 40;
+const bulletHolePool = [];
+
 function spawnBulletHole(x, y, z, nx, nz) {
-  const geom = new THREE.CircleGeometry(0.05 + Math.random() * 0.04, 6);
-  const mat = new THREE.MeshBasicMaterial({ color: '#1a1a1a', side: THREE.DoubleSide, transparent: true, opacity: 0.7, depthWrite: false });
-  const mesh = new THREE.Mesh(geom, mat);
+  let mesh, mat;
+  // 对象池复用
+  if (bulletHolePool.length > 0) {
+    ({ mesh, mat } = bulletHolePool.pop());
+    mesh.visible = true;
+  } else if (bulletHoles.length < BULLET_HOLE_MAX) {
+    const geom = new THREE.CircleGeometry(0.05 + Math.random() * 0.04, 6);
+    mat = new THREE.MeshBasicMaterial({ color: '#1a1a1a', side: THREE.DoubleSide, transparent: true, opacity: 0.7, depthWrite: false });
+    mesh = new THREE.Mesh(geom, mat);
+    scene.add(mesh);
+  } else { return; }
   mesh.position.set(x + nx * 0.03, y, z + nz * 0.03);
   mesh.rotation.x = -Math.PI / 2;
-  scene.add(mesh);
   bulletHoles.push({ mesh, mat, life: 6 + Math.random() * 3 });
 }
 
@@ -355,7 +373,13 @@ function updateHitSparks(dt) {
 function updateBulletHoles(dt) {
   for (let i = bulletHoles.length - 1; i >= 0; i--) {
     const h = bulletHoles[i]; h.life -= dt;
-    if (h.life <= 0) { scene.remove(h.mesh); h.mesh.geometry.dispose(); h.mat.dispose(); bulletHoles.splice(i, 1); }
+    if (h.life <= 0) {
+      h.mesh.visible = false;
+      h.mesh.position.set(0, -999, 0);
+      bulletHoles.splice(i, 1);
+      if (bulletHolePool.length < BULLET_HOLE_MAX * 2) bulletHolePool.push({ mesh: h.mesh, mat: h.mat });
+      else { scene.remove(h.mesh); h.mesh.geometry.dispose(); h.mat.dispose(); }
+    }
     else if (h.life < 1.5) h.mat.opacity = Math.max(0, h.life / 1.5 * 0.7);
   }
 }
@@ -366,6 +390,14 @@ let shakeMag = 0;
 // ==================================================================
 // 模块 5: 武器定义 (数据层，不依赖渲染)
 // ==================================================================
+// Bot难度分级
+const BOT_DIFFICULTY = 'normal';
+const BOT_DIFF_PARAMS = {
+  easy:   { reactTime: 0.6, spreadMul: 2.5, hsChance: 0.05, damageMul: 0.7 },
+  normal: { reactTime: 0.35, spreadMul: 1.5, hsChance: 0.15, damageMul: 1.0 },
+  hard:   { reactTime: 0.18, spreadMul: 1.0, hsChance: 0.30, damageMul: 1.0 },
+};
+
 const WEAPONS = {
   knife:    { name: '匕首',       dmg: 50,  fireRate: 0.4,  spreadB: 0,     moveP: 1,   recoilY: [0],             recoilH: [0],               cost: 0,    melee: true,  range: 1.8 },
   pistol:   { name: 'P2000',      dmg: 35,  fireRate: 0.15, mag: 13, reserve: 52,  reloadT: 2,   spreadB: 0.015, moveP: 2,   recoilY: [.006,.006,.008,.008,.01,.01,.012,.014,.016,.018,.02,.024,.028], recoilH: [0,0,.002,-.002,.003,-.003,.005,-.005,.008,.01,.012,.015,.02], cost: 0 },
@@ -692,7 +724,7 @@ const BOT_NAMES_CT = ['守卫', '拆弹手', '巡逻兵'];
 /** 创建 Bot */
 function createBot(team, x, z, name) {
   return {
-    x, z, y: 1.75, yS: 0, hp: 100, armor: 0, ground: true, team, name,
+    x, z, y: 1.75, yS: 0, hp: 100, armor: 0, hasHelmet: false, ground: true, team, name,
     weapon: 'pistol', fireCd: 0, ammo: {},
     dead: false, face: Math.random() * Math.PI * 2, pitch: 0, money: MONEY_START,
     state: 'patrol', patrolIdx: Math.floor(Math.random() * 3), hearPos: null, hearTime: 0,
@@ -710,7 +742,9 @@ function createBot(team, x, z, name) {
 let state = 'buy', buyTimer = 15;
 let bombPlanted = false, bombDefused = false, bombPos = null, bombTimer = BOMB_TIME;
 let planting = null, defusing = null;
-let scoreT = 0, scoreCT = 0, winner = null;
+let scoreT = 0, scoreCT = 0, winner = null, round = 0;
+let halfSwapped = false;
+const MAX_ROUNDS = 12;
 let deathFeed = [];
 let canBuy = true;
 
@@ -898,16 +932,25 @@ function fireWeapon(shooter, isBot) {
     if (hit.head) dmg = Math.round(dmg * 4);
 
     if (hit.bot && !isBot) {
-      if (damageBot(hit.bot, dmg)) { if (hit.head) { player.money += HS_BONUS; showHitmark(true); } }
+      if (damageBot(hit.bot, dmg, false, hit.head)) { if (hit.head) { player.money += HS_BONUS; showHitmark(true); } }
       else showHitmark(false);
     } else if (hit.player && isBot) {
-      damagePlayer(dmg);
+      damagePlayer(dmg, false, hit.head);
     }
-    // 命中特效：火花 + 弹孔
+    // 命中特效：火花 + 弹孔 + 血迹贴花
     if (hit.world || hit.bot || hit.player) {
       const hy = shooter.y + 0.3;
       spawnHitSparks(hit.pos.x, hy, hit.pos.z);
       if (hit.world) spawnBulletHole(hit.pos.x, hy, hit.pos.z, dx, dz);
+      if ((hit.bot || hit.player) && bloodSplatters.length < BLOOD_MAX) {
+        const bGeo = new THREE.CircleGeometry(0.12+Math.random()*0.22, 8);
+        const bMat = new THREE.MeshBasicMaterial({ color: '#8B0000', transparent: true, opacity: 0.7, depthWrite: false });
+        const blood = new THREE.Mesh(bGeo, bMat);
+        blood.position.copy(hit.pos);
+        blood.lookAt(hit.pos.x + dx, hit.pos.y, hit.pos.z + dz);
+        blood.userData = { life: 3 + Math.random()*2 };
+        scene.add(blood); bloodSplatters.push(blood);
+      }
     }
   }
 
@@ -960,7 +1003,8 @@ function reloadFinish() {
 // ==================================================================
 // 模块 15: 伤害与击杀
 // ==================================================================
-function damagePlayer(dmg, noArmor) {
+function damagePlayer(dmg, noArmor, hs) {
+  if (hs && dmg > 30) { dmg = player.hasHelmet ? dmg * 2.5 : dmg * 4; player.hasHelmet = false; }
   if (!noArmor && player.armor > 0) { const ad = Math.round(dmg * 0.5); player.armor = Math.max(0, player.armor - ad); player.hp -= dmg - ad; }
   else player.hp -= dmg;
   showDmgDir();
@@ -968,12 +1012,16 @@ function damagePlayer(dmg, noArmor) {
   updateHUD();
 }
 
-function damageBot(bot, dmg, noArmor) {
+function damageBot(bot, dmg, noArmor, hs) {
+  if (hs && dmg > 30) { dmg = bot.hasHelmet ? dmg * 2.5 : dmg * 4; bot.hasHelmet = false; }
   if (!noArmor && bot.armor > 0) { const ad = Math.round(dmg * 0.5); bot.armor = Math.max(0, bot.armor - ad); bot.hp -= dmg - ad; }
   else bot.hp -= dmg;
   bot.lastAttacker = 'player'; if (bot.hp <= 0) { bot.hp = 0; killBot(bot); return true; }
   return false;
 }
+
+let deathCam = null;
+let spectateIdx = 0;
 
 function killPlayer() {
   player.hp = 0; player.dead = true; player.deaths++;
@@ -983,6 +1031,9 @@ function killPlayer() {
   if (player === planting) planting = null;
   if (player === defusing) defusing = null;
   if (curWpnModel) curWpnModel.visible = false;
+  // 死亡镜头：2秒慢镜回放
+  deathCam = { pos: { x: player.x, y: player.y + 1.6, z: player.z }, target: { x: player.lastAttackerPos?.x || player.x, y: player.lastAttackerPos?.y || 1.4, z: player.lastAttackerPos?.z || player.z }, startTime: performance.now() / 1000, duration: 2 };
+  spectateIdx = 0;
 }
 
 function killBot(bot) {
@@ -1140,11 +1191,14 @@ function botShoot(bot, tx, ty, tz, dist) {
   const w = WEAPONS[bot.weapon];
   if (!bot.ammo[bot.weapon] || bot.ammo[bot.weapon] <= 0) return;
   bot.ammo[bot.weapon]--; bot.fireCd = w.fireRate;
-  const spread = (Math.random() - 0.5) * (dist * 0.0006 + 0.015);
+  const diff = BOT_DIFF_PARAMS[BOT_DIFFICULTY] || BOT_DIFF_PARAMS.normal;
+  const spread = (Math.random() - 0.5) * (dist * 0.0006 + 0.015) * diff.spreadMul;
   const dx = Math.sin(bot.face + spread), dz = Math.cos(bot.face + spread);
   const hit = rayCast(bot.x, bot.y + 0.3, bot.z, dx, 0, dz, 100, null, 0);
-  if (hit.player) { damagePlayer(Math.round(w.dmg * 0.65)); }
-  else if (hit.bot && hit.bot.team !== bot.team) { damageBot(hit.bot, Math.round(w.dmg * 0.7)); hit.bot.lastAttacker = bot.name; }
+  const aimHead = Math.random() < diff.hsChance;
+  const dmgMul = diff.damageMul;
+  if (hit.player) { damagePlayer(Math.round(w.dmg * 0.65 * dmgMul), false, aimHead); }
+  else if (hit.bot && hit.bot.team !== bot.team) { damageBot(hit.bot, Math.round(w.dmg * 0.7 * dmgMul), false, aimHead); hit.bot.lastAttacker = bot.name; }
   shotSnd(bot.weapon);
 }
 
@@ -1209,7 +1263,7 @@ function updateBombUI() {
 function startBuy() {
   state = 'buy'; buyTimer = 15;
   player.x = 0; player.z = player.team === 'T' ? MAP_H / 2 - 16 : -MAP_H / 2 + 16;
-  player.y = 1.75; player.yS = 0; player.hp = 100; player.armor = 0;
+  player.y = 1.75; player.yS = 0; player.hp = 100; player.armor = 0; player.hasHelmet = false;
   player.dead = false; player.fireCd = 0; player.recIdx = 0; player.spread = 0; player.reloadT = 0;
   player.weapon = 'pistol'; player.weapons = ['pistol', 'knife'];
   player.nades = { he: 0, flash: 0, smoke: 0 };
@@ -1289,7 +1343,24 @@ function endRound() {
   m.textContent = (winner === 'T' ? '💥 C4 已爆炸' : winner === 'CT' ? '🛡 C4 已拆除' : winner === 'elim' ? '⚔ 全部消灭' : '') + ' · T ' + scoreT + ':' + scoreCT + ' CT';
   document.getElementById('endstats').textContent = '击杀: ' + player.kills + ' | 死亡: ' + player.deaths + ' | $' + player.money;
   el.style.display = 'flex'; document.getElementById('bombhud').style.display = 'none';
-  document.getElementById('endbtn').onclick = () => { el.style.display = 'none'; startBuy(); };
+  round++;
+  document.getElementById('endbtn').onclick = () => {
+    el.style.display = 'none';
+    // MR12 半场换边判定
+    if (round >= MAX_ROUNDS && !halfSwapped) {
+      halfSwapped = true;
+      [scoreT, scoreCT] = [scoreCT, scoreT];
+      bots.forEach(b => b.team = b.team === 'T' ? 'CT' : 'T');
+      player.team = player.team === 'T' ? 'CT' : 'T';
+    }
+    if (scoreT >= 13 || scoreCT >= 13) {
+      document.getElementById('endtitle').textContent = '🏆 比赛结束！';
+      document.getElementById('endmsg').textContent = (scoreT > scoreCT ? 'T方' : 'CT方') + '获胜 ' + scoreT + ':' + scoreCT;
+      setTimeout(() => { scoreT = 0; scoreCT = 0; round = 0; halfSwapped = false; startBuy(); }, 4000);
+      return;
+    }
+    startBuy();
+  };
 }
 
 function checkEnd() {
@@ -1545,6 +1616,13 @@ function update(dt) {
   updateSmokes(dt);  // 烟雾粒子更新
   updateHitSparks(dt);  // 命中火花
   updateBulletHoles(dt);  // 弹孔衰减
+  // 血迹过期衰减
+  for (let i = bloodSplatters.length - 1; i >= 0; i--) {
+    const b = bloodSplatters[i];
+    b.userData.life -= dt;
+    b.material.opacity = Math.max(0, b.userData.life / 5);
+    if (b.userData.life <= 0) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); bloodSplatters.splice(i, 1); }
+  }
   if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - dt * 12);  // 震屏衰减
   updateHUD();
   checkEnd();
