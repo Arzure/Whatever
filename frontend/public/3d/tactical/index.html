@@ -770,7 +770,7 @@ function damagePlayer(dmg, noArmor) {
 function damageBot(bot, dmg, noArmor) {
   if (!noArmor && bot.armor > 0) { const ad = Math.round(dmg * 0.5); bot.armor = Math.max(0, bot.armor - ad); bot.hp -= dmg - ad; }
   else bot.hp -= dmg;
-  if (bot.hp <= 0) { bot.hp = 0; killBot(bot); return true; }
+  bot.lastAttacker = 'player'; if (bot.hp <= 0) { bot.hp = 0; killBot(bot); return true; }
   return false;
 }
 
@@ -789,7 +789,7 @@ function killBot(bot) {
     player.kills++; player.money += KILL_R;
   } else {
     // Bot击杀Bot也记分
-    for (const b of bots) { if (b !== bot && b.lastAttacker === bot.name) { b.kills++; break; } }
+    for (const b of bots) { if (b !== bot && b.name === bot.lastAttacker) { b.kills++; break; } }
   }
   addKillFeed(bot.lastAttacker || '某人', bot.name, false);
   if (bot === planting) { planting = null; bot.bomb = true; }
@@ -1011,7 +1011,7 @@ function startBuy() {
   bombPlanted = false; bombDefused = false; bombPos = null; bombTimer = BOMB_TIME;
   planting = null; defusing = null; winner = null; deathFeed = [];
   grenades.length = 0;
-  smokes.length = 0; // 清除所有烟雾
+  for (const sm of smokes) { for (const p of sm.particles) { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mat.dispose(); } } smokes.length = 0; // 烟雾粒子销毁
   if (player.losses > 0) player.money += Math.min(LOSE_BASE + (player.losses - 1) * 500, 3400);
   player.money = Math.max(player.money, MONEY_START);
   resetBots();
@@ -1054,6 +1054,7 @@ function endRound() {
   let pw = 'bot';
   if (winner === 'T') pw = player.team === 'T' ? 'player' : 'bot';
   else if (winner === 'CT') pw = player.team === 'CT' ? 'player' : 'bot';
+  else if (winner === 'elim') { const atd = (player.team === 'T' ? player.dead : true) && bots.filter(b => b.team === 'T').every(b => b.dead); pw = atd ? (player.team === 'CT' ? 'player' : 'bot') : (player.team === 'T' ? 'player' : 'bot'); }
   else if (winner === 'player') pw = 'player';
 
   if (pw === 'player') {
@@ -1077,8 +1078,8 @@ function endRound() {
 
 function checkEnd() {
   if (winner) return;
-  const allTdead = (player.team === 'T' ? player.dead : false) && bots.filter(b => b.team === 'T').every(b => b.dead) && (player.team === 'T' ? player.dead : true);
-  const allCTdead = (player.team === 'CT' ? player.dead : false) && bots.filter(b => b.team === 'CT').every(b => b.dead) && (player.team === 'CT' ? player.dead : true);
+  const allTdead = (player.team === 'T' ? player.dead : true) && bots.filter(b => b.team === 'T').every(b => b.dead);
+  const allCTdead = (player.team === 'CT' ? player.dead : true) && bots.filter(b => b.team === 'CT').every(b => b.dead);
   if (allTdead || allCTdead) { winner = 'elim'; endRound(); }
 }
 
@@ -1232,7 +1233,7 @@ function updateScoreboard() {
 const keys = {};
 let mx = 0, my = 0, locked = false;
 
-renderer.domElement.addEventListener('click', () => { if (state !== 'end') renderer.domElement.requestPointerLock(); });
+renderer.domElement.addEventListener('click', () => { if (AC && AC.state === 'suspended') AC.resume(); if (state !== 'end') renderer.domElement.requestPointerLock(); });
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === renderer.domElement; });
 document.addEventListener('mousemove', e => { if (locked) { mx += e.movementX; my += e.movementY; } });
 document.addEventListener('keydown', e => {
