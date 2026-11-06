@@ -939,6 +939,7 @@ function fireWeapon(shooter, isBot) {
   const idx = shooter.recIdx++;
   const ry = w.recoilY[Math.min(idx, w.recoilY.length - 1)] || w.recoilY[w.recoilY.length - 1];
   const rh = w.recoilH[Math.min(idx, w.recoilH.length - 1)] || 0;
+  shooter.sprayCount = (shooter.sprayCount || 0) + 1;
 
   // 扩散计算
   let spread = w.spreadB;
@@ -986,6 +987,9 @@ function fireWeapon(shooter, isBot) {
 
   if (!isBot) {
     player.wpnKick = 0.06;
+    // spray pattern: 连发累计相机抖动
+    const sc = player.sprayCount || 0;
+    if (sc > 3) { camera.rotation.x += sc * 0.0008; camera.rotation.y += Math.sin(sc * 0.7) * 0.0012; }
     muzzleFlash.intensity = 3;
     muzzleGlowMat.opacity = 0.7 + Math.random() * 0.3;
     muzzleFlashLife = 0.08;
@@ -1371,7 +1375,490 @@ function endRound() {
   t.textContent = pw === 'player' ? '🎯 回合胜利！' : '💀 回合失败';
   t.className = 'winner ' + (pw === 'player' ? 'win' : 'lose');
   m.textContent = (winner === 'T' ? '💥 C4 已爆炸' : winner === 'CT' ? '🛡 C4 已拆除' : winner === 'elim' ? '⚔ 全部消灭' : '') + ' · T ' + scoreT + ':' + scoreCT + ' CT';
-  document.getElementById('endstats').textContent = '击杀: ' + player.kills + ' | 死亡: ' + player.deaths + ' | $' + player.money;
+  let botLine = '';
+  for (const b of bots) { if (b.kills > 0 || b.deaths > 0) botLine += b.name.split('(')[0] + ' ' + b.kills + '/' + b.deaths + ' | '; }
+  document.getElementById('endstats').innerHTML = '击杀: <b>' + player.kills + '</b> | 死亡: <b>' + player.deaths + '</b> | K/D: <b>' + (player.deaths > 0 ? (player.kills / player.deaths).toFixed(2) : player.kills) + '</b> | 
+  el.style.display = 'flex'; document.getElementById('bombhud').style.display = 'none';
+  round++;
+  document.getElementById('endbtn').onclick = () => {
+    el.style.display = 'none';
+    // MR12 半场换边判定
+    if (round >= MAX_ROUNDS && !halfSwapped) {
+      halfSwapped = true;
+      [scoreT, scoreCT] = [scoreCT, scoreT];
+      bots.forEach(b => b.team = b.team === 'T' ? 'CT' : 'T');
+      player.team = player.team === 'T' ? 'CT' : 'T';
+    }
+    if (scoreT >= 13 || scoreCT >= 13) {
+      document.getElementById('endtitle').textContent = '🏆 比赛结束！';
+      document.getElementById('endmsg').textContent = (scoreT > scoreCT ? 'T方' : 'CT方') + '获胜 ' + scoreT + ':' + scoreCT;
+      setTimeout(() => { scoreT = 0; scoreCT = 0; round = 0; halfSwapped = false; startBuy(); }, 4000);
+      return;
+    }
+    startBuy();
+  };
+}
+
+function checkEnd() {
+  if (winner) return;
+  const allTdead = (player.team === 'T' ? player.dead : true) && bots.filter(b => b.team === 'T').every(b => b.dead);
+  const allCTdead = (player.team === 'CT' ? player.dead : true) && bots.filter(b => b.team === 'CT').every(b => b.dead);
+  if (allTdead || allCTdead) { winner = 'elim'; endRound(); }
+}
+
+// ==================================================================
+// 模块 19: HUD 更新
+// ==================================================================
+function updateHUD() {
+  document.getElementById('hp').textContent = '❤ ' + Math.max(0, player.hp);
+  document.getElementById('armor').textContent = '🛡 ' + Math.max(0, player.armor);
+  const w = WEAPONS[player.weapon], mag = player.ammo[player.weapon] || 0;
+  document.getElementById('ammo').textContent = '⚡ ' + (player.weapon === 'knife' ? '∞' : (mag + '/' + player.reserve)) + (player.weapon !== 'knife' ? '  ' + w.name : '');
+  document.getElementById('money').textContent = '$' + player.money;
+  document.getElementById('score').textContent = 'T ' + scoreT + ':' + scoreCT + ' CT';
+  const info = document.getElementById('info');
+  if (state === 'buy') {
+    const dz = player.team === 'T' ? Math.hypot(player.x - NAV.Tspawn.x, player.z - NAV.Tspawn.z) : Math.hypot(player.x - NAV.CTspawn.x, player.z - NAV.CTspawn.z);
+    info.textContent = '🛒 购买阶段 ' + Math.ceil(buyTimer) + 's' + (!canBuy || dz > BUY_ZONE ? ' - 回到购买区' : ' - 按 B 购买');
+  } else if (state === 'playing') {
+    if (player.plantT > 0) info.textContent = '💣 安放 C4... ' + player.plantT.toFixed(1) + 's';
+    else if (player.defuseT > 0) info.textContent = '🔧 拆除 C4... ' + player.defuseT.toFixed(1) + 's';
+    else info.textContent = '';
+  }
+  updateWeaponSlots();
+}
+
+function updateWeaponSlots() {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('ws' + i);
+    el.classList.remove('active');
+    if (i <= 3) {
+      const w = player.weapons[i - 1];
+      if (w) { el.textContent = i + ' ' + WEAPONS[w].name; if (w === player.weapon) el.classList.add('active'); }
+      else el.textContent = i + ' 空';
+    } else {
+      const totalNades = player.nades.he + player.nades.flash + player.nades.smoke;
+      el.textContent = '4 投掷×' + totalNades;
+      const nadeMap = { hegrenade: 'he', flashbang: 'flash', smoke: 'smoke' };
+      if (nadeMap[player.weapon] && player.nades[nadeMap[player.weapon]] > 0) el.classList.add('active');
+    }
+  }
+}
+
+function updateBuyMenu() {
+  document.querySelectorAll('#buymenu .row').forEach(r => {
+    const item = r.dataset.item; if (!item) return;
+    const w = WEAPONS[item];
+    const dz = player.team === 'T' ? Math.hypot(player.x - NAV.Tspawn.x, player.z - NAV.Tspawn.z) : Math.hypot(player.x - NAV.CTspawn.x, player.z - NAV.CTspawn.z);
+    if (dz > BUY_ZONE) { r.classList.add('locked'); return; }
+    r.classList.remove('locked');
+    if (item === 'armor') { r.classList.toggle('owned', player.armor > 0); }
+    else if (item === 'defuser') { r.classList.toggle('owned', player.team !== 'CT' || player.defuser); }
+    else if (item === 'hegrenade') { r.classList.toggle('owned', player.nades.he >= 3); }
+    else if (item === 'flashbang') { r.classList.toggle('owned', player.nades.flash >= 3); }
+    else if (item === 'smoke') { r.classList.toggle('owned', player.nades.smoke >= 2); }
+    else { r.classList.toggle('owned', player.weapons.includes(item)); }
+    if (player.money < w.cost || !canBuy) r.classList.add('locked');
+  });
+}
+
+function buyItem(key) {
+  if (state !== 'buy') return;
+  const dz = player.team === 'T' ? Math.hypot(player.x - NAV.Tspawn.x, player.z - NAV.Tspawn.z) : Math.hypot(player.x - NAV.CTspawn.x, player.z - NAV.CTspawn.z);
+  if (dz > BUY_ZONE) return;
+  const items = ['rifle', 'sniper', 'smg', 'deagle', 'armor', 'defuser', 'hegrenade', 'flashbang', 'smoke'];
+  const item = items[key - 1];
+  if (!item) return; const w = WEAPONS[item]; if (!w || player.money < w.cost) return;
+
+  if (item === 'armor') { if (player.armor > 0) return; player.armor = 100; player.money -= w.cost; snd(600, 0.1, 0.15); }
+  else if (item === 'defuser') { if (player.team !== 'CT' || player.defuser) return; player.defuser = true; player.money -= w.cost; snd(600, 0.1, 0.15); }
+  else if (item === 'hegrenade') { if (player.nades.he >= 3) return; player.nades.he++; player.money -= w.cost; snd(700, 0.1, 0.15); }
+  else if (item === 'flashbang') { if (player.nades.flash >= 3) return; player.nades.flash++; player.money -= w.cost; snd(700, 0.1, 0.15); }
+  else if (item === 'smoke') { if (player.nades.smoke >= 2) return; player.nades.smoke++; player.money -= w.cost; snd(700, 0.1, 0.15); }
+  else {
+    if (player.weapons.includes(item)) return;
+    player.weapons.push(item);
+    if (player.weapons.length > 3) player.weapons.shift();
+    player.money -= w.cost;
+    player.weapon = item;
+    player.ammo[item] = w.mag;
+    player.reserve = w.reserve;
+    snd(800, 0.1, 0.15);
+  }
+  updateBuyMenu(); updateHUD();
+  switchWeaponModel(item);
+}
+
+function toggleBuy() {
+  if (state !== 'buy') return;
+  const m = document.getElementById('buymenu');
+  m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+  updateBuyMenu();
+}
+
+// ==================================================================
+// 模块 20: 小地图
+// ==================================================================
+function drawMinimap() {
+  const c = document.getElementById('minimap'), ctx = c.getContext('2d');
+  const w = c.width, h = c.height, sx = w / MAP_W, sz = h / MAP_H;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, w, h);
+  // 墙壁
+  ctx.fillStyle = 'rgba(100,90,70,0.6)';
+  for (const wl of walls) ctx.fillRect((wl.x + MAP_W / 2) * sx, (wl.z + MAP_H / 2) * sz, wl.w * sx, wl.h * sz);
+  ctx.fillStyle = 'rgba(130,120,100,0.4)';
+  for (const tw of thinWalls) ctx.fillRect((tw.x + MAP_W / 2) * sx, (tw.z + MAP_H / 2) * sz, tw.w * sx, tw.h * sz);
+  ctx.fillStyle = 'rgba(180,140,90,0.5)';
+  for (const cr of crates) ctx.fillRect((cr.x + MAP_W / 2) * sx, (cr.z + MAP_H / 2) * sz, cr.w * sx, cr.h * sz);
+  // 烟雾标记
+  for (const sm of smokes) {
+    if (sm.life <= 0) continue;
+    ctx.fillStyle = 'rgba(180,180,180,' + (0.3 * sm.life / sm.maxLife) + ')';
+    ctx.beginPath(); ctx.arc((sm.x + MAP_W / 2) * sx, (sm.z + MAP_H / 2) * sz, sm.maxRadius * sx, 0, Math.PI * 2); ctx.fill();
+  }
+  // 炸弹
+  if (bombPlanted && bombPos) {
+    ctx.fillStyle = '#ef4444'; ctx.beginPath();
+    ctx.arc((bombPos.x + MAP_W / 2) * sx, (bombPos.z + MAP_H / 2) * sz, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  // Bot
+  for (const b of bots) {
+    if (b.dead) continue;
+    ctx.fillStyle = b.team === player.team ? '#4ade80' : '#ef4444';
+    ctx.beginPath(); ctx.arc((b.x + MAP_W / 2) * sx, (b.z + MAP_H / 2) * sz, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  // 玩家
+  if (!player.dead) {
+    ctx.fillStyle = '#fde047'; ctx.beginPath();
+    ctx.arc((player.x + MAP_W / 2) * sx, (player.z + MAP_H / 2) * sz, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+  }
+}
+
+// ==================================================================
+// 模块 21: 计分板
+// ==================================================================
+function updateScoreboard() {
+  document.getElementById('sbscore').textContent = 'T ' + scoreT + ' : ' + scoreCT + ' CT';
+  const sT = document.getElementById('sbT'), sCT = document.getElementById('sbCT');
+  let htmlT = '<div class="row' + (player.team === 'T' ? ' me' : '') + '"><span class="n">⭐ 你</span><span class="k">' + player.kills + '</span><span class="d">' + player.deaths + '</span><span class="m">$' + player.money + '</span></div>';
+  let htmlCT = '<div class="row' + (player.team === 'CT' ? ' me' : '') + '"><span class="n">⭐ 你</span><span class="k">' + player.kills + '</span><span class="d">' + player.deaths + '</span><span class="m">$' + player.money + '</span></div>';
+  for (const b of bots) {
+    const row = '<div class="row"><span class="n">' + b.name + '</span><span class="k">' + b.kills + '</span><span class="d">' + b.deaths + '</span><span class="m">$' + b.money + '</span></div>';
+    if (b.team === 'T') htmlT += row; else htmlCT += row;
+  }
+  sT.innerHTML = htmlT; sCT.innerHTML = htmlCT;
+}
+
+// ==================================================================
+// 模块 22: 输入处理
+// ==================================================================
+const keys = {};
+let mx = 0, my = 0, locked = false;
+
+renderer.domElement.addEventListener('click', () => { if (AC && AC.state === 'suspended') AC.resume(); if (state !== 'end') renderer.domElement.requestPointerLock(); });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === renderer.domElement; });
+document.addEventListener('mousemove', e => { if (locked) { mx += e.movementX; my += e.movementY; } });
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'b' && state === 'buy') toggleBuy();
+  if (e.key.toLowerCase() === 'e') handleUse();
+  if (e.key.toLowerCase() === 'tab') { e.preventDefault(); document.getElementById('scoreboard').style.display = 'flex'; updateScoreboard(); }
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= 9 && document.getElementById('buymenu').style.display === 'flex') buyItem(n);
+  if (e.key.toLowerCase() === 'g' && state === 'playing' && !player.dead) {
+    if (player.nades.he > 0) throwNade('he');
+    else if (player.nades.flash > 0) throwNade('flash');
+    else if (player.nades.smoke > 0) throwNade('smoke');
+  }
+  // 观战模式：死亡后按 V 循环切换观战目标（队友 Bot）
+  if (e.key.toLowerCase() === 'v' && player.dead && state === 'playing') {
+    const aliveBots = bots.filter(b => b.team === player.team && !b.dead);
+    if (aliveBots.length > 0) {
+      spectateIdx = (spectateIdx + 1) % aliveBots.length;
+    }
+  }
+});
+document.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+  if (e.key.toLowerCase() === 'tab') document.getElementById('scoreboard').style.display = 'none';
+});
+document.addEventListener('wheel', e => {
+  if (!locked) return;
+  const idx = player.weapons.indexOf(player.weapon);
+  if (e.deltaY > 0) { const nxt = (idx + 1) % player.weapons.length; switchWeapon(player.weapons[nxt]); }
+  else { const prv = (idx - 1 + player.weapons.length) % player.weapons.length; switchWeapon(player.weapons[prv]); }
+});
+
+function switchWeapon(wid) {
+  if (!player.weapons.includes(wid)) return;
+  player.weapon = wid; player.recIdx = 0; player.spread = 0; player.reloadT = 0;
+  player.wpnSwitch = 0.15; player.wpnSwitchTo = wid;
+  switchWeaponModel(wid);
+  updateHUD();
+}
+
+function switchWeaponModel(wid) {
+  for (const k of Object.keys(wpnModels)) wpnModels[k].visible = false;
+  curWpnModel = wpnModels[wid]; if (curWpnModel) curWpnModel.visible = true;
+}
+
+function handleUse() {
+  if (player.dead) return;
+  // CT拆除C4
+  if (bombPlanted && player.team === 'CT' && !bombDefused) {
+    const d = Math.hypot(player.x - bombPos.x, player.z - bombPos.z);
+    if (d < 3 && !defusing) { defusing = player; player.defuseT = player.defuser ? DEFUSE_KIT : DEFUSE_NORM; }
+  }
+  // T捡起掉落的C4
+  if (bombPos && !bombPlanted && player.team === 'T' && !player.bomb) {
+    const d = Math.hypot(player.x - bombPos.x, player.z - bombPos.z);
+    if (d < 2.5) { player.bomb = true; bombPos = null; snd(600, 0.15, 0.15); }
+  }
+  // T安放C4
+  if (!bombPlanted && player.team === 'T' && player.bomb) {
+    const dA = Math.hypot(player.x - NAV.A.x, player.z - NAV.A.z), dB = Math.hypot(player.x - NAV.B.x, player.z - NAV.B.z);
+    if ((dA < 4.5 || dB < 4.5) && !planting) { planting = player; player.plantT = 3; }
+  }
+}
+
+// ==================================================================
+// 模块 23: 主游戏循环
+// ==================================================================
+let lastT = performance.now();
+
+function update(dt) {
+  if (state === 'end') return;
+  if (state === 'buy') {
+    buyTimer -= dt;
+    if (buyTimer <= 0) startRound();
+    updatePlayerMove(dt);
+    updateHUD();
+    return;
+  }
+  if (bombPlanted && !bombDefused) {
+    bombTimer -= dt;
+    if (bombTimer <= 0) { winner = 'T'; endRound(); return; }
+    updateBombUI();
+  }
+  // 更新Bot 3D模型位置
+  for (const b of bots) {
+    const m = botMeshes.get(b);
+    if (m && !b.dead) { m.position.set(b.x, 0, b.z); m.rotation.y = b.face; m.visible = true; }
+    else if (m && b.dead) { m.visible = false; }
+  }
+  // 更新C4炸弹模型
+  if (bombPlanted && bombModel && bombPos) {
+    bombModel.position.set(bombPos.x, 0.25, bombPos.z); bombModel.visible = true;
+    const lgt = bombModel.getObjectByName('bombLight');
+    if (lgt) lgt.material.color.setHex(Math.sin(Date.now() * 0.02) > 0 ? 0xff0000 : 0x440000);
+  }
+  if (!player.dead) updatePlayer(dt);
+  updateBots(dt);
+  updateGrenades(dt);
+  updateSmokes(dt);  // 烟雾粒子更新
+  updateHitSparks(dt);  // 命中火花
+  updateBulletHoles(dt);  // 弹孔衰减
+  // 血迹过期衰减
+  for (let i = bloodSplatters.length - 1; i >= 0; i--) {
+    const b = bloodSplatters[i];
+    b.userData.life -= dt;
+    b.material.opacity = Math.max(0, b.userData.life / 5);
+    if (b.userData.life <= 0) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); bloodSplatters.splice(i, 1); }
+  }
+  if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - dt * 12);  // 震屏衰减
+  updateHUD();
+  checkEnd();
+  drawMinimap();
+  updateVignette();
+}
+
+function updatePlayer(dt) {
+  updatePlayerMove(dt);
+  // 死亡倒地动画
+  if (player.dead) {
+    player.deathTilt += dt * 2.5;
+    player.deathFall += dt * 1.8;
+    const tilt = Math.min(player.deathTilt, Math.PI / 2);
+    const fallY = Math.max(0, player.y - player.deathFall);
+    camera.position.set(player.x, fallY + 0.35, player.z);
+    camera.rotation.set(-tilt, player.face - Math.PI, 0, 'YXZ');
+    return;
+  }
+  if (player.hp <= 0) { player.dead = true; return; }
+  if (player.flashBlind > 0) player.flashBlind -= dt;
+  if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) reloadFinish(); return; }
+  if (player.plantT > 0) { player.plantT -= dt; if (player.plantT <= 0) plantBomb(); return; }
+  if (player.defuseT > 0) { player.defuseT -= dt; if (player.defuseT <= 0) defuseBomb(); return; }
+  if (player.wpnSwitch > 0) player.wpnSwitch -= dt;
+
+  // 视角
+  player.face -= mx * 0.0022;
+  player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - my * 0.0022));
+  mx = 0; my = 0;
+  player.fireCd -= dt;
+
+  // 射击
+  if (keys['f'] && player.fireCd <= 0 && player.reloadT <= 0 && !player.plantT && !player.defuseT && player.wpnSwitch <= 0) {
+    if (player.weapon === 'knife') fireWeapon(player, false);
+    else if ((player.ammo[player.weapon] || 0) > 0) fireWeapon(player, false);
+  }
+  // 换弹
+  if (keys['r'] && player.reloadT <= 0 && player.weapon !== 'knife') {
+    const w = WEAPONS[player.weapon];
+    if ((player.ammo[player.weapon] || 0) < w.mag && player.reserve > 0) reloadStart();
+  }
+  // 武器切换
+  if (keys['1'] && player.weapons[0]) switchWeapon(player.weapons[0]);
+  if (keys['2'] && player.weapons[1]) switchWeapon(player.weapons[1]);
+  if (keys['3'] && player.weapons[2]) switchWeapon(player.weapons[2]);
+  player.aim = keys['q'] && player.weapon === 'sniper';
+
+  // 武器动画
+  updateWpnAnim(dt);
+
+  // 摄像机
+  const eyeH = player.crouch ? 0.9 : 1.75;
+  camera.position.set(player.x, player.y + eyeH - 0.05, player.z);
+  camera.lookAt(player.x + Math.sin(player.face) * 10, player.y + eyeH + Math.tan(player.pitch) * 10, player.z + Math.cos(player.face) * 10);
+}
+
+function updatePlayerMove(dt) {
+  let spd = 5, mx_ = 0, mz_ = 0;
+  if (player.crouch) spd = 2.2;
+  if (player.walk) spd *= 0.45;
+  if (!player.ground) spd *= 0.7;
+  if (state === 'buy') spd *= 1.2;
+
+  if (keys['w']) { mx_ -= Math.sin(player.face) * spd; mz_ -= Math.cos(player.face) * spd; }
+  if (keys['s']) { mx_ += Math.sin(player.face) * spd; mz_ += Math.cos(player.face) * spd; }
+  if (keys['a']) { mx_ -= Math.cos(player.face) * spd; mz_ += Math.sin(player.face) * spd; }
+  if (keys['d']) { mx_ += Math.cos(player.face) * spd; mz_ -= Math.sin(player.face) * spd; }
+  player.moving = Math.abs(mx_) + Math.abs(mz_) > 0.1;
+  player.crouch = keys['control'] || keys['ctrl'];
+  player.walk = keys['shift'];
+
+  // 跳跃
+  if (keys[' '] && player.ground) { player.yS = 5.5; player.ground = false; snd(200, 0.05, 0.05); }
+
+  // 重力
+  player.yS -= GRAVITY * dt;
+  let nx = player.x + mx_ * dt, nz = player.z + mz_ * dt, ny = player.y + player.yS * dt;
+  if (!collides(nx, player.z, PLAYER_R)) player.x = nx;
+  if (!collides(player.x, nz, PLAYER_R)) player.z = nz;
+
+  // 落地检测
+  const wasGround = player.ground;
+  player.y = ny;
+  if (player.y <= 0.08) { player.y = 0.08; player.yS = 0; player.ground = true; }
+  if (player.y > 1.75) player.ground = false;
+  if (!wasGround && player.ground) playLand(player);  // 落地声
+
+  // 购买区域判断
+  if (state === 'buy') {
+    const dz = player.team === 'T' ? Math.hypot(player.x - NAV.Tspawn.x, player.z - NAV.Tspawn.z) : Math.hypot(player.x - NAV.CTspawn.x, player.z - NAV.CTspawn.z);
+    canBuy = dz <= BUY_ZONE;
+  }
+
+  // ---- 脚步声 ----
+  player.stepTimer += dt;
+  const si = getStepInterval(player);
+  if (player.stepTimer >= si) { player.stepTimer = 0; playFootstep(player); }
+}
+
+function updateWpnAnim(dt) {
+  // Idle摆动
+  player.wpnIdle += dt * (player.moving ? 6 : 1.5);
+  const idleX = Math.sin(player.wpnIdle * 1.3) * 0.003 + Math.sin(player.wpnIdle * 2.7) * 0.002;
+  const idleY = Math.cos(player.wpnIdle * 1.7) * 0.004 + Math.cos(player.wpnIdle * 3.1) * 0.002;
+
+  // 跑步晃动
+  let runX = 0, runY = 0;
+  if (player.moving) {
+    player.wpnBob += dt * (player.crouch ? 4 : 8);
+    runX = Math.sin(player.wpnBob) * 0.016 * (player.crouch ? 0.5 : 1);
+    runY = Math.abs(Math.cos(player.wpnBob)) * 0.01 * (player.crouch ? 0.5 : 1);
+  }
+
+  // 后坐力
+  if (player.wpnKick > 0) player.wpnKick -= (player.wpnKick + 0.01) * dt * 20;
+  const kz = -player.wpnKick * 0.3, kx = player.wpnKick * 0.08;
+
+  // 切枪动画（从右下角甩上来）
+  let swX = 0, swY = 0, swZ = 0;
+  if (player.wpnSwitch > 0) {
+    const t = 1 - Math.min(1, player.wpnSwitch / 0.15);
+    swX = (1 - t) * 0.2;
+    swY = -(1 - t) * 0.25;
+    swZ = (1 - t) * 0.15;
+  }
+
+  // 换弹动画
+  let relZ = 0, relTilt = 0;
+  if (player.reloadT > 0 && player.weapon !== 'knife') {
+    const w = WEAPONS[player.weapon];
+    const phase = 1 - player.reloadT / w.reloadT;
+    if (phase < 0.3) { relZ = -phase / 0.3 * 0.12; relTilt = -phase / 0.3 * 0.3; }
+    else if (phase < 0.6) { relZ = -0.12; relTilt = -0.3; }
+    else { relZ = -0.12 + (phase - 0.6) / 0.4 * 0.12; relTilt = -0.3 + (phase - 0.6) / 0.4 * 0.3; }
+  }
+
+  // 枪口火焰衰减
+  if (muzzleFlashLife > 0) {
+    muzzleFlashLife -= dt;
+    if (muzzleFlashLife <= 0) { muzzleGlowMat.opacity = 0; }
+    else muzzleGlowMat.opacity = Math.max(0, muzzleFlashLife / 0.08 * 0.9);
+  }
+
+  // 组合动画
+  if (curWpnModel) {
+    curWpnModel.position.set(0.12 + idleX + runX + kx + swX, -0.08 + idleY + runY + swY, -0.25 + kz + relZ + swZ);
+    curWpnModel.rotation.set(relTilt, 0, player.wpnKick * 0.8);
+  }
+}
+
+function updateVignette() {
+  const v = document.getElementById('vignette');
+  let r = 0;
+  if (player.hp < 30) r = 0.4; else if (player.hp < 50) r = 0.15;
+  if (player.flashBlind > 0) r = Math.max(r, player.flashBlind * 0.35);
+  v.style.background = 'radial-gradient(ellipse at center, transparent 40%, rgba(255,0,0,' + r + ') 100%)';
+}
+
+// ==================================================================
+// 渲染 (主场景 + 武器视图叠加)
+// ==================================================================
+function render() {
+  // 屏幕震屏
+  if (shakeMag > 0.01) {
+    const sx = (Math.random() - 0.5) * shakeMag * 0.06;
+    const sy = (Math.random() - 0.5) * shakeMag * 0.04;
+    camera.position.x += sx; camera.position.y += sy;
+  }
+  renderer.autoClear = true; renderer.render(scene, camera);
+  renderer.autoClear = false; renderer.render(wpnScene, wpnCam); renderer.autoClear = true;
+}
+
+function gameLoop(now) {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min(0.1, (now - lastT) / 1000);
+  lastT = now;
+  update(dt); render();
+}
+
+// ==================================================================
+// 启动
+// ==================================================================
+buildMap(); resetBots(); startBuy();
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+gameLoop(performance.now());
+console.log('⚔ 战术突袭 v3 · 3v3 · 烟雾弹 · 脚步声 · WASD移动 鼠标瞄准 F射击 R换弹 E交互 B购买 G投掷 Tab计分板');
+</script>
+</body>
+</html> + player.money + (botLine ? '<br><small>' + botLine + '</small>' : '');
   el.style.display = 'flex'; document.getElementById('bombhud').style.display = 'none';
   round++;
   document.getElementById('endbtn').onclick = () => {
