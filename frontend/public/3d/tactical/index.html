@@ -1318,6 +1318,7 @@ function startBuy() {
   document.getElementById('scoreboard').style.display = 'none';
   document.getElementById('killfeed').innerHTML = '';
   document.getElementById('vignette').style.background = '';
+  mapDirty = true;
   updateHUD(); updateBuyMenu();
   for (const k of Object.keys(wpnModels)) wpnModels[k].visible = false;
   curWpnModel = wpnModels['pistol']; curWpnModel.visible = true;
@@ -1373,7 +1374,8 @@ function endRound() {
   t.textContent = pw === 'player' ? '🎯 回合胜利！' : '💀 回合失败';
   t.className = 'winner ' + (pw === 'player' ? 'win' : 'lose');
   m.textContent = (winner === 'T' ? '💥 C4 已爆炸' : winner === 'CT' ? '🛡 C4 已拆除' : winner === 'elim' ? '⚔ 全部消灭' : '') + ' · T ' + scoreT + ':' + scoreCT + ' CT';
-  document.getElementById('endstats').textContent = '击杀: ' + player.kills + ' | 死亡: ' + player.deaths + ' | $' + player.money;
+  let bl='';for(const b of bots){if(b.kills+b.deaths>0)bl+=b.name+' '+b.kills+'/'+b.deaths+' | ';}
+  document.getElementById('endstats').innerHTML = '击杀: <b>'+player.kills+'</b> | 死亡: <b>'+player.deaths+'</b> | K/D: <b>'+(player.deaths>0?(player.kills/player.deaths).toFixed(2):player.kills)+'</b> | $'+player.money+(bl?'<br><small>'+bl+'</small>':'');
   el.style.display = 'flex'; document.getElementById('bombhud').style.display = 'none';
   round++;
   document.getElementById('endbtn').onclick = () => {
@@ -1495,7 +1497,10 @@ function toggleBuy() {
 // ==================================================================
 // 模块 20: 小地图
 // ==================================================================
+let mapDirty = true;
 function drawMinimap() {
+  if (!mapDirty) return;
+  mapDirty = false;
   const c = document.getElementById('minimap'), ctx = c.getContext('2d');
   const w = c.width, h = c.height, sx = w / MAP_W, sz = h / MAP_H;
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, w, h);
